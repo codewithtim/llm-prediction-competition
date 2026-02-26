@@ -243,14 +243,117 @@ The bridge between the two APIs:
 
 - Docs: https://docs.polymarket.com
 
-### API-Sports
+### API-Sports (API-Football v3)
 
-- **Fixtures**: upcoming games, schedules
-- **Team stats**: season performance, home/away splits
-- **Player stats**: per-game, season averages
-- **Historical results**: past matchups, head-to-head
-- **Standings**: league tables, rankings
-- Docs: https://api-sports.io
+**Base URL:** `https://v3.football.api-sports.io`
+**Auth:** Header `x-apisports-key: {API_SPORTS_KEY}`
+**Rate limit:** 100 requests/day (free plan), 7500/day ($19/mo plan)
+**Season access:** Free plan: 2022-2024 only. Paid plan needed for current season.
+**Docs:** https://api-sports.io/documentation/football/v3
+
+#### Endpoints we use
+
+| Endpoint | Purpose | Key Params |
+|----------|---------|------------|
+| `GET /fixtures` | Upcoming/past fixtures by league, season, date range | `league`, `season`, `from`, `to`, `status`, `date` |
+| `GET /teams/statistics` | Full season stats for a team | `league`, `season`, `team` (all required) |
+| `GET /fixtures/headtohead` | Head-to-head history between two teams | `h2h` (format: `{teamId1}-{teamId2}`) |
+| `GET /standings` | League table with rankings, form, records | `league`, `season` |
+
+**Free plan restrictions:** `next` and `last` params are paid-only. Use `from`/`to` date range instead.
+
+#### Fixture response shape
+
+```json
+{
+  "fixture": {
+    "id": 1208261,
+    "referee": "S. Hooper",
+    "timezone": "UTC",
+    "date": "2025-02-01T12:30:00+00:00",
+    "timestamp": 1738413000,
+    "venue": { "id": 566, "name": "The City Ground", "city": "Nottingham" },
+    "status": { "long": "Match Finished", "short": "FT", "elapsed": 90, "extra": 10 }
+  },
+  "league": {
+    "id": 39, "name": "Premier League", "country": "England",
+    "logo": "...", "flag": "...", "season": 2024, "round": "Regular Season - 24"
+  },
+  "teams": {
+    "home": { "id": 65, "name": "Nottingham Forest", "logo": "...", "winner": true },
+    "away": { "id": 51, "name": "Brighton", "logo": "...", "winner": false }
+  },
+  "goals": { "home": 7, "away": 0 },
+  "score": {
+    "halftime": { "home": 3, "away": 0 },
+    "fulltime": { "home": 7, "away": 0 },
+    "extratime": { "home": null, "away": null },
+    "penalty": { "home": null, "away": null }
+  }
+}
+```
+
+**Status short codes mapping to our domain FixtureStatus:**
+- `NS`, `TBD` → `"scheduled"`
+- `1H`, `HT`, `2H`, `ET`, `BT`, `P`, `LIVE` → `"in_progress"`
+- `FT`, `AET`, `PEN`, `AWD`, `WO` → `"finished"`
+- `PST`, `SUSP`, `INT` → `"postponed"`
+- `CANC`, `ABD` → `"cancelled"`
+
+#### Teams/statistics response shape
+
+```json
+{
+  "league": { "id": 39, "name": "Premier League", "country": "England", "season": 2024 },
+  "team": { "id": 33, "name": "Manchester United", "logo": "..." },
+  "form": "WLLWDLDWLDWDWLLWLLLDWLWLLDWDWLDLLDLLLW",
+  "fixtures": {
+    "played": { "home": 19, "away": 19, "total": 38 },
+    "wins":   { "home": 7,  "away": 4,  "total": 11 },
+    "draws":  { "home": 3,  "away": 6,  "total": 9 },
+    "loses":  { "home": 9,  "away": 9,  "total": 18 }
+  },
+  "goals": {
+    "for":     { "total": { "home": 23, "away": 21, "total": 44 } },
+    "against": { "total": { "home": 28, "away": 26, "total": 54 } }
+  },
+  "clean_sheet": { "home": 5, "away": 5, "total": 10 },
+  "failed_to_score": { "home": 8, "away": 7, "total": 15 }
+}
+```
+
+#### Standings response shape
+
+```json
+{
+  "rank": 1,
+  "team": { "id": 40, "name": "Liverpool", "logo": "..." },
+  "points": 84,
+  "goalsDiff": 45,
+  "form": "DLDLW",
+  "all":  { "played": 38, "win": 25, "draw": 9, "lose": 4, "goals": { "for": 86, "against": 41 } },
+  "home": { "played": 19, "win": 14, "draw": 4, "lose": 1, "goals": { "for": 42, "against": 16 } },
+  "away": { "played": 19, "win": 11, "draw": 5, "lose": 3, "goals": { "for": 44, "against": 25 } }
+}
+```
+
+#### H2H response shape
+
+Returns an array of fixtures (same structure as `GET /fixtures`). We aggregate client-side to compute total matches, home wins, away wins, draws, and extract recent matches.
+
+#### Domain type mapping
+
+| API-Sports field | Domain type | Notes |
+|-----------------|-------------|-------|
+| `fixture.id` | `Fixture.id` | |
+| `league` | `Fixture.league` | id, name, country, season |
+| `teams.home` | `Fixture.homeTeam` | id, name, logo |
+| `teams.away` | `Fixture.awayTeam` | id, name, logo |
+| `fixture.date` | `Fixture.date` | ISO string |
+| `fixture.venue.name` | `Fixture.venue` | nullable |
+| `fixture.status.short` | `Fixture.status` | mapped via status table above |
+| standings entry | `TeamStats` | played, wins, draws, losses, goals, form, home/away records |
+| h2h fixture list | `H2H` | aggregated: totalMatches, homeWins, awayWins, draws, recentMatches |
 
 ### OpenRouter
 
