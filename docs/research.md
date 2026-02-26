@@ -86,12 +86,161 @@ The API credentials (key, secret, passphrase) are **derived once** from the priv
 
 ## External APIs
 
-### Polymarket (Gamma + CLOB)
+### Polymarket (Gamma + CLOB) — Two-API Architecture
 
-- **Market discovery**: `GET /sports`, `GET /events?tag_id={id}`
-- **Odds/prices**: `GET /price`, `GET /midpoint`, `GET /book` via CLOB
-- **Bet placement**: `POST /order` via CLOB (requires wallet auth)
-- **Results**: `GET /events?closed=true` via Gamma
+Polymarket has two separate APIs that serve different purposes:
+
+| API | Base URL | Purpose | Auth |
+|-----|----------|---------|------|
+| **Gamma** | `https://gamma-api.polymarket.com` | Market discovery, event metadata, sport filtering, tag lookup | None (public) |
+| **CLOB** | `https://clob.polymarket.com` | Real-time pricing, order books, order placement/cancellation | Read-only: none. Write: wallet + API key |
+
+**Key insight:** The CLOB client SDK (`@polymarket/clob-client`) wraps the CLOB API only. For sports market discovery, we must call the Gamma API directly via HTTP — there is no SDK for it.
+
+#### Gamma API — Market Discovery
+
+**Endpoints we use:**
+
+| Endpoint | Purpose | Key Params |
+|----------|---------|------------|
+| `GET /sports` | List all supported sports with tag IDs and metadata | `?sport=epl` for specific sport |
+| `GET /events` | Fetch events (with nested markets) | `tag_id`, `active`, `closed`, `limit`, `offset`, `order`, `ascending` |
+| `GET /markets` | Fetch individual markets (no event grouping) | Same filters as events |
+
+**Sport entry shape** (from `GET /sports`):
+```json
+{
+  "id": 2,
+  "sport": "epl",
+  "image": "https://polymarket-upload.s3.us-east-2.amazonaws.com/...",
+  "resolution": "https://www.premierleague.com/",
+  "ordering": "home",
+  "tags": "1,82,306,100639,100350",
+  "series": "10188"
+}
+```
+
+There are 150+ sport entries covering football (EPL, La Liga, Serie A, Bundesliga, Ligue 1, Champions League, MLS, etc.), basketball, cricket, hockey, esports, and more.
+
+**Football tag discovery:** Each sport entry has a `tags` field (comma-separated tag IDs). To filter for football events, use tag IDs from football sport entries. Tag `82` works well for EPL football events. The full tag list for EPL is `1,82,306,100639,100350`.
+
+**Event filtering:** `GET /events?tag_id=82&active=true&closed=false&order=startDate&ascending=false`
+
+**Football match event shape** (from `GET /events`):
+```json
+{
+  "id": 218306,
+  "title": "Tottenham Hotspur FC vs. Crystal Palace FC",
+  "slug": "epl-tot-cry-2026-03-05",
+  "seriesSlug": "premier-league-2025",
+  "eventDate": "2026-03-05",
+  "startTime": "2026-03-05T20:00:00Z",
+  "score": "",
+  "elapsed": "",
+  "period": "",
+  "active": true,
+  "closed": false,
+  "tags": [{"id": 82, "label": "Soccer", "slug": "soccer"}],
+  "markets": [
+    {
+      "id": "1400768",
+      "question": "Will Tottenham Hotspur FC win on 2026-03-05?",
+      "conditionId": "0x...",
+      "clobTokenIds": "[\"token_yes\", \"token_no\"]",
+      "outcomes": "[\"Yes\", \"No\"]",
+      "outcomePrices": "[\"0.405\", \"0.595\"]",
+      "gameId": "90091280",
+      "sportsMarketType": "moneyline",
+      "acceptingOrders": true,
+      "active": true,
+      "bestBid": 0.39,
+      "bestAsk": 0.42,
+      "lastTradePrice": 0.41,
+      "volume": "12345.67"
+    }
+  ]
+}
+```
+
+**Two events per match:** Each football match typically generates two events:
+1. **Main event** (e.g., "Team A vs. Team B") — contains 3 moneyline markets (home win, away win, draw). Markets have `gameId` and `sportsMarketType: "moneyline"`.
+2. **More Markets event** (e.g., "Team A vs. Team B - More Markets") — contains spreads, totals, BTTS markets. These may not have `gameId`.
+
+**sportsMarketType values for football:**
+
+| Type | Description | Example |
+|------|-------------|---------|
+| `moneyline` | Win/Lose/Draw (3 binary YES/NO markets per match) | "Will Arsenal FC win?" |
+| `spreads` | Point spread / handicap | "Spread: Arsenal FC (-1.5)" |
+| `totals` | Over/Under goals | "Team A vs. Team B: O/U 2.5" |
+| `both_teams_to_score` | BTTS | "Team A vs. Team B: Both Teams to Score" |
+
+**Pagination:** Offset-based (`limit` + `offset` params). Default limit varies by endpoint.
+
+**Important Gamma API notes:**
+- `outcomes` and `outcomePrices` are **JSON-encoded strings**, not arrays. Must parse: `JSON.parse(market.outcomes)`.
+- `clobTokenIds` is also a JSON string: `JSON.parse(market.clobTokenIds)`.
+- `clobTokenIds[0]` corresponds to `outcomes[0]`, `clobTokenIds[1]` to `outcomes[1]`.
+- `gameId` links a market to an external sports data provider's game ID.
+- Finished matches have `score` (e.g., "4-0"), `elapsed` (e.g., "90"), `period` (e.g., "FT").
+
+#### CLOB Client SDK — Pricing & Order Books
+
+**Read-only instantiation (no auth):**
+```typescript
+import { ClobClient } from "@polymarket/clob-client";
+const client = new ClobClient("https://clob.polymarket.com", 137); // Chain.POLYGON = 137
+```
+
+No wallet, no API key — just host and chain ID. This gives access to all read-only methods.
+
+**Key read-only methods:**
+
+| Method | Input | Returns | Use Case |
+|--------|-------|---------|----------|
+| `getMarket(conditionId)` | Condition ID (hex) | Market data | Look up a specific market by its Gamma conditionId |
+| `getOrderBook(tokenId)` | Token ID (numeric string) | `OrderBookSummary` with bids/asks | Real-time order book depth |
+| `getMidpoint(tokenId)` | Token ID | Midpoint price | Quick price check |
+| `getPrice(tokenId, side)` | Token ID, "BUY"/"SELL" | Price | Best bid or ask |
+| `getSpread(tokenId)` | Token ID | Bid-ask spread | Liquidity assessment |
+| `getLastTradePrice(tokenId)` | Token ID | Last trade price | Recent activity |
+| `getPricesHistory(params)` | Market, time range, fidelity | `{t, p}[]` | Historical price data |
+| `getMarkets(next_cursor?)` | Optional cursor | Paginated markets | Browse all CLOB markets |
+
+**OrderBookSummary shape:**
+```typescript
+{
+  market: string;           // Condition ID
+  asset_id: string;         // Token ID
+  timestamp: string;
+  bids: { price: string; size: string }[];
+  asks: { price: string; size: string }[];
+  min_order_size: string;
+  tick_size: string;        // "0.01" for most markets
+  neg_risk: boolean;
+  last_trade_price: string;
+  hash: string;
+}
+```
+
+**Pagination:** Cursor-based. Initial cursor: `"MA=="` (base64 for 0). End cursor: `"LTE=="`. Response includes `next_cursor`.
+
+**Batch methods:** `getOrderBooks()`, `getMidpoints()`, `getPrices()`, `getSpreads()` accept arrays of `{token_id, side}` for batch lookups.
+
+#### Mapping Between Gamma and CLOB
+
+The bridge between the two APIs:
+- Gamma market `conditionId` → CLOB `getMarket(conditionId)`
+- Gamma market `clobTokenIds[0]` → CLOB `getOrderBook(tokenId)` for the first outcome
+- Gamma market `clobTokenIds[1]` → CLOB `getOrderBook(tokenId)` for the second outcome
+
+**Workflow for Feature 3:**
+1. `GET /sports` → discover football leagues → extract tag IDs
+2. `GET /events?tag_id=X&active=true&closed=false` → fetch match events with nested markets
+3. Parse JSON string fields (`outcomes`, `outcomePrices`, `clobTokenIds`)
+4. Map to domain `Market` and `Event` types
+5. Use CLOB client for real-time pricing: `getOrderBook(tokenId)`, `getMidpoint(tokenId)`
+
 - Docs: https://docs.polymarket.com
 
 ### API-Sports
