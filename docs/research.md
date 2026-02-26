@@ -224,6 +224,37 @@ docs/
 
 ---
 
+## Database Design Notes
+
+**Drizzle ORM v0.45 with SQLite/libSQL (Turso).**
+
+SQLite has limited types — everything is `text`, `integer`, `real`, or `blob`. Drizzle provides modes for richer semantics:
+
+- `integer("col", { mode: "timestamp" })` — stores seconds since epoch, returns `Date`
+- `integer("col", { mode: "boolean" })` — stores 0/1, returns `boolean`
+- `text("col", { mode: "json" })` — stores JSON string, returns parsed object
+- `text("col", { enum: ["a", "b"] })` — text with TypeScript enum constraint
+- `real("col")` — floating point (for prices, amounts)
+
+**Tables needed** (mapped from domain models):
+
+| Table | Primary Key | Key Columns | Notes |
+|-------|-------------|-------------|-------|
+| `markets` | `id` (text) | conditionId, gameId, sportsMarketType | Polymarket markets. Tuple fields (outcomes, tokenIds, outcomePrices) stored as JSON text columns |
+| `fixtures` | `id` (integer) | leagueId, homeTeamId, awayTeamId, date, status | API-Sports fixtures. League and team data denormalised (no separate tables — not worth the joins for read-heavy lookups) |
+| `competitors` | `id` (text) | name, model, enginePath, active | LLM competitors |
+| `predictions` | auto-increment integer | marketId, fixtureId, competitorId, side, confidence, stake | Engine outputs |
+| `bets` | `id` (text) | orderId, marketId, fixtureId, competitorId, side, amount, price, status | Placed Polymarket orders |
+
+**Denormalisation decisions:**
+- `fixtures` table stores league name/country/season and team names directly rather than in separate `leagues` and `teams` tables. These are reference data from API-Sports that rarely changes and is always read together with the fixture.
+- `markets` table stores outcomes/tokenIds/outcomePrices as JSON text columns since they're always read as a pair and never queried individually.
+- `PerformanceStats` is computed, not stored — derived from aggregating the `bets` table. No separate table needed.
+
+**Repository pattern:** each table gets a repository file with typed CRUD functions. Repositories take a `db` instance (dependency injection) so they're testable with an in-memory libSQL client.
+
+---
+
 ## Testing Strategy
 
 | Layer | What | How |

@@ -1,1 +1,112 @@
-// Database schema definitions — tables added in future features.
+import { integer, real, sqliteTable, text } from "drizzle-orm/sqlite-core";
+
+export const markets = sqliteTable("markets", {
+  id: text("id").primaryKey(),
+  conditionId: text("condition_id").notNull(),
+  slug: text("slug").notNull(),
+  question: text("question").notNull(),
+  outcomes: text("outcomes", { mode: "json" }).notNull().$type<[string, string]>(),
+  outcomePrices: text("outcome_prices", { mode: "json" }).notNull().$type<[string, string]>(),
+  tokenIds: text("token_ids", { mode: "json" }).notNull().$type<[string, string]>(),
+  active: integer("active", { mode: "boolean" }).notNull().default(true),
+  closed: integer("closed", { mode: "boolean" }).notNull().default(false),
+  acceptingOrders: integer("accepting_orders", { mode: "boolean" }).notNull().default(true),
+  liquidity: real("liquidity").notNull().default(0),
+  volume: real("volume").notNull().default(0),
+  gameId: text("game_id"),
+  sportsMarketType: text("sports_market_type"),
+  line: real("line"),
+  createdAt: integer("created_at", { mode: "timestamp" })
+    .notNull()
+    .$defaultFn(() => new Date()),
+  updatedAt: integer("updated_at", { mode: "timestamp" })
+    .notNull()
+    .$defaultFn(() => new Date()),
+});
+
+export const fixtures = sqliteTable("fixtures", {
+  id: integer("id").primaryKey(),
+  leagueId: integer("league_id").notNull(),
+  leagueName: text("league_name").notNull(),
+  leagueCountry: text("league_country").notNull(),
+  leagueSeason: integer("league_season").notNull(),
+  homeTeamId: integer("home_team_id").notNull(),
+  homeTeamName: text("home_team_name").notNull(),
+  homeTeamLogo: text("home_team_logo"),
+  awayTeamId: integer("away_team_id").notNull(),
+  awayTeamName: text("away_team_name").notNull(),
+  awayTeamLogo: text("away_team_logo"),
+  date: text("date").notNull(),
+  venue: text("venue"),
+  status: text("status", {
+    enum: ["scheduled", "in_progress", "finished", "postponed", "cancelled"],
+  })
+    .notNull()
+    .default("scheduled"),
+  createdAt: integer("created_at", { mode: "timestamp" })
+    .notNull()
+    .$defaultFn(() => new Date()),
+  updatedAt: integer("updated_at", { mode: "timestamp" })
+    .notNull()
+    .$defaultFn(() => new Date()),
+});
+
+export const competitors = sqliteTable("competitors", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  model: text("model").notNull(),
+  enginePath: text("engine_path").notNull(),
+  active: integer("active", { mode: "boolean" }).notNull().default(true),
+  createdAt: integer("created_at", { mode: "timestamp" })
+    .notNull()
+    .$defaultFn(() => new Date()),
+});
+
+export const predictions = sqliteTable("predictions", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  marketId: text("market_id")
+    .notNull()
+    .references(() => markets.id),
+  fixtureId: integer("fixture_id")
+    .notNull()
+    .references(() => fixtures.id),
+  competitorId: text("competitor_id")
+    .notNull()
+    .references(() => competitors.id),
+  side: text("side", { enum: ["YES", "NO"] }).notNull(),
+  confidence: real("confidence").notNull(),
+  stake: real("stake").notNull(),
+  reasoning: text("reasoning").notNull(),
+  createdAt: integer("created_at", { mode: "timestamp" })
+    .notNull()
+    .$defaultFn(() => new Date()),
+});
+
+export const bets = sqliteTable("bets", {
+  id: text("id").primaryKey(),
+  orderId: text("order_id").notNull(),
+  marketId: text("market_id")
+    .notNull()
+    .references(() => markets.id),
+  fixtureId: integer("fixture_id")
+    .notNull()
+    .references(() => fixtures.id),
+  competitorId: text("competitor_id")
+    .notNull()
+    .references(() => competitors.id),
+  tokenId: text("token_id").notNull(),
+  side: text("side", { enum: ["YES", "NO"] }).notNull(),
+  amount: real("amount").notNull(),
+  price: real("price").notNull(),
+  shares: real("shares").notNull(),
+  status: text("status", {
+    enum: ["pending", "filled", "settled_won", "settled_lost", "cancelled"],
+  })
+    .notNull()
+    .default("pending"),
+  placedAt: integer("placed_at", { mode: "timestamp" })
+    .notNull()
+    .$defaultFn(() => new Date()),
+  settledAt: integer("settled_at", { mode: "timestamp" }),
+  profit: real("profit"),
+});
