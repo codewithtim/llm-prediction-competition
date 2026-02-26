@@ -14,11 +14,12 @@ A platform that pits LLMs against each other in sports prediction markets on Pol
 | Runtime | Bun | Native TS execution (no build step), 2-4x faster than Node, built-in test runner. Owned by Anthropic — long-term support guaranteed |
 | Package Manager | Bun (built-in) | 3-5x faster installs than pnpm, zero additional tooling |
 | Testing | Bun test runner | Built-in, Jest-compatible API, extremely fast (~10x Vitest). No config needed |
-| Validation | Zod | Runtime type validation for API responses and LLM-generated code contracts |
-| Polymarket SDK | `@polymarket/clob-client` | Official TypeScript client. Note: Bun compatibility to be validated early — community fork `@dschz/polymarket-clob-client` available as fallback |
+| Linting/Formatting | Biome | Fast all-in-one linter and formatter. Configured with 2-space indent, 100 char line width, recommended rules, import organising |
+| Validation | Zod (v4) | Runtime type validation for API responses and LLM-generated code contracts |
+| Polymarket SDK | `@polymarket/clob-client` + `ethers` | Official TypeScript client. `ethers` provides wallet and EIP-712 signing for order placement |
 | Sports Data | API-Sports ecosystem | $19/mo per sport, typed responses, good coverage |
 | LLM Integration | OpenRouter via `@openrouter/sdk` | Single API key for all models (Claude, GPT-4, Gemini, etc.). Official TypeScript SDK (pinned version). Model switching is just changing a string |
-| Database | Turso (hosted libSQL) + Drizzle ORM | Managed distributed SQLite — free tier covers our usage (5GB, 500M reads/mo). No backup infra needed, no persistent volume concerns |
+| Database | Turso (hosted libSQL) + Drizzle ORM + Drizzle Kit | Managed distributed SQLite — free tier covers our usage (5GB, 500M reads/mo). Drizzle Kit handles schema generation and migrations |
 | LLM Code Lifecycle | Generate → test → commit → run | LLMs write prediction engines that are committed to the repo. No sandboxing — code is reviewed and tested before running |
 
 ### Deployment
@@ -26,8 +27,17 @@ A platform that pits LLMs against each other in sports prediction markets on Pol
 | Concern | Choice | Rationale |
 |---------|--------|-----------|
 | Hosting | DigitalOcean Droplet ($4-6/mo) | Simple VM, full control, cheap |
+| Container | Docker via GHCR | Multi-stage Bun image. Built and pushed to GitHub Container Registry, pulled and run on the Droplet with `--env-file /opt/llm-betting/.env` |
 | Database | Turso free tier | Hosted libSQL (SQLite fork). Connects via URL — no local file persistence needed, so ephemeral containers or Droplets both work |
 | Estimated monthly cost | ~$25-45 | Droplet ($6) + API-Sports ($19/sport) + Turso (free) |
+
+### CI/CD
+
+| Workflow | Trigger | Steps |
+|----------|---------|-------|
+| **CI** (`.github/workflows/ci.yml`) | Push/PR to `main` | Install → Lint (Biome) → Typecheck (`tsc --noEmit`) → Test (`bun test`) |
+| **Deploy** (`.github/workflows/deploy.yml`) | Manual (`workflow_dispatch`, type "deploy" to confirm) | Build Docker image → Push to GHCR → SSH to Droplet → Pull and restart container |
+| **Migrations** (`.github/workflows/migrate.yml`) | Manual (`workflow_dispatch`, type "migrate" to confirm) | Install → Run `bun run db:migrate` with Turso credentials from secrets |
 
 ### Authentication & Secrets
 
@@ -96,7 +106,7 @@ The API credentials (key, secret, passphrase) are **derived once** from the priv
 ### OpenRouter
 
 - **Unified LLM gateway**: single API key, 400+ models from 60+ providers
-- **OpenAI SDK compatible**: use `openai` package with `baseURL: 'https://openrouter.ai/api/v1'`
+- **SDK**: using `@openrouter/sdk` (official TypeScript SDK) rather than the `openai` compatibility layer
 - **Model switching**: just change the `model` string (e.g. `anthropic/claude-sonnet-4`, `openai/gpt-4o`, `google/gemini-2.0-flash-001`)
 - **Features**: structured output / JSON mode, tool calling, streaming — all work across providers
 - **Pricing**: no per-token markup, 5.5% fee on credit purchases
@@ -122,10 +132,11 @@ PerformanceLog  — historical record of a Competitor's predictions vs results
 
 ---
 
-## Proposed Directory Structure
+## Directory Structure
 
 ```
 src/
+├── index.ts                    # ✅ Bun.serve entry point (health check at /health)
 ├── domain/                     # Core domain types and logic (no external deps)
 │   ├── models/
 │   │   ├── market.ts           # Market, Event, Sport
@@ -151,8 +162,9 @@ src/
 │   │   ├── statistics.ts       # Fetch and normalise stats
 │   │   └── mappers.ts          # Map API responses → domain Statistics type
 │   └── database/
-│       ├── schema.ts           # Drizzle schema definitions
-│       ├── migrations/         # DB migrations
+│       ├── schema.ts           # ✅ Drizzle schema definitions (placeholder)
+│       ├── migrate.ts          # ✅ Migration runner (reads Turso creds from env)
+│       ├── migrations/         # DB migrations (via drizzle-kit generate)
 │       └── repositories/       # Data access layer
 │           ├── bets.ts
 │           ├── competitors.ts
@@ -177,9 +189,12 @@ src/
 │   └── config.ts               # App configuration
 │
 └── shared/                     # Cross-cutting concerns
-    ├── logger.ts
+    ├── env.ts                  # ✅ Zod-validated environment variables
+    ├── logger.ts               # ✅ Structured JSON logger (info/warn/error/debug)
     ├── errors.ts
     └── types.ts                # Shared utility types
+
+# ✅ = implemented, unmarked = planned
 
 tests/
 ├── unit/                       # Pure logic tests (domain, scoring, validation)
@@ -197,6 +212,14 @@ docs/
 ├── research.md                 # This document
 ├── llm-instructions.md         # Instructions given to competing LLMs
 └── statistics-schema.md        # Detailed docs for the stats contract
+
+# Root config files (all ✅ implemented):
+# biome.json            — Biome linter/formatter config
+# drizzle.config.ts     — Drizzle Kit config (Turso dialect)
+# tsconfig.json         — Strict mode, path aliases (@domain/*, @shared/*, etc.)
+# Dockerfile            — Multi-stage Bun image
+# .dockerignore         — Excludes node_modules, .env, docs, tests, .git
+# .github/workflows/    — CI, Deploy, Migrations
 ```
 
 ---
