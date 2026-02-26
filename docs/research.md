@@ -120,7 +120,7 @@ The API credentials (key, secret, passphrase) are **derived once** from the priv
 ```
 Market          — a Polymarket betting market (binary YES/NO outcome)
 Event           — a sporting event (game/match) linked to one or more Markets
-Sport           — a sport category (NBA, NFL, EPL, etc.)
+Sport           — a sport category (football only to start)
 Fixture         — an upcoming game with teams, date, venue
 Statistics      — strongly-typed stats bundle for a fixture
 Prediction      — an LLM's output: direction (YES/NO), confidence, stake
@@ -239,13 +239,14 @@ docs/
 
 ## Key Design Decisions to Resolve
 
-1. **Which sports to start with?** NBA is likely best — deep Polymarket liquidity, simple stats structure, lots of games
+1. **Which sports to start with?** Football only. No other sports until football is fully working.
 2. **How do LLMs write prediction code?** Each LLM receives the `Statistics` interface, the `Prediction` output contract, and an instruction doc. It writes its own prediction engine. The code is tested, reviewed, and committed to the repo.
 3. **Iteration process** — after results come in, the LLM receives its own code + the results and can update its engine. Updated code is tested and committed.
 4. **Stake sizing** — fixed per bet? Proportional to confidence? Configurable per competitor?
 5. **Iteration frequency** — after every game? Daily? Weekly?
 6. **Budget management** — max total exposure per LLM? Stop-loss?
 7. **Which LLMs to compete?** Claude, GPT-4, Gemini, etc.
+8. **Sport:** Football only. No multi-sport support until football works end-to-end.
 
 ---
 
@@ -274,3 +275,172 @@ ITERATION (periodic)
 15. COMMIT     → Review and commit updated engine
 16. GOTO 5
 ```
+
+---
+
+## Feature Breakdown (MVP Order)
+
+The project is broken into incremental features, each building on the last. Each feature gets its own plan document in `docs/features/<feature>/plan.md`. The ordering follows an MVP approach — get data flowing end-to-end as quickly as possible, then layer on complexity.
+
+### What's already done
+
+- **Feature 0: Project Setup** ✅ — repo scaffold, tooling, CI/CD, Docker, health check server. See `docs/features/project-setup/plan.md`.
+
+### Features to build
+
+#### Feature 1: Domain Types & Contracts
+
+The foundation everything else depends on. Define the core TypeScript types and Zod validation schemas.
+
+- Domain models: `Market`, `Event`, `Sport`, `Fixture`, `Prediction`, `Bet`, `Result`, `Competitor`, `PerformanceLog`
+- Contracts: `Statistics` input interface (what LLMs receive), `PredictionOutput` schema (what LLMs return)
+- Pure types — no external dependencies, no database, no API calls
+- Unit tests for all Zod schemas (valid/invalid inputs)
+- **Why first:** every other feature imports these types. Getting the shapes right early prevents cascading changes.
+
+#### Feature 2: Database Schema & Repositories
+
+Persistence layer. Drizzle tables and data access functions.
+
+- Drizzle schema for all domain entities (markets, fixtures, bets, competitors, results, performance logs)
+- Repository functions: CRUD operations for each entity
+- Generate and apply initial migration to Turso
+- Integration tests against a local libSQL instance
+- **Depends on:** Feature 1 (domain types define the table shapes)
+
+#### Feature 3: Polymarket Integration (Read-Only)
+
+Connect to Polymarket and discover sports betting markets. Read-only — no betting yet.
+
+- Polymarket client wrapper (authenticated with API key)
+- Market discovery: fetch sports markets, filter by sport/tag
+- Price/odds fetching: get current prices for markets
+- Map Polymarket responses to domain `Market` and `Event` types
+- Integration tests with mocked HTTP responses
+- **Depends on:** Feature 1 (Market/Event types)
+
+#### Feature 4: Sports Data Integration
+
+Connect to API-Sports and fetch fixture data and statistics.
+
+- API-Sports client wrapper
+- Fetch upcoming fixtures for football
+- Fetch team/player statistics for a fixture
+- Map API responses to domain `Fixture` and `Statistics` types
+- Populate the `Statistics` contract with real data shapes
+- Integration tests with mocked HTTP responses
+- **Depends on:** Feature 1 (Fixture/Statistics types)
+
+#### Feature 5: Market-Fixture Matching
+
+The bridge between Polymarket markets and sports fixtures. Given a list of Polymarket markets and a list of upcoming fixtures, match them together.
+
+- Matching logic: team names, dates, sport type
+- Fuzzy matching for team name variations (e.g. "LA Lakers" vs "Los Angeles Lakers")
+- Output: paired `Market + Fixture` objects ready for prediction
+- Unit tests with known matchups
+- **Depends on:** Features 1, 3, 4 (needs Market and Fixture types and real data shapes to design the matcher)
+
+#### Feature 6: Prediction Engine Framework
+
+The runner that executes competitor prediction engines and validates their output.
+
+- `PredictionEngine` interface: `(statistics: Statistics) => PredictionOutput`
+- Engine runner: import and execute a competitor's engine, catch errors
+- Output validator: validate engine output against the `PredictionOutput` Zod schema
+- Competitor registry: discover and register engines from `src/competitors/`
+- Unit tests: run a dummy engine, assert output conforms to contract
+- **Depends on:** Feature 1 (Statistics and PredictionOutput contracts)
+
+#### Feature 7: First Competitor (Manual Baseline)
+
+A hand-written prediction engine to prove the framework works end-to-end. Not LLM-generated — just a simple heuristic.
+
+- Write a basic `src/competitors/baseline/engine.ts` — e.g. always bet on the home team, or bet based on win rate
+- Must conform to the `PredictionEngine` interface
+- Register it in the competitor registry
+- Unit tests confirming it passes the contract test suite
+- **Depends on:** Feature 6 (engine framework)
+
+#### Feature 8: Betting (Polymarket Write)
+
+Place actual bets on Polymarket based on predictions. This is the high-stakes feature.
+
+- Betting module: create and submit orders via CLOB
+- Stake sizing: start with a fixed amount per bet (e.g. $1)
+- Budget guard: max total exposure, reject bets that exceed it
+- Bet recording: save every bet to the database
+- Dry-run mode: log what would be bet without actually placing orders
+- Integration tests with mocked CLOB responses
+- **Depends on:** Features 2, 3, 6 (database, Polymarket client, prediction output)
+
+#### Feature 9: Settlement & Scoring
+
+Track bet outcomes and score competitors.
+
+- Settlement: poll Polymarket for resolved markets, match to placed bets
+- Scoring: calculate P&L, accuracy (% correct), ROI per competitor
+- Performance log: record each prediction vs actual outcome
+- Database updates: mark bets as won/lost, update competitor stats
+- Unit tests for scoring logic
+- **Depends on:** Features 2, 3, 8 (database, Polymarket client, placed bets)
+
+#### Feature 10: Pipeline Orchestration
+
+Wire everything together into the automated runtime loop.
+
+- Pipeline: discover → match → stats → predict → bet → settle → score
+- Scheduler: cron-based timing (e.g. run daily, or before game days)
+- Config: which sports, which competitors, stake limits, dry-run toggle
+- Logging: structured logs for each pipeline step
+- Error handling: individual step failures don't crash the whole pipeline
+- **Depends on:** Features 3-9 (all runtime components)
+
+#### Feature 11: LLM Competitor Generation
+
+Use OpenRouter to have LLMs write their own prediction engines.
+
+- OpenRouter client wrapper
+- Instruction document: what the LLM receives (Statistics interface, PredictionOutput contract, examples, constraints)
+- Generation flow: prompt LLM → receive code → validate → test → commit
+- Support multiple models (Claude, GPT-4, Gemini) via model string
+- **Depends on:** Features 6, 7 (engine framework, baseline engine as reference)
+
+#### Feature 12: Iteration Loop
+
+Feed results back to LLMs so they can improve their engines.
+
+- Feedback prompt: competitor's current code + its results + overall leaderboard
+- Update flow: LLM rewrites engine → test → commit (replace previous version)
+- Iteration tracking: version history per competitor
+- **Depends on:** Features 9, 11 (scoring data, LLM generation)
+
+### Dependency graph
+
+```
+Feature 0 (Setup) ✅
+    │
+Feature 1 (Domain Types)
+    │
+    ├── Feature 2 (Database)
+    │       │
+    ├── Feature 3 (Polymarket Read) ──┐
+    │       │                         │
+    ├── Feature 4 (Sports Data) ──────┤
+    │                                 │
+    ├── Feature 5 (Market Matching) ──┘
+    │
+    ├── Feature 6 (Engine Framework)
+    │       │
+    │       └── Feature 7 (Baseline Competitor)
+    │
+    ├── Feature 8 (Betting) ← needs 2, 3, 6
+    │       │
+    │       └── Feature 9 (Settlement & Scoring) ← needs 2, 3, 8
+    │
+    ├── Feature 10 (Pipeline) ← needs 3-9
+    │
+    ├── Feature 11 (LLM Generation) ← needs 6, 7
+    │       │
+    │       └── Feature 12 (Iteration Loop) ← needs 9, 11
+    ```
