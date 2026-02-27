@@ -14,6 +14,10 @@ export class CompetitorRegistry {
   get(competitorId: string): RegisteredEngine | undefined {
     return this.engines.get(competitorId);
   }
+
+  unregister(competitorId: string): boolean {
+    return this.engines.delete(competitorId);
+  }
 }
 
 export function createRegistry(): CompetitorRegistry {

@@ -12,7 +12,9 @@
     "lint:fix": "biome check --fix .",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "bun run src/infrastructure/database/migrate.ts",
-    "db:studio": "drizzle-kit studio"
+    "db:studio": "drizzle-kit studio",
+    "test:pipeline": "bun run src/scripts/test-pipeline.ts",
+    "iterate": "bun run src/scripts/iterate.ts"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.4.4",

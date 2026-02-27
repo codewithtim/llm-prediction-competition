@@ -16,11 +16,13 @@ export async function loadCodegenEngine(enginePath: string): Promise<PredictionE
 export async function saveGeneratedEngine(params: {
   competitorId: string;
   code: string;
+  version?: number;
 }): Promise<string> {
   const engineDir = resolve("src/competitors", params.competitorId);
   await mkdir(engineDir, { recursive: true });
 
-  const enginePath = resolve(engineDir, "engine.ts");
+  const filename = params.version ? `engine_v${params.version}.ts` : "engine.ts";
+  const enginePath = resolve(engineDir, filename);
   await Bun.write(enginePath, params.code);
 
   return enginePath;

@@ -19,5 +19,9 @@ export function competitorsRepo(db: Database) {
     async setActive(id: string, active: boolean) {
       return db.update(competitors).set({ active }).where(eq(competitors.id, id));
     },
+
+    async updateEnginePath(id: string, enginePath: string) {
+      return db.update(competitors).set({ enginePath }).where(eq(competitors.id, id));
+    },
   };
 }

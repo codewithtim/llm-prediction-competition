@@ -6,7 +6,7 @@ export type GeneratedEngine = {
   model: string;
 };
 
-const CODE_JSON_SCHEMA = {
+export const CODE_JSON_SCHEMA = {
   name: "generated_engine",
   schema: {
     type: "object",
@@ -21,7 +21,7 @@ const CODE_JSON_SCHEMA = {
   },
 } as const;
 
-const SYSTEM_PROMPT = `You are an expert TypeScript developer creating a football prediction engine.
+export const CODEGEN_SYSTEM_PROMPT = `You are an expert TypeScript developer creating a football prediction engine.
 
 You must write a TypeScript module that exports a default function conforming to the PredictionEngine type.
 
@@ -152,9 +152,31 @@ export function createCodeGenerator(deps: { client: OpenRouterClient }) {
     }): Promise<GeneratedEngine> {
       const response = await client.chat({
         model: params.model,
-        systemPrompt: SYSTEM_PROMPT,
+        systemPrompt: CODEGEN_SYSTEM_PROMPT,
         userPrompt:
           "Generate a unique football prediction engine. Use a creative strategy that differs from the baseline example. Consider using different weights, additional statistics like goal difference, recent form trends, or value-based approaches comparing your confidence to market prices.",
+        jsonSchema: CODE_JSON_SCHEMA,
+        temperature: 0.8,
+      });
+
+      const parsed = JSON.parse(response) as { code: string };
+
+      return {
+        competitorId: params.competitorId,
+        code: parsed.code,
+        model: params.model,
+      };
+    },
+
+    async generateWithFeedback(params: {
+      model: string;
+      competitorId: string;
+      feedbackPrompt: string;
+    }): Promise<GeneratedEngine> {
+      const response = await client.chat({
+        model: params.model,
+        systemPrompt: CODEGEN_SYSTEM_PROMPT,
+        userPrompt: params.feedbackPrompt,
         jsonSchema: CODE_JSON_SCHEMA,
         temperature: 0.8,
       });

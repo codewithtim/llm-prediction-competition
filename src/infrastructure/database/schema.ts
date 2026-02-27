@@ -62,6 +62,30 @@ export const competitors = sqliteTable("competitors", {
     .$defaultFn(() => new Date()),
 });
 
+export type PerformanceSnapshot = {
+  totalBets: number;
+  wins: number;
+  losses: number;
+  accuracy: number;
+  roi: number;
+  profitLoss: number;
+};
+
+export const competitorVersions = sqliteTable("competitor_versions", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  competitorId: text("competitor_id")
+    .notNull()
+    .references(() => competitors.id),
+  version: integer("version").notNull(),
+  code: text("code").notNull(),
+  enginePath: text("engine_path").notNull(),
+  model: text("model").notNull(),
+  performanceSnapshot: text("performance_snapshot", { mode: "json" }).$type<PerformanceSnapshot>(),
+  generatedAt: integer("generated_at", { mode: "timestamp" })
+    .notNull()
+    .$defaultFn(() => new Date()),
+});
+
 export const predictions = sqliteTable("predictions", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   marketId: text("market_id")
