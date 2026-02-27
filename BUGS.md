@@ -1,3 +1,3 @@
-- [ ] Improve Polymarket sport tag filtering — currently too broad, pulls in esports (Counter-Strike, Dota 2) alongside football. Tags 1 and 100639 are general/esports tags. Need to either filter by specific football-only tags (82, 306, 100350) or filter events by title/slug pattern after fetching.
+- [x] Improve Polymarket sport tag filtering — replaced dynamic sport-prefix-to-tag discovery with configurable `polymarketTagIds` per league in config. Added date-range filtering (now → now + lookAheadDays) to avoid fetching stale events.
 - [ ] Upgrade API-Football to paid plan ($19/mo) — free tier only covers seasons 2022-2024, so the test pipeline currently uses historical data. Paid plan needed for current 2025-26 season fixtures and live match data.
 - [ ] Update test pipeline to use live dates once paid API-Football plan is active — currently hardcoded to March 2025 historical range as a workaround for the free tier limitation.

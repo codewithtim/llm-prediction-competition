@@ -140,7 +140,6 @@ function makePrediction(overrides: Partial<PredictionOutput> = {}): PredictionOu
 function mockDiscovery(events = [makeEvent()]): MarketDiscovery {
   return {
     discoverFootballMarkets: mock(() => Promise.resolve(events)),
-    discoverFootballLeagues: mock(() => Promise.resolve([])),
     fetchActiveEvents: mock(() => Promise.resolve([])),
   };
 }
@@ -222,7 +221,15 @@ function buildDeps(overrides: Partial<PipelineDeps> = {}): PipelineDeps {
     predictionsRepo: mockPredictionsRepo() as unknown as PipelineDeps["predictionsRepo"],
     config: {
       ...DEFAULT_CONFIG,
-      leagues: [{ id: 39, name: "Premier League", country: "England" }],
+      leagues: [
+        {
+          id: 39,
+          name: "Premier League",
+          country: "England",
+          polymarketTagIds: [82],
+          polymarketSeriesSlug: "premier-league",
+        },
+      ],
     },
     ...overrides,
   };
@@ -433,7 +440,6 @@ describe("createPipeline", () => {
     test("handles discovery failure gracefully", async () => {
       const discovery: MarketDiscovery = {
         discoverFootballMarkets: mock(() => Promise.reject(new Error("Network error"))),
-        discoverFootballLeagues: mock(() => Promise.resolve([])),
         fetchActiveEvents: mock(() => Promise.resolve([])),
       };
 

@@ -54,7 +54,10 @@ if (!openrouterConfigured) {
 }
 
 // ── Services ─────────────────────────────────────────────────────────
-const discovery = createMarketDiscovery(gammaClient);
+const discovery = createMarketDiscovery(gammaClient, {
+  leagues: DEFAULT_CONFIG.leagues,
+  lookAheadDays: DEFAULT_CONFIG.fixtureLookAheadDays,
+});
 const bettingService = createBettingService({
   bettingClient,
   betsRepo: bets,

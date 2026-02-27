@@ -4,6 +4,8 @@ export type LeagueConfig = {
   id: number;
   name: string;
   country: string;
+  polymarketTagIds: number[];
+  polymarketSeriesSlug: string;
 };
 
 export type PipelineConfig = {
@@ -16,7 +18,13 @@ export type PipelineConfig = {
 };
 
 export const DEFAULT_LEAGUES: LeagueConfig[] = [
-  { id: 39, name: "Premier League", country: "England" },
+  {
+    id: 39,
+    name: "Premier League",
+    country: "England",
+    polymarketTagIds: [82],
+    polymarketSeriesSlug: "premier-league",
+  },
 ];
 
 export const DEFAULT_CONFIG: PipelineConfig = {

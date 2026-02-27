@@ -14,7 +14,8 @@
     "db:migrate": "bun run src/infrastructure/database/migrate.ts",
     "db:studio": "drizzle-kit studio",
     "test:pipeline": "bun run src/scripts/test-pipeline.ts",
-    "iterate": "bun run src/scripts/iterate.ts"
+    "iterate": "bun run src/scripts/iterate.ts",
+    "discover:tags": "bun run src/scripts/discover-tags.ts"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.4.4",

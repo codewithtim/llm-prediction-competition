@@ -50,6 +50,12 @@ export type GammaEvent = {
   markets: GammaMarket[];
 };
 
+export type GammaTag = {
+  id: number;
+  label: string;
+  slug: string;
+};
+
 export type GammaEventParams = {
   tag_id?: number;
   active?: boolean;
@@ -58,4 +64,8 @@ export type GammaEventParams = {
   offset?: number;
   order?: string;
   ascending?: boolean;
+  start_date_min?: string;
+  start_date_max?: string;
+  end_date_min?: string;
+  end_date_max?: string;
 };

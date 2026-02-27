@@ -2,38 +2,47 @@ import type { Event } from "@domain/models/market.ts";
 import { logger } from "@shared/logger.ts";
 import type { GammaClient } from "./gamma-client.ts";
 import { mapGammaEventToEvent } from "./mappers.ts";
-import type { GammaSport } from "./types.ts";
+import type { GammaEvent } from "./types.ts";
 
-const FOOTBALL_SPORT_PREFIXES = ["epl", "la-liga", "serie-a", "bundesliga", "ligue-1", "soccer"];
+export type MarketDiscoveryConfig = {
+  leagues: Array<{ polymarketTagIds: number[]; polymarketSeriesSlug: string }>;
+  lookAheadDays: number;
+};
 
-export function isFootballSport(sport: GammaSport): boolean {
-  return FOOTBALL_SPORT_PREFIXES.some(
-    (prefix) =>
-      sport.sport === prefix ||
-      sport.sport.startsWith(`${prefix}-`) ||
-      sport.sport.startsWith("soccer"),
-  );
-}
-
-export function extractTagIds(sports: GammaSport[]): number[] {
+export function collectTagIds(config: MarketDiscoveryConfig): number[] {
   const tagSet = new Set<number>();
-  for (const sport of sports) {
-    for (const tagStr of sport.tags.split(",")) {
-      const tag = Number.parseInt(tagStr.trim(), 10);
-      if (!Number.isNaN(tag)) tagSet.add(tag);
+  for (const league of config.leagues) {
+    for (const tagId of league.polymarketTagIds) {
+      tagSet.add(tagId);
     }
   }
   return [...tagSet];
 }
 
-export function createMarketDiscovery(gamma: GammaClient) {
-  return {
-    async discoverFootballLeagues(): Promise<GammaSport[]> {
-      const allSports = await gamma.getSports();
-      return allSports.filter(isFootballSport);
-    },
+export function collectSeriesSlugs(config: MarketDiscoveryConfig): string[] {
+  return config.leagues.map((l) => l.polymarketSeriesSlug);
+}
 
+export function filterBySeriesSlug(events: GammaEvent[], seriesSlugs: string[]): GammaEvent[] {
+  return events.filter((e) => seriesSlugs.some((slug) => e.seriesSlug.startsWith(slug)));
+}
+
+export function filterToMoneylineMarkets(event: GammaEvent): GammaEvent {
+  return {
+    ...event,
+    markets: event.markets.filter((m) => m.sportsMarketType === "moneyline"),
+  };
+}
+
+export function createMarketDiscovery(gamma: GammaClient, config: MarketDiscoveryConfig) {
+  const seriesSlugs = collectSeriesSlugs(config);
+
+  return {
     async fetchActiveEvents(tagId: number, limit = 50): Promise<Event[]> {
+      const now = new Date();
+      const endDate = new Date(now);
+      endDate.setDate(endDate.getDate() + config.lookAheadDays);
+
       const events: Event[] = [];
       let offset = 0;
 
@@ -45,11 +54,18 @@ export function createMarketDiscovery(gamma: GammaClient) {
           limit,
           offset,
           order: "startDate",
-          ascending: false,
+          ascending: true,
+          end_date_min: now.toISOString(),
+          end_date_max: endDate.toISOString(),
         });
 
         if (batch.length === 0) break;
-        events.push(...batch.map(mapGammaEventToEvent));
+
+        const filtered = filterBySeriesSlug(batch, seriesSlugs)
+          .map(filterToMoneylineMarkets)
+          .filter((e) => e.markets.length > 0);
+
+        events.push(...filtered.map(mapGammaEventToEvent));
         if (batch.length < limit) break;
         offset += limit;
       }
@@ -59,13 +75,9 @@ export function createMarketDiscovery(gamma: GammaClient) {
     },
 
     async discoverFootballMarkets(): Promise<Event[]> {
-      const footballSports = await this.discoverFootballLeagues();
-      const tagIds = extractTagIds(footballSports);
+      const tagIds = collectTagIds(config);
 
-      logger.info("Discovered football tag IDs", {
-        leagues: footballSports.length,
-        tagIds: tagIds.length,
-      });
+      logger.info("Querying configured tag IDs", { tagIds });
 
       const events: Event[] = [];
       const seenEventIds = new Set<string>();

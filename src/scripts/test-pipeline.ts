@@ -26,13 +26,43 @@ import {
   mapStandingToTeamStats,
 } from "../infrastructure/sports-data/mappers.ts";
 
-// Top European leagues (API-Football IDs)
+// Top European leagues (API-Football IDs + Polymarket tag IDs)
 const LEAGUES = [
-  { id: 39, name: "Premier League", country: "England" },
-  { id: 140, name: "La Liga", country: "Spain" },
-  { id: 135, name: "Serie A", country: "Italy" },
-  { id: 78, name: "Bundesliga", country: "Germany" },
-  { id: 61, name: "Ligue 1", country: "France" },
+  {
+    id: 39,
+    name: "Premier League",
+    country: "England",
+    polymarketTagIds: [82],
+    polymarketSeriesSlug: "premier-league",
+  },
+  {
+    id: 140,
+    name: "La Liga",
+    country: "Spain",
+    polymarketTagIds: [306],
+    polymarketSeriesSlug: "la-liga",
+  },
+  {
+    id: 135,
+    name: "Serie A",
+    country: "Italy",
+    polymarketTagIds: [100350],
+    polymarketSeriesSlug: "serie-a",
+  },
+  {
+    id: 78,
+    name: "Bundesliga",
+    country: "Germany",
+    polymarketTagIds: [100350],
+    polymarketSeriesSlug: "bundesliga",
+  },
+  {
+    id: 61,
+    name: "Ligue 1",
+    country: "France",
+    polymarketTagIds: [100350],
+    polymarketSeriesSlug: "ligue-1",
+  },
 ];
 
 // API-Football free tier only covers seasons 2022-2024.
@@ -91,7 +121,10 @@ async function main() {
 
   const football = createFootballClient(apiKey);
   const gamma = createGammaClient();
-  const discovery = createMarketDiscovery(gamma);
+  const discovery = createMarketDiscovery(gamma, {
+    leagues: LEAGUES,
+    lookAheadDays: 10,
+  });
 
   // ── Step 1: Discover Polymarket football markets ──────────────────────
   divider("Step 1: Discovering Polymarket football markets");
