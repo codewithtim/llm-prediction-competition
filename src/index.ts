@@ -1,4 +1,5 @@
 import { BASELINE_ID, BASELINE_NAME, baselineEngine } from "./competitors/baseline/engine.ts";
+import { createLlmRuntimeEngine } from "./competitors/llm-runtime/engine.ts";
 import { createRegistry } from "./competitors/registry.ts";
 import { createBettingService } from "./domain/services/betting.ts";
 import { createSettlementService } from "./domain/services/settlement.ts";
@@ -7,6 +8,7 @@ import { betsRepo } from "./infrastructure/database/repositories/bets.ts";
 import { fixturesRepo } from "./infrastructure/database/repositories/fixtures.ts";
 import { marketsRepo } from "./infrastructure/database/repositories/markets.ts";
 import { predictionsRepo } from "./infrastructure/database/repositories/predictions.ts";
+import { createOpenRouterClient } from "./infrastructure/openrouter/client.ts";
 import { createBettingClient } from "./infrastructure/polymarket/betting-client.ts";
 import { createGammaClient } from "./infrastructure/polymarket/gamma-client.ts";
 import { createMarketDiscovery } from "./infrastructure/polymarket/market-discovery.ts";
@@ -27,6 +29,7 @@ const bets = betsRepo(db);
 // ── External clients ─────────────────────────────────────────────────
 const gammaClient = createGammaClient();
 const footballClient = createFootballClient(env.API_SPORTS_KEY);
+const openrouter = createOpenRouterClient(env.OPENROUTER_API_KEY);
 const bettingClient = createBettingClient({
   privateKey: env.POLY_PRIVATE_KEY,
   apiKey: env.POLY_API_KEY,
@@ -50,6 +53,23 @@ const settlementService = createSettlementService({
 // ── Competitor registry ──────────────────────────────────────────────
 const registry = createRegistry();
 registry.register(BASELINE_ID, BASELINE_NAME, baselineEngine);
+
+// Runtime LLM competitors
+registry.register(
+  "claude-runtime",
+  "Claude Sonnet (Runtime)",
+  createLlmRuntimeEngine({ client: openrouter, model: "anthropic/claude-sonnet-4" }),
+);
+registry.register(
+  "gpt4o-runtime",
+  "GPT-4o (Runtime)",
+  createLlmRuntimeEngine({ client: openrouter, model: "openai/gpt-4o" }),
+);
+registry.register(
+  "gemini-runtime",
+  "Gemini Flash (Runtime)",
+  createLlmRuntimeEngine({ client: openrouter, model: "google/gemini-2.0-flash-001" }),
+);
 
 // ── Pipeline & scheduler ─────────────────────────────────────────────
 const pipeline = createPipeline({
