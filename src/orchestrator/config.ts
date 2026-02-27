@@ -29,7 +29,7 @@ export const DEFAULT_LEAGUES: LeagueConfig[] = [
 
 export const DEFAULT_CONFIG: PipelineConfig = {
   leagues: DEFAULT_LEAGUES,
-  season: 2024,
+  season: 2026,
   fixtureLookAheadDays: 7,
   predictionIntervalMs: 6 * 60 * 60 * 1000, // 6 hours
   settlementIntervalMs: 2 * 60 * 60 * 1000, // 2 hours
