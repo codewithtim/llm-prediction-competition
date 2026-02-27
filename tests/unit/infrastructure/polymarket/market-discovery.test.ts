@@ -140,6 +140,7 @@ describe("createMarketDiscovery", () => {
     return {
       getSports: async () => [],
       getEvents: async () => [],
+      getMarketById: async () => null,
       ...overrides,
     };
   }

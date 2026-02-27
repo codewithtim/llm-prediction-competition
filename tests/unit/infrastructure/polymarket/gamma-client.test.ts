@@ -1,6 +1,10 @@
 import { afterEach, describe, expect, mock, test } from "bun:test";
 import { createGammaClient } from "../../../../src/infrastructure/polymarket/gamma-client.ts";
-import type { GammaEvent, GammaSport } from "../../../../src/infrastructure/polymarket/types.ts";
+import type {
+  GammaEvent,
+  GammaMarket,
+  GammaSport,
+} from "../../../../src/infrastructure/polymarket/types.ts";
 
 const originalFetch = globalThis.fetch;
 let fetchMock: ReturnType<typeof mock>;
@@ -112,6 +116,60 @@ describe("createGammaClient", () => {
       expect(calledUrl).toContain("tag_id=82");
       expect(calledUrl).not.toContain("active=");
       expect(calledUrl).not.toContain("limit=");
+    });
+  });
+
+  describe("getMarketById", () => {
+    const fakeMarket: GammaMarket = {
+      id: "market-123",
+      question: "Will Arsenal win?",
+      conditionId: "0xabc",
+      slug: "will-arsenal-win",
+      outcomes: '["Yes","No"]',
+      outcomePrices: '["1","0"]',
+      clobTokenIds: '["token_yes","token_no"]',
+      active: false,
+      closed: true,
+      acceptingOrders: false,
+      liquidity: "0",
+      liquidityNum: 0,
+      volume: "50000",
+      volumeNum: 50000,
+      gameId: "12345",
+      sportsMarketType: "moneyline",
+      bestBid: 0,
+      bestAsk: 0,
+      lastTradePrice: 1,
+      orderPriceMinTickSize: 0.01,
+      orderMinSize: 1,
+    };
+
+    test("returns market when found", async () => {
+      mockFetch({ ok: true, status: 200, body: [fakeMarket] });
+      const client = createGammaClient();
+
+      const result = await client.getMarketById("market-123");
+
+      expect(result).toEqual(fakeMarket);
+      expect(fetchMock).toHaveBeenCalledWith(
+        "https://gamma-api.polymarket.com/markets?id=market-123",
+      );
+    });
+
+    test("returns null when market not found", async () => {
+      mockFetch({ ok: true, status: 200, body: [] });
+      const client = createGammaClient();
+
+      const result = await client.getMarketById("nonexistent");
+
+      expect(result).toBeNull();
+    });
+
+    test("throws on non-OK response", async () => {
+      mockFetch({ ok: false, status: 500, body: {} });
+      const client = createGammaClient();
+
+      expect(client.getMarketById("market-123")).rejects.toThrow("Gamma /markets failed: 500");
     });
   });
 });

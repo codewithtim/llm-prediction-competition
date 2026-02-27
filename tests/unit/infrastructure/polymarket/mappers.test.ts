@@ -55,36 +55,39 @@ function makeGammaEvent(overrides: Partial<GammaEvent> = {}): GammaEvent {
 describe("mapGammaMarketToMarket", () => {
   test("parses JSON string fields into arrays", () => {
     const result = mapGammaMarketToMarket(makeGammaMarket());
+    expect(result).not.toBeNull();
 
-    expect(result.outcomes).toEqual(["Yes", "No"]);
-    expect(result.outcomePrices).toEqual(["0.405", "0.595"]);
-    expect(result.tokenIds).toEqual(["token_yes_123", "token_no_456"]);
+    expect(result?.outcomes).toEqual(["Yes", "No"]);
+    expect(result?.outcomePrices).toEqual(["0.405", "0.595"]);
+    expect(result?.tokenIds).toEqual(["token_yes_123", "token_no_456"]);
   });
 
   test("maps scalar fields correctly", () => {
     const result = mapGammaMarketToMarket(makeGammaMarket());
+    expect(result).not.toBeNull();
 
-    expect(result.id).toBe("1400768");
-    expect(result.conditionId).toBe("0xabc123");
-    expect(result.slug).toBe("will-tottenham-win");
-    expect(result.question).toBe("Will Tottenham Hotspur FC win on 2026-03-05?");
-    expect(result.active).toBe(true);
-    expect(result.closed).toBe(false);
-    expect(result.acceptingOrders).toBe(true);
-    expect(result.liquidity).toBe(5000);
-    expect(result.volume).toBe(12345.67);
-    expect(result.gameId).toBe("90091280");
-    expect(result.sportsMarketType).toBe("moneyline");
-    expect(result.line).toBeNull();
+    expect(result?.id).toBe("1400768");
+    expect(result?.conditionId).toBe("0xabc123");
+    expect(result?.slug).toBe("will-tottenham-win");
+    expect(result?.question).toBe("Will Tottenham Hotspur FC win on 2026-03-05?");
+    expect(result?.active).toBe(true);
+    expect(result?.closed).toBe(false);
+    expect(result?.acceptingOrders).toBe(true);
+    expect(result?.liquidity).toBe(5000);
+    expect(result?.volume).toBe(12345.67);
+    expect(result?.gameId).toBe("90091280");
+    expect(result?.sportsMarketType).toBe("moneyline");
+    expect(result?.line).toBeNull();
   });
 
   test("handles null gameId and sportsMarketType", () => {
     const result = mapGammaMarketToMarket(
       makeGammaMarket({ gameId: null, sportsMarketType: null }),
     );
+    expect(result).not.toBeNull();
 
-    expect(result.gameId).toBeNull();
-    expect(result.sportsMarketType).toBeNull();
+    expect(result?.gameId).toBeNull();
+    expect(result?.sportsMarketType).toBeNull();
   });
 
   test("handles undefined gameId and sportsMarketType as null", () => {
@@ -94,9 +97,18 @@ describe("mapGammaMarketToMarket", () => {
     (raw as Record<string, unknown>).sportsMarketType = undefined;
 
     const result = mapGammaMarketToMarket(raw);
+    expect(result).not.toBeNull();
 
-    expect(result.gameId).toBeNull();
-    expect(result.sportsMarketType).toBeNull();
+    expect(result?.gameId).toBeNull();
+    expect(result?.sportsMarketType).toBeNull();
+  });
+
+  test("returns null when outcomePrices is undefined", () => {
+    const raw = makeGammaMarket();
+    (raw as Record<string, unknown>).outcomePrices = undefined;
+
+    const result = mapGammaMarketToMarket(raw);
+    expect(result).toBeNull();
   });
 
   test("maps team-based outcomes for moneyline markets", () => {
@@ -106,9 +118,10 @@ describe("mapGammaMarketToMarket", () => {
         outcomePrices: '["0.65", "0.35"]',
       }),
     );
+    expect(result).not.toBeNull();
 
-    expect(result.outcomes).toEqual(["Arsenal FC", "Brighton FC"]);
-    expect(result.outcomePrices).toEqual(["0.65", "0.35"]);
+    expect(result?.outcomes).toEqual(["Arsenal FC", "Brighton FC"]);
+    expect(result?.outcomePrices).toEqual(["0.65", "0.35"]);
   });
 });
 

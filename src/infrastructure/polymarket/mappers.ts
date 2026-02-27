@@ -1,7 +1,8 @@
 import type { Event, Market } from "@domain/models/market.ts";
 import type { GammaEvent, GammaMarket } from "./types.ts";
 
-export function mapGammaMarketToMarket(raw: GammaMarket): Market {
+export function mapGammaMarketToMarket(raw: GammaMarket): Market | null {
+  if (!raw.outcomes || !raw.outcomePrices || !raw.clobTokenIds) return null;
   const outcomes = JSON.parse(raw.outcomes) as [string, string];
   const outcomePrices = JSON.parse(raw.outcomePrices) as [string, string];
   const tokenIds = JSON.parse(raw.clobTokenIds) as [string, string];
@@ -34,6 +35,6 @@ export function mapGammaEventToEvent(raw: GammaEvent): Event {
     endDate: raw.endDate,
     active: raw.active,
     closed: raw.closed,
-    markets: raw.markets.map(mapGammaMarketToMarket),
+    markets: raw.markets.map(mapGammaMarketToMarket).filter((m): m is Market => m !== null),
   };
 }

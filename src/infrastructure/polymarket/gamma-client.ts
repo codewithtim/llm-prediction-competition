@@ -1,4 +1,4 @@
-import type { GammaEvent, GammaEventParams, GammaSport } from "./types.ts";
+import type { GammaEvent, GammaEventParams, GammaMarket, GammaSport } from "./types.ts";
 
 const GAMMA_BASE_URL = "https://gamma-api.polymarket.com";
 
@@ -19,6 +19,13 @@ export function createGammaClient() {
       const res = await fetch(url);
       if (!res.ok) throw new Error(`Gamma /events failed: ${res.status}`);
       return res.json();
+    },
+
+    async getMarketById(marketId: string): Promise<GammaMarket | null> {
+      const res = await fetch(`${GAMMA_BASE_URL}/markets?id=${marketId}`);
+      if (!res.ok) throw new Error(`Gamma /markets failed: ${res.status}`);
+      const data: GammaMarket[] = await res.json();
+      return data.length > 0 ? (data[0] ?? null) : null;
     },
   };
 }
