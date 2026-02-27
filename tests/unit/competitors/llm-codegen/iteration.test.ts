@@ -21,16 +21,20 @@ function mockCompetitorsRepo(
     id: string;
     name: string;
     model: string;
-    enginePath: string;
-    active: boolean;
+    enginePath: string | null;
+    type: string;
+    status: string;
   }> = [],
 ) {
   return {
     create: mock(() => Promise.resolve()),
     findById: mock((id: string) => Promise.resolve(competitors.find((c) => c.id === id) ?? null)),
-    findActive: mock(() => Promise.resolve(competitors.filter((c) => c.active))),
-    setActive: mock(() => Promise.resolve()),
+    findByStatus: mock((status: string) =>
+      Promise.resolve(competitors.filter((c) => c.status === status)),
+    ),
+    setStatus: mock(() => Promise.resolve()),
     updateEnginePath: mock(() => Promise.resolve()),
+    upsertSeed: mock(() => Promise.resolve()),
   };
 }
 
@@ -105,7 +109,8 @@ function makeDeps(overrides?: Partial<IterationDeps>): IterationDeps {
         name: "Test Codegen",
         model: "test/model",
         enginePath: "src/competitors/test-codegen/engine.ts",
-        active: true,
+        type: "codegen",
+        status: "active",
       },
     ]),
     versionsRepo: mockVersionsRepo(),
@@ -121,8 +126,8 @@ describe("createIterationService", () => {
   describe("buildLeaderboard", () => {
     it("aggregates stats and sorts by P&L", async () => {
       const competitors = mockCompetitorsRepo([
-        { id: "a", name: "Alpha", model: "m", enginePath: "p", active: true },
-        { id: "b", name: "Beta", model: "m", enginePath: "p", active: true },
+        { id: "a", name: "Alpha", model: "m", enginePath: "p", type: "codegen", status: "active" },
+        { id: "b", name: "Beta", model: "m", enginePath: "p", type: "codegen", status: "active" },
       ]);
 
       let callCount = 0;
@@ -286,9 +291,30 @@ describe("createIterationService", () => {
   describe("iterateAll", () => {
     it("iterates each codegen competitor sequentially", async () => {
       const competitors = mockCompetitorsRepo([
-        { id: "codegen-1", name: "CG 1", model: "m", enginePath: "p", active: true },
-        { id: "codegen-2", name: "CG 2", model: "m", enginePath: "p", active: true },
-        { id: "gpt-runtime", name: "GPT Runtime", model: "m", enginePath: "", active: true },
+        {
+          id: "codegen-1",
+          name: "CG 1",
+          model: "m",
+          enginePath: "p",
+          type: "codegen",
+          status: "active",
+        },
+        {
+          id: "codegen-2",
+          name: "CG 2",
+          model: "m",
+          enginePath: "p",
+          type: "codegen",
+          status: "active",
+        },
+        {
+          id: "gpt-runtime",
+          name: "GPT Runtime",
+          model: "m",
+          enginePath: null,
+          type: "runtime",
+          status: "active",
+        },
       ]);
 
       const originalFile = Bun.file;
@@ -300,7 +326,7 @@ describe("createIterationService", () => {
 
       const results = await service.iterateAll();
 
-      // Should skip runtime competitors (id ends with -runtime) and empty enginePath
+      // Should only iterate codegen-type competitors
       expect(results.length).toBeGreaterThanOrEqual(1);
 
       Bun.file = originalFile;

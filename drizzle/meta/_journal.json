@@ -8,6 +8,13 @@
       "when": 1772096487755,
       "tag": "0000_certain_molly_hayes",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1772185193249,
+      "tag": "0001_competitor-management",
+      "breakpoints": true
     }
   ]
 }

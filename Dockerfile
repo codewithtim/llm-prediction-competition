@@ -11,5 +11,7 @@ FROM base AS release
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
+RUN mkdir -p /app/data
+
 EXPOSE 3000
 CMD ["bun", "run", "src/index.ts"]

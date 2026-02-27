@@ -2,5 +2,6 @@ node_modules/
 .env
 *.db
 *.db-journal
+data/
 dist/
 .DS_Store

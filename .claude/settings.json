@@ -1,0 +1,22 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm:*)",
+      "Bash(pnpm:*)",
+      "Bash(npx:*)",
+      "Bash(node:*)",
+      "Bash(bun:*)",
+      "Bash(git:*)",
+      "Bash(wp:*)",
+      "Bash(cat:*)",
+      "Bash(ls:*)",
+      "Bash(wp:*)",
+      "Bash(workflow*)",
+      "Bash(mkdir:*)",
+      "Bash(cargo:*)",
+      "Fetch(crates.io)",
+      "Fetch(docs.rs)",
+      "Fetch(github.com)"
+    ]
+  }
+}

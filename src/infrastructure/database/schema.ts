@@ -55,8 +55,10 @@ export const competitors = sqliteTable("competitors", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
   model: text("model").notNull(),
-  enginePath: text("engine_path").notNull(),
-  active: integer("active", { mode: "boolean" }).notNull().default(true),
+  enginePath: text("engine_path"),
+  status: text("status").notNull().default("active"),
+  type: text("type").notNull().default("codegen"),
+  config: text("config"),
   createdAt: integer("created_at", { mode: "timestamp" })
     .notNull()
     .$defaultFn(() => new Date()),

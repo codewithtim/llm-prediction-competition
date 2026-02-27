@@ -74,3 +74,20 @@ export function createBettingClient(config: BettingClientConfig) {
 }
 
 export type BettingClient = ReturnType<typeof createBettingClient>;
+
+export function createStubBettingClient(): BettingClient {
+  const notConfigured = () => {
+    throw new Error(
+      "Polymarket credentials not configured — set POLY_* env vars to place real bets",
+    );
+  };
+
+  return {
+    placeOrder: notConfigured,
+    cancelOrder: notConfigured,
+    cancelAll: notConfigured,
+    getOpenOrders: notConfigured,
+    getTickSize: notConfigured,
+    getNegRisk: notConfigured,
+  };
+}

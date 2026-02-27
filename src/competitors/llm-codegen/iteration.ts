@@ -43,7 +43,7 @@ export function createIterationService(deps: IterationDeps) {
   } = deps;
 
   async function buildLeaderboard(): Promise<LeaderboardEntry[]> {
-    const active = await competitors.findActive();
+    const active = await competitors.findByStatus("active");
     const entries: LeaderboardEntry[] = [];
 
     for (const competitor of active) {
@@ -111,6 +111,13 @@ export function createIterationService(deps: IterationDeps) {
     }
 
     try {
+      if (!competitor.enginePath) {
+        return {
+          success: false,
+          competitorId,
+          error: `Competitor ${competitorId} has no engine path`,
+        };
+      }
       const currentCode = await Bun.file(competitor.enginePath).text();
 
       const stats = await bets.getPerformanceStats(competitorId);
@@ -195,8 +202,8 @@ export function createIterationService(deps: IterationDeps) {
   }
 
   async function iterateAll(): Promise<IterationResult[]> {
-    const active = await competitors.findActive();
-    const codegenCompetitors = active.filter((c) => c.enginePath && !c.id.endsWith("-runtime"));
+    const active = await competitors.findByStatus("active");
+    const codegenCompetitors = active.filter((c) => c.type === "codegen");
 
     const results: IterationResult[] = [];
 

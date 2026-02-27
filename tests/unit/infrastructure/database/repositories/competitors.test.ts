@@ -19,7 +19,8 @@ const sampleCompetitor: typeof schema.competitors.$inferInsert = {
   name: "Claude",
   model: "anthropic/claude-sonnet-4",
   enginePath: "src/competitors/claude/engine.ts",
-  active: true,
+  status: "active",
+  type: "codegen",
 };
 
 describe("competitorsRepo", () => {
@@ -31,21 +32,26 @@ describe("competitorsRepo", () => {
     expect(found?.model).toBe("anthropic/claude-sonnet-4");
   });
 
-  it("finds active competitors", async () => {
+  it("finds competitors by status", async () => {
     const repo = competitorsRepo(db);
     await repo.create(sampleCompetitor);
-    await repo.create({ ...sampleCompetitor, id: "gpt-1", name: "GPT-4", active: false });
-    const active = await repo.findActive();
-    expect(active).toHaveLength(1);
-    expect(active[0]?.id).toBe("claude-1");
+    await repo.create({ ...sampleCompetitor, id: "gpt-1", name: "GPT-4", status: "disabled" });
+    const active = await repo.findByStatus("active");
+    const activeIds = active.map((c) => c.id);
+    expect(activeIds).toContain("claude-1");
+    expect(activeIds).not.toContain("gpt-1");
+
+    const disabled = await repo.findByStatus("disabled");
+    expect(disabled).toHaveLength(1);
+    expect(disabled[0]?.id).toBe("gpt-1");
   });
 
-  it("sets active status", async () => {
+  it("sets status", async () => {
     const repo = competitorsRepo(db);
     await repo.create(sampleCompetitor);
-    await repo.setActive("claude-1", false);
+    await repo.setStatus("claude-1", "error");
     const found = await repo.findById("claude-1");
-    expect(found?.active).toBe(false);
+    expect(found?.status).toBe("error");
   });
 
   it("returns undefined for missing competitor", async () => {
