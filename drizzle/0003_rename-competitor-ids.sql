@@ -39,3 +39,14 @@ UPDATE `competitor_wallets` SET `competitor_id` = 'anthropic-claude-sonnet-4' WH
 UPDATE `competitor_wallets` SET `competitor_id` = 'openai-gpt-4o' WHERE `competitor_id` = 'gpt4o-runtime';
 --> statement-breakpoint
 UPDATE `competitor_wallets` SET `competitor_id` = 'google-gemini-2.0-flash-001' WHERE `competitor_id` = 'gemini-runtime';
+--> statement-breakpoint
+
+-- Insert weight-tuned competitors (one per model, same models as runtime)
+INSERT INTO `competitors` (`id`, `name`, `model`, `engine_path`, `status`, `type`, `config`, `created_at`)
+VALUES ('wt-claude-sonnet', 'Weight-Tuned Claude Sonnet', 'anthropic/claude-sonnet-4', '', 'active', 'weight-tuned', '{"model":"anthropic/claude-sonnet-4"}', unixepoch());
+--> statement-breakpoint
+INSERT INTO `competitors` (`id`, `name`, `model`, `engine_path`, `status`, `type`, `config`, `created_at`)
+VALUES ('wt-gpt-4o', 'Weight-Tuned GPT-4o', 'openai/gpt-4o', '', 'active', 'weight-tuned', '{"model":"openai/gpt-4o"}', unixepoch());
+--> statement-breakpoint
+INSERT INTO `competitors` (`id`, `name`, `model`, `engine_path`, `status`, `type`, `config`, `created_at`)
+VALUES ('wt-gemini-flash', 'Weight-Tuned Gemini Flash', 'google/gemini-2.0-flash-001', '', 'active', 'weight-tuned', '{"model":"google/gemini-2.0-flash-001"}', unixepoch());

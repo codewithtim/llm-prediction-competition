@@ -25,10 +25,13 @@ describe("loadCompetitors", () => {
   it("loads baseline competitor without OpenRouter", async () => {
     const repo = competitorsRepo(db);
 
-    // Disable runtime competitors so only baseline loads
+    // Disable runtime and weight-tuned competitors so only baseline loads
     await repo.setStatus("anthropic-claude-sonnet-4", "disabled");
     await repo.setStatus("openai-gpt-4o", "disabled");
     await repo.setStatus("google-gemini-2.0-flash-001", "disabled");
+    await repo.setStatus("wt-claude-sonnet", "disabled");
+    await repo.setStatus("wt-gpt-4o", "disabled");
+    await repo.setStatus("wt-gemini-flash", "disabled");
 
     const engines = await loadCompetitors({
       competitorsRepo: repo,
@@ -52,8 +55,8 @@ describe("loadCompetitors", () => {
       encryptionKey: "",
     });
 
-    // Only baseline should load (runtime competitors skipped)
-    expect(engines).toHaveLength(1);
+    // Baseline + 3 weight-tuned load; runtime competitors skipped
+    expect(engines).toHaveLength(4);
     expect(engines[0]?.competitorId).toBe("baseline");
   });
 
@@ -67,13 +70,16 @@ describe("loadCompetitors", () => {
       encryptionKey: "",
     });
 
-    expect(engines).toHaveLength(4);
+    expect(engines).toHaveLength(7);
     const ids = engines.map((e) => e.competitorId).sort();
     expect(ids).toEqual([
       "anthropic-claude-sonnet-4",
       "baseline",
       "google-gemini-2.0-flash-001",
       "openai-gpt-4o",
+      "wt-claude-sonnet",
+      "wt-gemini-flash",
+      "wt-gpt-4o",
     ]);
   });
 
@@ -88,7 +94,7 @@ describe("loadCompetitors", () => {
       encryptionKey: "",
     });
 
-    expect(engines).toHaveLength(3);
+    expect(engines).toHaveLength(6);
     const ids = engines.map((e) => e.competitorId);
     expect(ids).not.toContain("anthropic-claude-sonnet-4");
   });

@@ -1,27 +1,31 @@
 import type { RuntimeConfig } from "../domain/types/competitor";
 import type { RegisteredEngine } from "../engine/types";
+import type { competitorVersionsRepo } from "../infrastructure/database/repositories/competitor-versions";
 import type { CompetitorsRepo } from "../infrastructure/database/repositories/competitors";
 import type { WalletsRepo } from "../infrastructure/database/repositories/wallets";
 import type { OpenRouterClient } from "../infrastructure/openrouter/client";
 import { logger } from "../shared/logger";
 import { loadCodegenEngine } from "./llm-codegen/engine";
 import { createLlmRuntimeEngine } from "./llm-runtime/engine";
+import { createWeightedEngine } from "./weight-tuned/engine";
+import { DEFAULT_STAKE_CONFIG, DEFAULT_WEIGHTS, weightConfigSchema } from "./weight-tuned/types";
 
 export type LoaderDeps = {
   competitorsRepo: CompetitorsRepo;
   openrouterClient: OpenRouterClient | null;
   walletsRepo: WalletsRepo;
   encryptionKey: string;
+  versionsRepo?: ReturnType<typeof competitorVersionsRepo>;
 };
 
 export async function loadCompetitors(deps: LoaderDeps): Promise<RegisteredEngine[]> {
-  const { competitorsRepo, openrouterClient, walletsRepo, encryptionKey } = deps;
+  const { competitorsRepo, openrouterClient, walletsRepo, encryptionKey, versionsRepo } = deps;
   const rows = await competitorsRepo.findByStatus("active");
   const engines: RegisteredEngine[] = [];
 
   for (const row of rows) {
     try {
-      const engine = await loadSingleCompetitor(row, openrouterClient);
+      const engine = await loadSingleCompetitor(row, openrouterClient, versionsRepo);
       if (engine) {
         const registered: RegisteredEngine = { competitorId: row.id, name: row.name, engine };
 
@@ -62,6 +66,7 @@ export async function loadCompetitors(deps: LoaderDeps): Promise<RegisteredEngin
 async function loadSingleCompetitor(
   row: { id: string; type: string; config: string | null; enginePath: string | null },
   openrouterClient: OpenRouterClient | null,
+  versionsRepo?: ReturnType<typeof competitorVersionsRepo>,
 ) {
   switch (row.type) {
     case "baseline": {
@@ -86,6 +91,22 @@ async function loadSingleCompetitor(
         throw new Error("Codegen competitor missing enginePath");
       }
       return loadCodegenEngine(row.enginePath);
+    }
+
+    case "weight-tuned": {
+      let weights = DEFAULT_WEIGHTS;
+      if (versionsRepo) {
+        const latest = await versionsRepo.findLatest(row.id);
+        if (latest?.code) {
+          try {
+            const parsed = weightConfigSchema.safeParse(JSON.parse(latest.code));
+            if (parsed.success) weights = parsed.data;
+          } catch {
+            logger.info("Using default weights for competitor (parse failed)", { id: row.id });
+          }
+        }
+      }
+      return createWeightedEngine(weights, DEFAULT_STAKE_CONFIG);
     }
 
     case "external": {
