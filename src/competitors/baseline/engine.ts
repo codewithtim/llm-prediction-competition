@@ -49,6 +49,9 @@ export function computeStake(confidence: number): number {
 }
 
 export const baselineEngine = ((statistics: Statistics): PredictionOutput[] => {
+  const market = statistics.markets[0];
+  if (!market) return [];
+
   const homeWinRate = computeHomeWinRate(statistics.homeTeam);
   const formAdvantage = computeFormAdvantage(statistics.homeTeam, statistics.awayTeam);
   const h2hAdvantage = computeH2hAdvantage(statistics.h2h);
@@ -68,7 +71,7 @@ export const baselineEngine = ((statistics: Statistics): PredictionOutput[] => {
 
   return [
     {
-      marketId: statistics.market.marketId,
+      marketId: market.marketId,
       side,
       confidence,
       stake,

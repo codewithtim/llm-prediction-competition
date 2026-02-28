@@ -69,7 +69,12 @@ describe("loadCompetitors", () => {
 
     expect(engines).toHaveLength(4);
     const ids = engines.map((e) => e.competitorId).sort();
-    expect(ids).toEqual(["anthropic-claude-sonnet-4", "baseline", "google-gemini-2.0-flash-001", "openai-gpt-4o"]);
+    expect(ids).toEqual([
+      "anthropic-claude-sonnet-4",
+      "baseline",
+      "google-gemini-2.0-flash-001",
+      "openai-gpt-4o",
+    ]);
   });
 
   it("does not load disabled competitors", async () => {

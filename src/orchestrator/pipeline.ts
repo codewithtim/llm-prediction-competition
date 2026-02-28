@@ -251,71 +251,78 @@ export function createPipeline(deps: PipelineDeps) {
 
           result.fixturesProcessed++;
 
-          // Process each market for this fixture
-          for (const matchedMarket of matched.markets) {
-            const { market } = matchedMarket;
-            const marketContext = buildMarketContext(market);
+          // Build market contexts for all markets on this fixture
+          const marketMap = new Map(matched.markets.map((mm) => [mm.market.id, mm.market]));
+          const marketContexts = matched.markets.map((mm) => buildMarketContext(mm.market));
 
-            const statistics: Statistics = {
-              fixtureId: fixture.id,
-              league: fixture.league,
-              homeTeam: homeStats,
-              awayTeam: awayStats,
-              h2h,
-              market: marketContext,
-            };
+          const statistics: Statistics = {
+            fixtureId: fixture.id,
+            league: fixture.league,
+            homeTeam: homeStats,
+            awayTeam: awayStats,
+            h2h,
+            markets: marketContexts,
+          };
 
-            // Run all engines
-            const engineResults = await runAllEngines(engines, statistics);
+          // Run all engines ONCE per fixture
+          const engineResults = await runAllEngines(engines, statistics);
 
-            for (const engineResult of engineResults) {
-              if ("error" in engineResult) {
+          for (const engineResult of engineResults) {
+            if ("error" in engineResult) {
+              result.errors.push(
+                `Engine ${engineResult.competitorId} failed on fixture ${fixture.id}: ${engineResult.error}`,
+              );
+              continue;
+            }
+
+            const { competitorId, predictions } = engineResult as EngineResult;
+
+            for (const prediction of predictions) {
+              // Resolve the Market object for this prediction
+              const market = marketMap.get(prediction.marketId);
+              if (!market) {
                 result.errors.push(
-                  `Engine ${engineResult.competitorId} failed on fixture ${fixture.id}: ${engineResult.error}`,
+                  `Engine ${competitorId} returned prediction for unknown market ${prediction.marketId}`,
                 );
                 continue;
               }
 
-              const { competitorId, predictions } = engineResult as EngineResult;
+              result.predictionsGenerated++;
 
-              for (const prediction of predictions) {
-                result.predictionsGenerated++;
+              // Persist prediction
+              try {
+                await predictionsRepo.create({
+                  marketId: prediction.marketId,
+                  fixtureId: fixture.id,
+                  competitorId,
+                  side: prediction.side,
+                  confidence: prediction.confidence,
+                  stake: prediction.stake,
+                  reasoning: prediction.reasoning,
+                });
+              } catch (err) {
+                const msg = err instanceof Error ? err.message : String(err);
+                result.errors.push(`Prediction save failed: ${msg}`);
+              }
 
-                // Persist prediction
-                try {
-                  await predictionsRepo.create({
-                    marketId: prediction.marketId,
-                    fixtureId: fixture.id,
-                    competitorId,
-                    side: prediction.side,
-                    confidence: prediction.confidence,
-                    stake: prediction.stake,
-                    reasoning: prediction.reasoning,
-                  });
-                } catch (err) {
-                  const msg = err instanceof Error ? err.message : String(err);
-                  result.errors.push(`Prediction save failed: ${msg}`);
-                }
+              // Place bet
+              try {
+                const engineEntry = engines.find((e) => e.competitorId === competitorId);
+                const betResult = await bettingService.placeBet({
+                  prediction,
+                  market,
+                  fixtureId: fixture.id,
+                  competitorId,
+                  walletConfig: engineEntry?.walletConfig,
+                });
 
-                // Place bet
-                try {
-                  const engineEntry = engines.find((e) => e.competitorId === competitorId);
-                  const betResult = await bettingService.placeBet({
-                    prediction,
-                    market,
-                    fixtureId: fixture.id,
-                    competitorId,
-                    walletConfig: engineEntry?.walletConfig,
-                  });
-
-                  if (betResult.status === "placed") result.betsPlaced++;
-                  else if (betResult.status === "dry_run") result.betsDryRun++;
-                  else result.betsSkipped++;
-                } catch (err) {
-                  const msg = err instanceof Error ? err.message : String(err);
-                  result.errors.push(`Bet placement failed: ${msg}`);
-                  result.betsSkipped++;
-                }
+                if (betResult.status === "placed") result.betsPlaced++;
+                else if (betResult.status === "dry_run") result.betsDryRun++;
+                else result.betsSkipped++;
+              } catch (err) {
+                const msg = err instanceof Error ? err.message : String(err);
+                result.errors.push(`Bet placement failed: ${msg}`);
+                result.betsSkipped++;
               }
             }
           }

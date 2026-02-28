@@ -35,26 +35,41 @@ You will receive statistics for a football match including:
 - League information
 - Home and away team stats (form, win rates, goals, home/away records)
 - Head-to-head history
-- Market context (current prices, liquidity, market type)
+- Multiple available betting markets for the same fixture (e.g. home win, away win, draw)
 
-Your task is to return predictions as structured JSON.
+Your task is to choose the SINGLE best market and return ONE prediction as structured JSON.
 
 Each prediction must have:
-- marketId: the market ID from the input (must match exactly)
-- side: "YES" or "NO" — your prediction on the market question
+- marketId: the market ID from the input (must match exactly one of the available markets)
+- side: "YES" or "NO" — your prediction on that market's question
 - confidence: a number between 0 and 1 (0 = no confidence, 1 = certain)
 - stake: a positive number between 1 and 10 representing how much to bet
-- reasoning: a brief explanation (1-500 characters) of why you made this prediction
+- reasoning: a brief explanation (1-500 characters) of why you chose this market and prediction
 
 Consider:
 - Home/away form and win rates
 - Head-to-head record between the teams
-- Current market prices (look for value — where your confidence diverges from market price)
-- The specific market question being asked
+- Current market prices across ALL available markets — look for the best value
+- Pick the single market where your confidence most diverges from the market price
 - Higher stakes for higher confidence predictions where you see value`;
 
 export function buildPredictionPrompt(statistics: Statistics): string {
-  const { league, homeTeam, awayTeam, h2h, market } = statistics;
+  const { league, homeTeam, awayTeam, h2h, markets } = statistics;
+
+  const marketsSection = markets
+    .map(
+      (market, i) =>
+        `Market ${i + 1}:
+  - Market ID: ${market.marketId}
+  - Question: ${market.question}
+  - Current YES price: ${market.currentYesPrice}
+  - Current NO price: ${market.currentNoPrice}
+  - Liquidity: ${market.liquidity}
+  - Volume: ${market.volume}
+  ${market.sportsMarketType ? `- Market type: ${market.sportsMarketType}` : ""}
+  ${market.line !== null ? `- Line: ${market.line}` : ""}`,
+    )
+    .join("\n\n");
 
   return `Match: ${homeTeam.teamName} vs ${awayTeam.teamName}
 League: ${league.name} (${league.country}, ${league.season})
@@ -79,17 +94,10 @@ HEAD TO HEAD:
 - Home wins: ${h2h.homeWins}, Away wins: ${h2h.awayWins}, Draws: ${h2h.draws}
 ${h2h.recentMatches.length > 0 ? `- Recent: ${h2h.recentMatches.map((m) => `${m.homeTeam} ${m.homeGoals}-${m.awayGoals} ${m.awayTeam}`).join(", ")}` : ""}
 
-MARKET:
-- Market ID: ${market.marketId}
-- Question: ${market.question}
-- Current YES price: ${market.currentYesPrice}
-- Current NO price: ${market.currentNoPrice}
-- Liquidity: ${market.liquidity}
-- Volume: ${market.volume}
-${market.sportsMarketType ? `- Market type: ${market.sportsMarketType}` : ""}
-${market.line !== null ? `- Line: ${market.line}` : ""}
+AVAILABLE MARKETS:
+${marketsSection}
 
-Analyze the data and return your prediction for this market.`;
+Analyze the data and choose ONE market that represents the best value bet. Return a single prediction.`;
 }
 
 export function createLlmRuntimeEngine(deps: {

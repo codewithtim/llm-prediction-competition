@@ -6,7 +6,7 @@ const validEngineCode = `import type { PredictionOutput } from "../../domain/con
 import type { Statistics } from "../../domain/contracts/statistics";
 
 const engine = (statistics: Statistics): PredictionOutput[] => [{
-  marketId: statistics.market.marketId,
+  marketId: statistics.markets[0].marketId,
   side: "YES",
   confidence: 0.65,
   stake: 4,
@@ -24,7 +24,7 @@ const throwingEngine = `const engine = () => { throw new Error("Runtime crash");
 export default engine;`;
 
 const invalidPredictionFields = `const engine = (stats) => [{
-  marketId: stats.market.marketId,
+  marketId: stats.markets[0].marketId,
   side: "MAYBE",
   confidence: 2.5,
   stake: -1,
@@ -51,7 +51,8 @@ describe("validateGeneratedCode", () => {
       const output = await result.engine(SAMPLE_STATISTICS);
       expect(output).toHaveLength(1);
       const first = output[0] as { marketId: string };
-      expect(first.marketId).toBe(SAMPLE_STATISTICS.market.marketId);
+      // biome-ignore lint/style/noNonNullAssertion: sample data always has at least one market
+      expect(first.marketId).toBe(SAMPLE_STATISTICS.markets[0]!.marketId);
     }
   });
 

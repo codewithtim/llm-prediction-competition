@@ -63,7 +63,7 @@ export const statisticsSchema = z.object({
   homeTeam: teamStatsSchema,
   awayTeam: teamStatsSchema,
   h2h: h2hSchema,
-  market: marketContextSchema,
+  markets: z.array(marketContextSchema).min(1),
 });
 
 export type TeamStats = z.infer<typeof teamStatsSchema>;

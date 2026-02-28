@@ -22,8 +22,11 @@ function firstCallArgs(fn: OpenRouterClient["chat"]): ChatParams {
   return ((fn as ReturnType<typeof mock>).mock.calls as any)[0][0] as ChatParams;
 }
 
+// biome-ignore lint/style/noNonNullAssertion: sample data always has at least one market
+const sampleMarket = SAMPLE_STATISTICS.markets[0]!;
+
 const validPrediction: PredictionOutput = {
-  marketId: SAMPLE_STATISTICS.market.marketId,
+  marketId: sampleMarket.marketId,
   side: "YES",
   confidence: 0.72,
   stake: 5,
@@ -45,8 +48,8 @@ describe("buildPredictionPrompt", () => {
 
   it("includes market data", () => {
     const prompt = buildPredictionPrompt(SAMPLE_STATISTICS);
-    expect(prompt).toContain(SAMPLE_STATISTICS.market.marketId);
-    expect(prompt).toContain(SAMPLE_STATISTICS.market.question);
+    expect(prompt).toContain(sampleMarket.marketId);
+    expect(prompt).toContain(sampleMarket.question);
     expect(prompt).toContain("0.62");
   });
 
@@ -102,7 +105,7 @@ describe("createLlmRuntimeEngine", () => {
 
     expect(result).toHaveLength(1);
     const first = result[0] as PredictionOutput;
-    expect(first.marketId).toBe(SAMPLE_STATISTICS.market.marketId);
+    expect(first.marketId).toBe(sampleMarket.marketId);
     expect(first.side).toBe("YES");
     expect(first.confidence).toBe(0.72);
   });

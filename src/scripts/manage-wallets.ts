@@ -77,7 +77,9 @@ async function createWallet(competitorId: string) {
   // Check if wallet already exists
   const existing = await wallets.findByCompetitorId(competitorId, env.WALLET_ENCRYPTION_KEY);
   if (existing) {
-    console.error(`Wallet already exists for "${competitorId}" (address: ${existing.walletAddress}).`);
+    console.error(
+      `Wallet already exists for "${competitorId}" (address: ${existing.walletAddress}).`,
+    );
     console.error("Use 'wallets:remove' first if you want to replace it.");
     process.exit(1);
   }
@@ -91,7 +93,13 @@ async function createWallet(competitorId: string) {
 
   // Register with Polymarket to get API credentials
   console.log("Registering with Polymarket CLOB...");
-  const clob = new ClobClient(CLOB_BASE_URL, POLYGON_CHAIN_ID, wallet, undefined, SIGNATURE_TYPE_EOA);
+  const clob = new ClobClient(
+    CLOB_BASE_URL,
+    POLYGON_CHAIN_ID,
+    wallet,
+    undefined,
+    SIGNATURE_TYPE_EOA,
+  );
 
   let apiKey: string;
   let apiSecret: string;
@@ -153,7 +161,7 @@ async function listWallets() {
 
   console.log("Competitor Wallets:\n");
   console.log("  ID                   | Wallet Address                             | Status");
-  console.log("  " + "-".repeat(85));
+  console.log(`  ${"-".repeat(85)}`);
 
   for (const comp of allCompetitors) {
     const wallet = allWallets.find((w) => w.competitorId === comp.id);

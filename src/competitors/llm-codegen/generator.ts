@@ -34,7 +34,7 @@ type Statistics = {
   homeTeam: TeamStats;
   awayTeam: TeamStats;
   h2h: H2H;
-  market: MarketContext;
+  markets: MarketContext[];
 };
 
 type TeamStats = {
@@ -73,7 +73,7 @@ type MarketContext = {
 };
 
 type PredictionOutput = {
-  marketId: string;    // Must match market.marketId
+  marketId: string;    // Must match one of the markets[].marketId
   side: "YES" | "NO";
   confidence: number;  // Between 0 and 1
   stake: number;       // Positive, between 1 and 10
@@ -103,6 +103,9 @@ function parseForm(form: string | null): number {
 }
 
 const engine = ((statistics: Statistics): PredictionOutput[] => {
+  const market = statistics.markets[0];
+  if (!market) return [];
+
   const homeWinRate = statistics.homeTeam.homeRecord.played > 0
     ? statistics.homeTeam.homeRecord.wins / statistics.homeTeam.homeRecord.played
     : 0.5;
@@ -117,7 +120,7 @@ const engine = ((statistics: Statistics): PredictionOutput[] => {
   const stake = Math.max(1, 1 + (confidence - 0.5) * 18);
 
   return [{
-    marketId: statistics.market.marketId,
+    marketId: market.marketId,
     side,
     confidence,
     stake,
@@ -134,7 +137,7 @@ export default engine;
 2. Use the imports shown: \`import type { PredictionOutput } from "../../domain/contracts/prediction";\`, \`import type { Statistics } from "../../domain/contracts/statistics";\`, \`import type { PredictionEngine } from "../../engine/types";\`
 3. The function must be synchronous (no async, no external API calls)
 4. Always return at least one prediction
-5. marketId must be \`statistics.market.marketId\`
+5. marketId must be one of the \`statistics.markets[].marketId\` values (typically use \`statistics.markets[0].marketId\`)
 6. confidence must be between 0 and 1
 7. stake must be positive, between 1 and 10
 8. reasoning must be 1-500 characters

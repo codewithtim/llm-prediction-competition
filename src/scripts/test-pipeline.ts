@@ -178,7 +178,7 @@ async function main() {
   divider("Step 3: Matching Polymarket events to fixtures");
 
   let targetFixture: Fixture;
-  let marketContext: MarketContext;
+  let marketContexts: MarketContext[];
   let matchSource: string;
 
   if (events.length > 0) {
@@ -188,28 +188,29 @@ async function main() {
     console.log(`Unmatched API-Football fixtures: ${matchResult.unmatchedFixtures.length}`);
 
     const pick = matchResult.matched.length > 0 ? pickBestMatch(matchResult.matched) : null;
-    const firstMarket = pick?.markets[0];
 
-    if (pick && firstMarket) {
+    if (pick && pick.markets.length > 0) {
       targetFixture = pick.fixture;
-      marketContext = buildMarketContext(firstMarket.market);
+      marketContexts = pick.markets.map((mm) => buildMarketContext(mm.market));
       matchSource = "polymarket";
 
       console.log(`\nSelected: ${targetFixture.homeTeam.name} vs ${targetFixture.awayTeam.name}`);
-      console.log(`  Market: ${marketContext.question}`);
-      console.log(`  Yes: ${marketContext.currentYesPrice} / No: ${marketContext.currentNoPrice}`);
+      console.log(`  Markets: ${marketContexts.length}`);
+      for (const mc of marketContexts) {
+        console.log(`    - ${mc.question} (Yes: ${mc.currentYesPrice} / No: ${mc.currentNoPrice})`);
+      }
     } else {
       console.log(
         "\nNo Polymarket ↔ fixture matches. Falling back to first fixture with synthetic market.",
       );
       targetFixture = allFixtures[0] as Fixture;
-      marketContext = buildSyntheticMarketContext(targetFixture);
+      marketContexts = [buildSyntheticMarketContext(targetFixture)];
       matchSource = "synthetic";
     }
   } else {
     console.log("No Polymarket events available. Using first fixture with synthetic market.");
     targetFixture = allFixtures[0] as Fixture;
-    marketContext = buildSyntheticMarketContext(targetFixture);
+    marketContexts = [buildSyntheticMarketContext(targetFixture)];
     matchSource = "synthetic";
   }
 
@@ -297,7 +298,7 @@ async function main() {
     homeTeam: homeStats,
     awayTeam: awayStats,
     h2h,
-    market: marketContext,
+    markets: marketContexts,
   };
 
   console.log(`Market source: ${matchSource}`);
@@ -315,18 +316,19 @@ async function main() {
     console.log(`Engine error: ${result.error}`);
   } else {
     for (const pred of result.predictions) {
+      const predMarket = marketContexts.find((mc) => mc.marketId === pred.marketId);
       console.log(`Match:       ${targetFixture.homeTeam.name} vs ${targetFixture.awayTeam.name}`);
       console.log(`Date:        ${formatDate(targetFixture.date)}`);
       console.log(`League:      ${targetFixture.league.name}`);
-      console.log(`Market:      ${marketContext.question}`);
+      console.log(`Market:      ${predMarket?.question ?? pred.marketId}`);
       console.log(`Side:        ${pred.side}`);
       console.log(`Confidence:  ${(pred.confidence * 100).toFixed(1)}%`);
       console.log(`Stake:       $${pred.stake.toFixed(2)} USDC`);
       console.log(`Reasoning:   ${pred.reasoning}`);
 
-      if (matchSource === "polymarket") {
+      if (matchSource === "polymarket" && predMarket) {
         const impliedProb =
-          pred.side === "YES" ? marketContext.currentYesPrice : marketContext.currentNoPrice;
+          pred.side === "YES" ? predMarket.currentYesPrice : predMarket.currentNoPrice;
         const edge = pred.confidence - impliedProb;
         console.log(`\nMarket price: ${(impliedProb * 100).toFixed(1)}% (implied)`);
         console.log(`Edge:         ${edge > 0 ? "+" : ""}${(edge * 100).toFixed(1)}pp`);

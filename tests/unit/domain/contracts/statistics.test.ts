@@ -41,16 +41,18 @@ function makeValidStatistics(overrides?: Record<string, unknown>) {
         },
       ],
     },
-    market: {
-      marketId: "abc-123",
-      question: "Will Arsenal win?",
-      currentYesPrice: 0.65,
-      currentNoPrice: 0.35,
-      liquidity: 50000,
-      volume: 120000,
-      sportsMarketType: "moneyline",
-      line: null,
-    },
+    markets: [
+      {
+        marketId: "abc-123",
+        question: "Will Arsenal win?",
+        currentYesPrice: 0.65,
+        currentNoPrice: 0.35,
+        liquidity: 50000,
+        volume: 120000,
+        sportsMarketType: "moneyline",
+        line: null,
+      },
+    ],
     ...overrides,
   };
 }
@@ -69,16 +71,18 @@ describe("statisticsSchema", () => {
 
   it("accepts null sportsMarketType and line", () => {
     const stats = makeValidStatistics({
-      market: {
-        marketId: "abc-123",
-        question: "Will Arsenal win?",
-        currentYesPrice: 0.65,
-        currentNoPrice: 0.35,
-        liquidity: 50000,
-        volume: 120000,
-        sportsMarketType: null,
-        line: null,
-      },
+      markets: [
+        {
+          marketId: "abc-123",
+          question: "Will Arsenal win?",
+          currentYesPrice: 0.65,
+          currentNoPrice: 0.35,
+          liquidity: 50000,
+          volume: 120000,
+          sportsMarketType: null,
+          line: null,
+        },
+      ],
     });
     expect(() => statisticsSchema.parse(stats)).not.toThrow();
   });

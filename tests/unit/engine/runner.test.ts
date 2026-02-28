@@ -46,16 +46,18 @@ function makeStatistics(overrides?: Partial<Statistics>): Statistics {
       draws: 1,
       recentMatches: [],
     },
-    market: {
-      marketId: "market-1",
-      question: "Will Arsenal win?",
-      currentYesPrice: 0.65,
-      currentNoPrice: 0.35,
-      liquidity: 10000,
-      volume: 50000,
-      sportsMarketType: "winner",
-      line: null,
-    },
+    markets: [
+      {
+        marketId: "market-1",
+        question: "Will Arsenal win?",
+        currentYesPrice: 0.65,
+        currentNoPrice: 0.35,
+        liquidity: 10000,
+        volume: 50000,
+        sportsMarketType: "winner",
+        line: null,
+      },
+    ],
     ...overrides,
   };
 }

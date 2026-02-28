@@ -56,16 +56,18 @@ function makeStatistics(overrides?: Partial<Statistics>): Statistics {
       draws: 1,
       recentMatches: [],
     },
-    market: {
-      marketId: "market-123",
-      question: "Will Arsenal win?",
-      currentYesPrice: 0.65,
-      currentNoPrice: 0.35,
-      liquidity: 10000,
-      volume: 50000,
-      sportsMarketType: "winner",
-      line: null,
-    },
+    markets: [
+      {
+        marketId: "market-123",
+        question: "Will Arsenal win?",
+        currentYesPrice: 0.65,
+        currentNoPrice: 0.35,
+        liquidity: 10000,
+        volume: 50000,
+        sportsMarketType: "winner",
+        line: null,
+      },
+    ],
     ...overrides,
   };
 }
@@ -86,16 +88,18 @@ describe("baseline engine", () => {
 
     it("uses the market's marketId", () => {
       const stats = makeStatistics({
-        market: {
-          marketId: "my-special-market",
-          question: "Will team win?",
-          currentYesPrice: 0.5,
-          currentNoPrice: 0.5,
-          liquidity: 1000,
-          volume: 5000,
-          sportsMarketType: "winner",
-          line: null,
-        },
+        markets: [
+          {
+            marketId: "my-special-market",
+            question: "Will team win?",
+            currentYesPrice: 0.5,
+            currentNoPrice: 0.5,
+            liquidity: 1000,
+            volume: 5000,
+            sportsMarketType: "winner",
+            line: null,
+          },
+        ],
       });
       const predictions = baselineEngine(stats);
       expect(predictions[0]?.marketId).toBe("my-special-market");

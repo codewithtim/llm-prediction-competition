@@ -95,14 +95,16 @@ export const SAMPLE_STATISTICS: Statistics = {
       },
     ],
   },
-  market: {
-    marketId: "0x1234567890abcdef",
-    question: "Will Arsenal win vs Chelsea?",
-    currentYesPrice: 0.62,
-    currentNoPrice: 0.38,
-    liquidity: 50000,
-    volume: 120000,
-    sportsMarketType: "winner",
-    line: null,
-  },
+  markets: [
+    {
+      marketId: "0x1234567890abcdef",
+      question: "Will Arsenal win vs Chelsea?",
+      currentYesPrice: 0.62,
+      currentNoPrice: 0.38,
+      liquidity: 50000,
+      volume: 120000,
+      sportsMarketType: "winner",
+      line: null,
+    },
+  ],
 };
