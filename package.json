@@ -15,7 +15,11 @@
     "db:studio": "drizzle-kit studio",
     "test:pipeline": "bun run src/scripts/test-pipeline.ts",
     "iterate": "bun run src/scripts/iterate.ts",
-    "discover:tags": "bun run src/scripts/discover-tags.ts"
+    "discover:tags": "bun run src/scripts/discover-tags.ts",
+    "wallets:create": "bun run src/scripts/manage-wallets.ts create",
+    "wallets:list": "bun run src/scripts/manage-wallets.ts list",
+    "wallets:export": "bun run src/scripts/manage-wallets.ts export",
+    "wallets:remove": "bun run src/scripts/manage-wallets.ts remove"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.4.4",

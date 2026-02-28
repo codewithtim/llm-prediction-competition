@@ -1,5 +1,6 @@
 import type { PredictionOutput } from "../domain/contracts/prediction";
 import type { Statistics } from "../domain/contracts/statistics";
+import type { WalletConfig } from "../domain/types/competitor";
 
 export type PredictionEngine = (
   statistics: Statistics,
@@ -19,4 +20,5 @@ export type RegisteredEngine = {
   competitorId: string;
   name: string;
   engine: PredictionEngine;
+  walletConfig?: WalletConfig;
 };

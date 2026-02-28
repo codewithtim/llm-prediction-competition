@@ -1,10 +1,16 @@
+import type { WalletConfig } from "../domain/types/competitor";
 import type { PredictionEngine, RegisteredEngine } from "../engine/types";
 
 export class CompetitorRegistry {
   private engines: Map<string, RegisteredEngine> = new Map();
 
-  register(competitorId: string, name: string, engine: PredictionEngine): void {
-    this.engines.set(competitorId, { competitorId, name, engine });
+  register(
+    competitorId: string,
+    name: string,
+    engine: PredictionEngine,
+    walletConfig?: WalletConfig,
+  ): void {
+    this.engines.set(competitorId, { competitorId, name, engine, walletConfig });
   }
 
   getAll(): RegisteredEngine[] {

@@ -1,7 +1,8 @@
 import type { betsRepo as betsRepoFactory } from "../../infrastructure/database/repositories/bets";
-import type { BettingClient } from "../../infrastructure/polymarket/betting-client";
+import type { BettingClientFactory } from "../../infrastructure/polymarket/betting-client-factory";
 import type { PredictionOutput } from "../contracts/prediction";
 import type { Market } from "../models/market";
+import type { WalletConfig } from "../types/competitor";
 
 export type BettingConfig = {
   maxStakePerBet: number;
@@ -14,6 +15,7 @@ export type PlaceBetInput = {
   market: Market;
   fixtureId: number;
   competitorId: string;
+  walletConfig?: WalletConfig;
 };
 
 export type PlaceBetResult = {
@@ -42,15 +44,15 @@ export function clampStake(stake: number, maxStake: number): number {
 }
 
 export function createBettingService(deps: {
-  bettingClient: BettingClient;
+  bettingClientFactory: BettingClientFactory;
   betsRepo: ReturnType<typeof betsRepoFactory>;
   config: BettingConfig;
 }) {
-  const { bettingClient, betsRepo, config } = deps;
+  const { bettingClientFactory, betsRepo, config } = deps;
 
   return {
     async placeBet(input: PlaceBetInput): Promise<PlaceBetResult> {
-      const { prediction, market, fixtureId, competitorId } = input;
+      const { prediction, market, fixtureId, competitorId, walletConfig } = input;
 
       if (!market.acceptingOrders) {
         return { status: "skipped", reason: "Market is not accepting orders" };
@@ -82,6 +84,12 @@ export function createBettingService(deps: {
       if (config.dryRun) {
         return { status: "dry_run" };
       }
+
+      if (!walletConfig) {
+        return { status: "skipped", reason: "No wallet configured for competitor" };
+      }
+
+      const bettingClient = bettingClientFactory.getClient(competitorId, walletConfig);
 
       const { orderId } = await bettingClient.placeOrder({
         tokenId,

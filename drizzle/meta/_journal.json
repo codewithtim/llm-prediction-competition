@@ -15,6 +15,20 @@
       "when": 1772185193249,
       "tag": "0001_competitor-management",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1772204762183,
+      "tag": "0002_aberrant_frank_castle",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1772258400000,
+      "tag": "0003_rename-competitor-ids",
+      "breakpoints": true
     }
   ]
 }

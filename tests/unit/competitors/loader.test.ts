@@ -5,6 +5,7 @@ import { migrate } from "drizzle-orm/libsql/migrator";
 import { loadCompetitors } from "../../../src/competitors/loader";
 import type { Database } from "../../../src/infrastructure/database/client";
 import { competitorsRepo } from "../../../src/infrastructure/database/repositories/competitors";
+import { walletsRepo } from "../../../src/infrastructure/database/repositories/wallets";
 import * as schema from "../../../src/infrastructure/database/schema";
 import type { OpenRouterClient } from "../../../src/infrastructure/openrouter/client";
 
@@ -25,13 +26,15 @@ describe("loadCompetitors", () => {
     const repo = competitorsRepo(db);
 
     // Disable runtime competitors so only baseline loads
-    await repo.setStatus("claude-runtime", "disabled");
-    await repo.setStatus("gpt4o-runtime", "disabled");
-    await repo.setStatus("gemini-runtime", "disabled");
+    await repo.setStatus("anthropic-claude-sonnet-4", "disabled");
+    await repo.setStatus("openai-gpt-4o", "disabled");
+    await repo.setStatus("google-gemini-2.0-flash-001", "disabled");
 
     const engines = await loadCompetitors({
       competitorsRepo: repo,
       openrouterClient: null,
+      walletsRepo: walletsRepo(db),
+      encryptionKey: "",
     });
 
     expect(engines).toHaveLength(1);
@@ -45,6 +48,8 @@ describe("loadCompetitors", () => {
     const engines = await loadCompetitors({
       competitorsRepo: repo,
       openrouterClient: null,
+      walletsRepo: walletsRepo(db),
+      encryptionKey: "",
     });
 
     // Only baseline should load (runtime competitors skipped)
@@ -58,25 +63,29 @@ describe("loadCompetitors", () => {
     const engines = await loadCompetitors({
       competitorsRepo: repo,
       openrouterClient: mockOpenRouterClient,
+      walletsRepo: walletsRepo(db),
+      encryptionKey: "",
     });
 
     expect(engines).toHaveLength(4);
     const ids = engines.map((e) => e.competitorId).sort();
-    expect(ids).toEqual(["baseline", "claude-runtime", "gemini-runtime", "gpt4o-runtime"]);
+    expect(ids).toEqual(["anthropic-claude-sonnet-4", "baseline", "google-gemini-2.0-flash-001", "openai-gpt-4o"]);
   });
 
   it("does not load disabled competitors", async () => {
     const repo = competitorsRepo(db);
-    await repo.setStatus("claude-runtime", "disabled");
+    await repo.setStatus("anthropic-claude-sonnet-4", "disabled");
 
     const engines = await loadCompetitors({
       competitorsRepo: repo,
       openrouterClient: mockOpenRouterClient,
+      walletsRepo: walletsRepo(db),
+      encryptionKey: "",
     });
 
     expect(engines).toHaveLength(3);
     const ids = engines.map((e) => e.competitorId);
-    expect(ids).not.toContain("claude-runtime");
+    expect(ids).not.toContain("anthropic-claude-sonnet-4");
   });
 
   it("sets competitor status to error on load failure", async () => {
@@ -95,6 +104,8 @@ describe("loadCompetitors", () => {
     await loadCompetitors({
       competitorsRepo: repo,
       openrouterClient: null,
+      walletsRepo: walletsRepo(db),
+      encryptionKey: "",
     });
 
     const updated = await repo.findById("bad-codegen");

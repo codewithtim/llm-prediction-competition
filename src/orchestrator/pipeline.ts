@@ -299,11 +299,13 @@ export function createPipeline(deps: PipelineDeps) {
 
                 // Place bet
                 try {
+                  const engineEntry = engines.find((e) => e.competitorId === competitorId);
                   const betResult = await bettingService.placeBet({
                     prediction,
                     market,
                     fixtureId: fixture.id,
                     competitorId,
+                    walletConfig: engineEntry?.walletConfig,
                   });
 
                   if (betResult.status === "placed") result.betsPlaced++;

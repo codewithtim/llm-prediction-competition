@@ -8,8 +8,10 @@ import {
   type PlaceBetInput,
   resolveTokenId,
 } from "../../../../src/domain/services/betting";
+import type { WalletConfig } from "../../../../src/domain/types/competitor";
 import type { betsRepo as betsRepoFactory } from "../../../../src/infrastructure/database/repositories/bets";
 import type { BettingClient } from "../../../../src/infrastructure/polymarket/betting-client";
+import type { BettingClientFactory } from "../../../../src/infrastructure/polymarket/betting-client-factory";
 
 type BetsRepo = ReturnType<typeof betsRepoFactory>;
 
@@ -54,6 +56,13 @@ function makeConfig(overrides?: Partial<BettingConfig>): BettingConfig {
   };
 }
 
+const TEST_WALLET_CONFIG: WalletConfig = {
+  polyPrivateKey: "0xtest-private-key",
+  polyApiKey: "test-api-key",
+  polyApiSecret: "test-api-secret",
+  polyApiPassphrase: "test-api-passphrase",
+};
+
 function mockBettingClient(overrides?: Partial<BettingClient>): BettingClient {
   return {
     placeOrder: mock(() => Promise.resolve({ orderId: "order-abc" })),
@@ -64,6 +73,12 @@ function mockBettingClient(overrides?: Partial<BettingClient>): BettingClient {
     getNegRisk: mock(() => Promise.resolve(false)),
     ...overrides,
   } as unknown as BettingClient;
+}
+
+function mockBettingClientFactory(client: BettingClient): BettingClientFactory {
+  return {
+    getClient: mock(() => client),
+  } as unknown as BettingClientFactory;
 }
 
 type BetRow = {
@@ -113,6 +128,7 @@ function makeInput(overrides?: Partial<PlaceBetInput>): PlaceBetInput {
     market: makeMarket(),
     fixtureId: 1001,
     competitorId: "baseline",
+    walletConfig: TEST_WALLET_CONFIG,
     ...overrides,
   };
 }
@@ -153,7 +169,7 @@ describe("createBettingService", () => {
       const client = mockBettingClient();
       const repo = mockBetsRepo();
       const service = createBettingService({
-        bettingClient: client,
+        bettingClientFactory: mockBettingClientFactory(client),
         betsRepo: repo,
         config: makeConfig(),
       });
@@ -175,7 +191,7 @@ describe("createBettingService", () => {
       const client = mockBettingClient();
       const repo = mockBetsRepo();
       const service = createBettingService({
-        bettingClient: client,
+        bettingClientFactory: mockBettingClientFactory(client),
         betsRepo: repo,
         config: makeConfig(),
       });
@@ -194,7 +210,7 @@ describe("createBettingService", () => {
       const client = mockBettingClient();
       const repo = mockBetsRepo();
       const service = createBettingService({
-        bettingClient: client,
+        bettingClientFactory: mockBettingClientFactory(client),
         betsRepo: repo,
         config: makeConfig(),
       });
@@ -212,7 +228,7 @@ describe("createBettingService", () => {
       const client = mockBettingClient();
       const repo = mockBetsRepo();
       const service = createBettingService({
-        bettingClient: client,
+        bettingClientFactory: mockBettingClientFactory(client),
         betsRepo: repo,
         config: makeConfig(),
       });
@@ -233,7 +249,7 @@ describe("createBettingService", () => {
       const client = mockBettingClient();
       const repo = mockBetsRepo();
       const service = createBettingService({
-        bettingClient: client,
+        bettingClientFactory: mockBettingClientFactory(client),
         betsRepo: repo,
         config: makeConfig({ dryRun: true }),
       });
@@ -247,7 +263,7 @@ describe("createBettingService", () => {
       const client = mockBettingClient();
       const repo = mockBetsRepo();
       const service = createBettingService({
-        bettingClient: client,
+        bettingClientFactory: mockBettingClientFactory(client),
         betsRepo: repo,
         config: makeConfig({ dryRun: true }),
       });
@@ -261,7 +277,7 @@ describe("createBettingService", () => {
       const client = mockBettingClient();
       const repo = mockBetsRepo();
       const service = createBettingService({
-        bettingClient: client,
+        bettingClientFactory: mockBettingClientFactory(client),
         betsRepo: repo,
         config: makeConfig({ dryRun: true }),
       });
@@ -277,7 +293,7 @@ describe("createBettingService", () => {
       const client = mockBettingClient();
       const repo = mockBetsRepo();
       const service = createBettingService({
-        bettingClient: client,
+        bettingClientFactory: mockBettingClientFactory(client),
         betsRepo: repo,
         config: makeConfig(),
       });
@@ -312,7 +328,7 @@ describe("createBettingService", () => {
         },
       ]);
       const service = createBettingService({
-        bettingClient: client,
+        bettingClientFactory: mockBettingClientFactory(client),
         betsRepo: repo,
         config: makeConfig(),
       });
@@ -345,7 +361,7 @@ describe("createBettingService", () => {
         },
       ]);
       const service = createBettingService({
-        bettingClient: client,
+        bettingClientFactory: mockBettingClientFactory(client),
         betsRepo: repo,
         config: makeConfig(),
       });
@@ -377,7 +393,7 @@ describe("createBettingService", () => {
         },
       ]);
       const service = createBettingService({
-        bettingClient: client,
+        bettingClientFactory: mockBettingClientFactory(client),
         betsRepo: repo,
         config: makeConfig(),
       });
@@ -408,7 +424,7 @@ describe("createBettingService", () => {
         },
       ]);
       const service = createBettingService({
-        bettingClient: client,
+        bettingClientFactory: mockBettingClientFactory(client),
         betsRepo: repo,
         config: makeConfig({ maxTotalExposure: 100 }),
       });
@@ -426,7 +442,7 @@ describe("createBettingService", () => {
       const client = mockBettingClient();
       const repo = mockBetsRepo();
       const service = createBettingService({
-        bettingClient: client,
+        bettingClientFactory: mockBettingClientFactory(client),
         betsRepo: repo,
         config: makeConfig({ maxStakePerBet: 3 }),
       });
@@ -447,7 +463,7 @@ describe("createBettingService", () => {
       } as unknown as BettingClient);
       const repo = mockBetsRepo();
       const service = createBettingService({
-        bettingClient: client,
+        bettingClientFactory: mockBettingClientFactory(client),
         betsRepo: repo,
         config: makeConfig(),
       });

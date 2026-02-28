@@ -88,6 +88,25 @@ export const competitorVersions = sqliteTable("competitor_versions", {
     .$defaultFn(() => new Date()),
 });
 
+export const competitorWallets = sqliteTable("competitor_wallets", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  competitorId: text("competitor_id")
+    .notNull()
+    .unique()
+    .references(() => competitors.id),
+  walletAddress: text("wallet_address").notNull(),
+  encryptedPrivateKey: text("encrypted_private_key").notNull(),
+  encryptedApiKey: text("encrypted_api_key").notNull(),
+  encryptedApiSecret: text("encrypted_api_secret").notNull(),
+  encryptedApiPassphrase: text("encrypted_api_passphrase").notNull(),
+  createdAt: integer("created_at", { mode: "timestamp" })
+    .notNull()
+    .$defaultFn(() => new Date()),
+  updatedAt: integer("updated_at", { mode: "timestamp" })
+    .notNull()
+    .$defaultFn(() => new Date()),
+});
+
 export const predictions = sqliteTable("predictions", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   marketId: text("market_id")

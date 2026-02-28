@@ -8,11 +8,9 @@ import { competitorsRepo } from "./infrastructure/database/repositories/competit
 import { fixturesRepo } from "./infrastructure/database/repositories/fixtures.ts";
 import { marketsRepo } from "./infrastructure/database/repositories/markets.ts";
 import { predictionsRepo } from "./infrastructure/database/repositories/predictions.ts";
+import { walletsRepo } from "./infrastructure/database/repositories/wallets.ts";
 import { createOpenRouterClient } from "./infrastructure/openrouter/client.ts";
-import {
-  createBettingClient,
-  createStubBettingClient,
-} from "./infrastructure/polymarket/betting-client.ts";
+import { createBettingClientFactory } from "./infrastructure/polymarket/betting-client-factory.ts";
 import { createGammaClient } from "./infrastructure/polymarket/gamma-client.ts";
 import { createMarketDiscovery } from "./infrastructure/polymarket/market-discovery.ts";
 import { createFootballClient } from "./infrastructure/sports-data/client.ts";
@@ -29,25 +27,14 @@ const fixtures = fixturesRepo(db);
 const preds = predictionsRepo(db);
 const bets = betsRepo(db);
 const comps = competitorsRepo(db);
+const wallets = walletsRepo(db);
 
 // ── External clients ─────────────────────────────────────────────────
 const gammaClient = createGammaClient();
 const footballClient = createFootballClient(env.API_SPORTS_KEY);
 const openrouterConfigured = !!env.OPENROUTER_API_KEY;
 const openrouter = openrouterConfigured ? createOpenRouterClient(env.OPENROUTER_API_KEY) : null;
-const polyConfigured = env.POLY_PRIVATE_KEY && env.POLY_API_KEY;
-const bettingClient = polyConfigured
-  ? createBettingClient({
-      privateKey: env.POLY_PRIVATE_KEY,
-      apiKey: env.POLY_API_KEY,
-      apiSecret: env.POLY_API_SECRET,
-      apiPassphrase: env.POLY_API_PASSPHRASE,
-    })
-  : createStubBettingClient();
-
-if (!polyConfigured) {
-  logger.info("Polymarket credentials not set — running in dry-run mode only");
-}
+const bettingClientFactory = createBettingClientFactory();
 
 if (!openrouterConfigured) {
   logger.info("OpenRouter not configured — runtime competitors will be skipped");
@@ -59,7 +46,7 @@ const discovery = createMarketDiscovery(gammaClient, {
   lookAheadDays: DEFAULT_CONFIG.fixtureLookAheadDays,
 });
 const bettingService = createBettingService({
-  bettingClient,
+  bettingClientFactory,
   betsRepo: bets,
   config: DEFAULT_CONFIG.betting,
 });
@@ -73,11 +60,13 @@ const settlementService = createSettlementService({
 const engines = await loadCompetitors({
   competitorsRepo: comps,
   openrouterClient: openrouter,
+  walletsRepo: wallets,
+  encryptionKey: env.WALLET_ENCRYPTION_KEY,
 });
 
 const registry = createRegistry();
 for (const entry of engines) {
-  registry.register(entry.competitorId, entry.name, entry.engine);
+  registry.register(entry.competitorId, entry.name, entry.engine, entry.walletConfig);
 }
 
 // ── Pipeline & scheduler ─────────────────────────────────────────────

@@ -8,3 +8,10 @@ export type RuntimeConfig = { model: string };
 export type CodegenConfig = { model: string };
 export type ExternalConfig = { webhookUrl: string; apiKey: string };
 export type CompetitorConfig = RuntimeConfig | CodegenConfig | ExternalConfig | null;
+
+export type WalletConfig = {
+  polyPrivateKey: string;
+  polyApiKey: string;
+  polyApiSecret: string;
+  polyApiPassphrase: string;
+};

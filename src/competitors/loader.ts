@@ -1,6 +1,7 @@
 import type { RuntimeConfig } from "../domain/types/competitor";
 import type { RegisteredEngine } from "../engine/types";
 import type { CompetitorsRepo } from "../infrastructure/database/repositories/competitors";
+import type { WalletsRepo } from "../infrastructure/database/repositories/wallets";
 import type { OpenRouterClient } from "../infrastructure/openrouter/client";
 import { logger } from "../shared/logger";
 import { loadCodegenEngine } from "./llm-codegen/engine";
@@ -9,10 +10,12 @@ import { createLlmRuntimeEngine } from "./llm-runtime/engine";
 export type LoaderDeps = {
   competitorsRepo: CompetitorsRepo;
   openrouterClient: OpenRouterClient | null;
+  walletsRepo: WalletsRepo;
+  encryptionKey: string;
 };
 
 export async function loadCompetitors(deps: LoaderDeps): Promise<RegisteredEngine[]> {
-  const { competitorsRepo, openrouterClient } = deps;
+  const { competitorsRepo, openrouterClient, walletsRepo, encryptionKey } = deps;
   const rows = await competitorsRepo.findByStatus("active");
   const engines: RegisteredEngine[] = [];
 
@@ -20,7 +23,29 @@ export async function loadCompetitors(deps: LoaderDeps): Promise<RegisteredEngin
     try {
       const engine = await loadSingleCompetitor(row, openrouterClient);
       if (engine) {
-        engines.push({ competitorId: row.id, name: row.name, engine });
+        const registered: RegisteredEngine = { competitorId: row.id, name: row.name, engine };
+
+        if (encryptionKey) {
+          try {
+            const wallet = await walletsRepo.findByCompetitorId(row.id, encryptionKey);
+            if (wallet) {
+              registered.walletConfig = {
+                polyPrivateKey: wallet.polyPrivateKey,
+                polyApiKey: wallet.polyApiKey,
+                polyApiSecret: wallet.polyApiSecret,
+                polyApiPassphrase: wallet.polyApiPassphrase,
+              };
+              logger.info("Loaded wallet for competitor", { id: row.id });
+            } else {
+              logger.info("No wallet configured for competitor", { id: row.id });
+            }
+          } catch (err) {
+            const message = err instanceof Error ? err.message : String(err);
+            logger.error("Failed to load wallet for competitor", { id: row.id, error: message });
+          }
+        }
+
+        engines.push(registered);
         logger.info("Loaded competitor", { id: row.id, type: row.type });
       }
     } catch (err) {
