@@ -232,6 +232,7 @@ function mockGammaClient(overrides: Partial<GammaClient> = {}): GammaClient {
 function mockMarketsRepo(overrides: Record<string, unknown> = {}) {
   return {
     upsert: mock(() => Promise.resolve()),
+    bulkUpsert: mock(() => Promise.resolve()),
     findById: mock(() => Promise.resolve(null)),
     findActive: mock(() => Promise.resolve([] as ReturnType<typeof makeMarketRow>[])),
     findByGameId: mock(() => Promise.resolve([] as ReturnType<typeof makeMarketRow>[])),
@@ -244,6 +245,7 @@ function mockMarketsRepo(overrides: Record<string, unknown> = {}) {
 function mockFixturesRepo(overrides: Record<string, unknown> = {}) {
   return {
     upsert: mock(() => Promise.resolve()),
+    bulkUpsert: mock(() => Promise.resolve()),
     findById: mock(() => Promise.resolve(null)),
     findByStatus: mock(() => Promise.resolve([] as ReturnType<typeof makeFixtureRow>[])),
     findScheduledUpcoming: mock(() => Promise.resolve([] as ReturnType<typeof makeFixtureRow>[])),
@@ -353,7 +355,7 @@ describe("createDiscoveryPipeline", () => {
     const pipeline = createDiscoveryPipeline(deps);
     await pipeline.run();
 
-    expect(marketsRepoMock.upsert).toHaveBeenCalled();
+    expect(marketsRepoMock.bulkUpsert).toHaveBeenCalled();
   });
 
   test("persists fixtures to DB", async () => {
@@ -364,7 +366,7 @@ describe("createDiscoveryPipeline", () => {
     const pipeline = createDiscoveryPipeline(deps);
     await pipeline.run();
 
-    expect(fixturesRepoMock.upsert).toHaveBeenCalled();
+    expect(fixturesRepoMock.bulkUpsert).toHaveBeenCalled();
   });
 
   test("handles discovery failure gracefully", async () => {

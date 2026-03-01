@@ -138,48 +138,44 @@ export function createDiscoveryPipeline(deps: DiscoveryPipelineDeps) {
         unmatchedFixtures: matchResult.unmatchedFixtures.length,
       });
 
-      // Step 4: Upsert ALL fixtures to DB
-      for (const fixture of allFixtures) {
-        try {
-          await fixturesRepo.upsert(fixtureToDbRow(fixture));
-          result.fixturesUpserted++;
-        } catch (err) {
-          const msg = err instanceof Error ? err.message : String(err);
-          result.errors.push(`Fixture upsert failed (${fixture.id}): ${msg}`);
-        }
+      // Step 4: Bulk upsert ALL fixtures to DB
+      const fixtureRows = allFixtures.map(fixtureToDbRow);
+      try {
+        await fixturesRepo.bulkUpsert(fixtureRows);
+        result.fixturesUpserted = fixtureRows.length;
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        result.errors.push(`Fixtures bulk upsert failed: ${msg}`);
       }
       logger.info("Discovery: fixtures persisted", {
         upserted: result.fixturesUpserted,
         total: allFixtures.length,
       });
 
-      // Step 5: Upsert matched markets with fixtureId set
+      // Step 5: Bulk upsert all markets (matched with fixtureId, unmatched with null)
       const matchedMarketIds = new Set<string>();
+      const marketRows: ReturnType<typeof marketToDbRow>[] = [];
+
       for (const matched of matchResult.matched) {
         for (const mm of matched.markets) {
           matchedMarketIds.add(mm.market.id);
-          try {
-            await marketsRepo.upsert(marketToDbRow(mm.market, matched.fixture.id));
-            result.marketsUpserted++;
-          } catch (err) {
-            const msg = err instanceof Error ? err.message : String(err);
-            result.errors.push(`Market upsert failed (${mm.market.id}): ${msg}`);
-          }
+          marketRows.push(marketToDbRow(mm.market, matched.fixture.id));
         }
       }
 
-      // Step 6: Upsert unmatched event markets with fixtureId = null
       for (const event of matchResult.unmatchedEvents) {
         for (const market of event.markets) {
           if (matchedMarketIds.has(market.id)) continue;
-          try {
-            await marketsRepo.upsert(marketToDbRow(market, null));
-            result.marketsUpserted++;
-          } catch (err) {
-            const msg = err instanceof Error ? err.message : String(err);
-            result.errors.push(`Market upsert failed (${market.id}): ${msg}`);
-          }
+          marketRows.push(marketToDbRow(market, null));
         }
+      }
+
+      try {
+        await marketsRepo.bulkUpsert(marketRows);
+        result.marketsUpserted = marketRows.length;
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        result.errors.push(`Markets bulk upsert failed: ${msg}`);
       }
 
       logger.info("Discovery: markets persisted", { upserted: result.marketsUpserted });
