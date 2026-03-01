@@ -165,6 +165,38 @@ describe("createScheduler", () => {
     await new Promise((r) => setTimeout(r, 10));
   });
 
+  test("delays prediction start when predictionDelayMs is set", async () => {
+    const deps = buildDeps({
+      config: makeConfig({ predictionDelayMs: 80 }),
+    });
+    scheduler = createScheduler(deps);
+    scheduler.start();
+
+    // Before the delay, prediction should not have been called
+    await new Promise((r) => setTimeout(r, 20));
+    expect(deps.predictionPipeline.run).not.toHaveBeenCalled();
+
+    // After the delay, prediction should have been called
+    await new Promise((r) => setTimeout(r, 100));
+    expect(deps.predictionPipeline.run).toHaveBeenCalled();
+  });
+
+  test("stop() clears delay timers before they fire", async () => {
+    const deps = buildDeps({
+      config: makeConfig({ predictionDelayMs: 80 }),
+    });
+    scheduler = createScheduler(deps);
+    scheduler.start();
+
+    // Stop before the delay fires
+    await new Promise((r) => setTimeout(r, 20));
+    scheduler.stop();
+
+    // Wait past when the delay would have fired
+    await new Promise((r) => setTimeout(r, 100));
+    expect(deps.predictionPipeline.run).not.toHaveBeenCalled();
+  });
+
   test("overlap guard prevents concurrent prediction runs", async () => {
     let resolveFirst: () => void = () => {};
     const slowPrediction = mock(

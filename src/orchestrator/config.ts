@@ -15,6 +15,9 @@ export type PipelineConfig = {
   discoveryIntervalMs: number;
   predictionIntervalMs: number;
   settlementIntervalMs: number;
+  discoveryDelayMs?: number;
+  predictionDelayMs?: number;
+  settlementDelayMs?: number;
   betting: BettingConfig;
 };
 
@@ -35,6 +38,7 @@ export const DEFAULT_CONFIG: PipelineConfig = {
   discoveryIntervalMs: 30 * 60 * 1000, // 30 minutes
   predictionIntervalMs: 6 * 60 * 60 * 1000, // 6 hours
   settlementIntervalMs: 2 * 60 * 60 * 1000, // 2 hours
+  predictionDelayMs: 30_000,
   betting: {
     maxStakePerBet: 10,
     maxTotalExposure: 100,

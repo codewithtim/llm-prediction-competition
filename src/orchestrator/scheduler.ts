@@ -17,6 +17,9 @@ export function createScheduler(deps: SchedulerDeps) {
   let discoveryTimer: ReturnType<typeof setInterval> | null = null;
   let predictionTimer: ReturnType<typeof setInterval> | null = null;
   let settlementTimer: ReturnType<typeof setInterval> | null = null;
+  let discoveryDelayTimer: ReturnType<typeof setTimeout> | null = null;
+  let predictionDelayTimer: ReturnType<typeof setTimeout> | null = null;
+  let settlementDelayTimer: ReturnType<typeof setTimeout> | null = null;
   let discoveryRunning = false;
   let predictionRunning = false;
   let settlementRunning = false;
@@ -115,18 +118,55 @@ export function createScheduler(deps: SchedulerDeps) {
         settlementIntervalMs: config.settlementIntervalMs,
       });
 
-      // Run immediately, then on interval
-      runDiscovery();
-      runPredictions();
-      runSettlement();
+      // Run immediately (or after delay), then on interval
+      if (config.discoveryDelayMs) {
+        logger.info("Scheduler: delaying discovery start", { delayMs: config.discoveryDelayMs });
+        discoveryDelayTimer = setTimeout(() => {
+          runDiscovery();
+          discoveryTimer = setInterval(runDiscovery, config.discoveryIntervalMs);
+        }, config.discoveryDelayMs);
+      } else {
+        runDiscovery();
+        discoveryTimer = setInterval(runDiscovery, config.discoveryIntervalMs);
+      }
 
-      discoveryTimer = setInterval(runDiscovery, config.discoveryIntervalMs);
-      predictionTimer = setInterval(runPredictions, config.predictionIntervalMs);
-      settlementTimer = setInterval(runSettlement, config.settlementIntervalMs);
+      if (config.predictionDelayMs) {
+        logger.info("Scheduler: delaying prediction start", { delayMs: config.predictionDelayMs });
+        predictionDelayTimer = setTimeout(() => {
+          runPredictions();
+          predictionTimer = setInterval(runPredictions, config.predictionIntervalMs);
+        }, config.predictionDelayMs);
+      } else {
+        runPredictions();
+        predictionTimer = setInterval(runPredictions, config.predictionIntervalMs);
+      }
+
+      if (config.settlementDelayMs) {
+        logger.info("Scheduler: delaying settlement start", { delayMs: config.settlementDelayMs });
+        settlementDelayTimer = setTimeout(() => {
+          runSettlement();
+          settlementTimer = setInterval(runSettlement, config.settlementIntervalMs);
+        }, config.settlementDelayMs);
+      } else {
+        runSettlement();
+        settlementTimer = setInterval(runSettlement, config.settlementIntervalMs);
+      }
     },
 
     stop() {
       logger.info("Scheduler: stopping");
+      if (discoveryDelayTimer) {
+        clearTimeout(discoveryDelayTimer);
+        discoveryDelayTimer = null;
+      }
+      if (predictionDelayTimer) {
+        clearTimeout(predictionDelayTimer);
+        predictionDelayTimer = null;
+      }
+      if (settlementDelayTimer) {
+        clearTimeout(settlementDelayTimer);
+        settlementDelayTimer = null;
+      }
       if (discoveryTimer) {
         clearInterval(discoveryTimer);
         discoveryTimer = null;
