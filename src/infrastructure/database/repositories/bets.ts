@@ -5,7 +5,7 @@ import { bets } from "../schema";
 export function betsRepo(db: Database) {
   return {
     async create(bet: typeof bets.$inferInsert) {
-      return db.insert(bets).values(bet);
+      return db.insert(bets).values(bet).run();
     },
 
     async findById(id: string) {
@@ -31,7 +31,8 @@ export function betsRepo(db: Database) {
       return db
         .update(bets)
         .set({ status, settledAt: settledAt ?? null, profit: profit ?? null })
-        .where(eq(bets.id, id));
+        .where(eq(bets.id, id))
+        .run();
     },
 
     async getPerformanceStats(competitorId: string) {

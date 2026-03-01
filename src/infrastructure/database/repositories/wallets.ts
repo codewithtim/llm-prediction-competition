@@ -33,18 +33,21 @@ export function walletsRepo(db: Database) {
       walletConfig: WalletConfig,
       encryptionKey: string,
     ) {
-      return db.insert(competitorWallets).values({
-        competitorId,
-        walletAddress,
-        encryptedPrivateKey: encrypt(walletConfig.polyPrivateKey, encryptionKey),
-        encryptedApiKey: encrypt(walletConfig.polyApiKey, encryptionKey),
-        encryptedApiSecret: encrypt(walletConfig.polyApiSecret, encryptionKey),
-        encryptedApiPassphrase: encrypt(walletConfig.polyApiPassphrase, encryptionKey),
-      });
+      return db
+        .insert(competitorWallets)
+        .values({
+          competitorId,
+          walletAddress,
+          encryptedPrivateKey: encrypt(walletConfig.polyPrivateKey, encryptionKey),
+          encryptedApiKey: encrypt(walletConfig.polyApiKey, encryptionKey),
+          encryptedApiSecret: encrypt(walletConfig.polyApiSecret, encryptionKey),
+          encryptedApiPassphrase: encrypt(walletConfig.polyApiPassphrase, encryptionKey),
+        })
+        .run();
     },
 
     async delete(competitorId: string) {
-      return db.delete(competitorWallets).where(eq(competitorWallets.competitorId, competitorId));
+      return db.delete(competitorWallets).where(eq(competitorWallets.competitorId, competitorId)).run();
     },
 
     async listAll() {

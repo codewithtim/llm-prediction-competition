@@ -5,7 +5,7 @@ import { competitorVersions } from "../schema";
 export function competitorVersionsRepo(db: Database) {
   return {
     async create(version: typeof competitorVersions.$inferInsert) {
-      return db.insert(competitorVersions).values(version);
+      return db.insert(competitorVersions).values(version).run();
     },
 
     async findByCompetitor(competitorId: string) {

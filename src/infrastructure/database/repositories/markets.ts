@@ -19,7 +19,8 @@ export function marketsRepo(db: Database) {
             volume: market.volume,
             updatedAt: new Date(),
           },
-        });
+        })
+        .run();
     },
 
     async findById(id: string) {

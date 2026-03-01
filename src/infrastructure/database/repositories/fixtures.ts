@@ -15,7 +15,8 @@ export function fixturesRepo(db: Database) {
             venue: fixture.venue,
             updatedAt: new Date(),
           },
-        });
+        })
+        .run();
     },
 
     async findById(id: number) {

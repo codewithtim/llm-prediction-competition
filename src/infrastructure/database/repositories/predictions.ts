@@ -5,7 +5,7 @@ import { predictions } from "../schema";
 export function predictionsRepo(db: Database) {
   return {
     async create(prediction: typeof predictions.$inferInsert) {
-      return db.insert(predictions).values(prediction);
+      return db.insert(predictions).values(prediction).run();
     },
 
     async findByCompetitor(competitorId: string) {

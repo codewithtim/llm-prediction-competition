@@ -6,7 +6,7 @@ import { competitors } from "../schema";
 export function competitorsRepo(db: Database) {
   return {
     async create(competitor: typeof competitors.$inferInsert) {
-      return db.insert(competitors).values(competitor);
+      return db.insert(competitors).values(competitor).run();
     },
 
     async findById(id: string) {
@@ -18,11 +18,11 @@ export function competitorsRepo(db: Database) {
     },
 
     async setStatus(id: string, status: CompetitorStatus) {
-      return db.update(competitors).set({ status }).where(eq(competitors.id, id));
+      return db.update(competitors).set({ status }).where(eq(competitors.id, id)).run();
     },
 
     async updateEnginePath(id: string, enginePath: string) {
-      return db.update(competitors).set({ enginePath }).where(eq(competitors.id, id));
+      return db.update(competitors).set({ enginePath }).where(eq(competitors.id, id)).run();
     },
   };
 }
