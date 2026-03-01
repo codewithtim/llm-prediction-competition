@@ -25,6 +25,9 @@ export function createScheduler(pipeline: Pipeline, config: PipelineConfig) {
         betsPlaced: result.betsPlaced,
         errors: result.errors.length,
       });
+      for (const error of result.errors) {
+        logger.error("Scheduler: prediction error", { message: error });
+      }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       logger.error("Scheduler: prediction run failed", { error: msg });
@@ -50,6 +53,9 @@ export function createScheduler(pipeline: Pipeline, config: PipelineConfig) {
         skipped: result.skipped,
         errors: result.errors.length,
       });
+      for (const error of result.errors) {
+        logger.error("Scheduler: settlement error", { message: error });
+      }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       logger.error("Scheduler: settlement run failed", { error: msg });
