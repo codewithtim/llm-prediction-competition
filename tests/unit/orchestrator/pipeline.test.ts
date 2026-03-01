@@ -3,9 +3,7 @@ import type { CompetitorRegistry } from "../../../src/competitors/registry.ts";
 import type { PredictionOutput } from "../../../src/domain/contracts/prediction.ts";
 import type { Market } from "../../../src/domain/models/market.ts";
 import type { BettingService, PlaceBetResult } from "../../../src/domain/services/betting.ts";
-import type { SettlementService } from "../../../src/domain/services/settlement.ts";
 import type { GammaClient } from "../../../src/infrastructure/polymarket/gamma-client.ts";
-import type { MarketDiscovery } from "../../../src/infrastructure/polymarket/market-discovery.ts";
 import type { GammaMarket } from "../../../src/infrastructure/polymarket/types.ts";
 import type { FootballClient } from "../../../src/infrastructure/sports-data/client.ts";
 import type {
@@ -14,7 +12,15 @@ import type {
   ApiStandingsResponse,
 } from "../../../src/infrastructure/sports-data/types.ts";
 import { DEFAULT_CONFIG } from "../../../src/orchestrator/config.ts";
-import { createPipeline, type PipelineDeps } from "../../../src/orchestrator/pipeline.ts";
+import {
+  createDiscoveryPipeline,
+  type DiscoveryPipelineDeps,
+} from "../../../src/orchestrator/discovery-pipeline.ts";
+import {
+  createPredictionPipeline,
+  type PredictionPipelineDeps,
+} from "../../../src/orchestrator/prediction-pipeline.ts";
+import type { MarketDiscovery } from "../../../src/infrastructure/polymarket/market-discovery.ts";
 
 // ─── Fixtures for tests ──────────────────────────────────────────────
 
@@ -186,12 +192,6 @@ function mockBettingService(result: PlaceBetResult = { status: "dry_run" }): Bet
   };
 }
 
-function mockSettlementService(): SettlementService {
-  return {
-    settleBets: mock(() => Promise.resolve({ settled: [], skipped: 0, errors: [] })),
-  };
-}
-
 function makeGammaMarket(overrides: Partial<GammaMarket> = {}): GammaMarket {
   return {
     id: "market-1",
@@ -229,39 +229,96 @@ function mockGammaClient(overrides: Partial<GammaClient> = {}): GammaClient {
   };
 }
 
-function mockRepo() {
+function mockMarketsRepo(overrides: Record<string, unknown> = {}) {
   return {
     upsert: mock(() => Promise.resolve()),
     findById: mock(() => Promise.resolve(null)),
-    findActive: mock(() => Promise.resolve([])),
-    findByGameId: mock(() => Promise.resolve([])),
-    findByStatus: mock(() => Promise.resolve([])),
+    findActive: mock(() => Promise.resolve([] as ReturnType<typeof makeMarketRow>[])),
+    findByGameId: mock(() => Promise.resolve([] as ReturnType<typeof makeMarketRow>[])),
+    findByFixtureId: mock(() => Promise.resolve([] as ReturnType<typeof makeMarketRow>[])),
+    findActiveWithFixture: mock(() => Promise.resolve([] as ReturnType<typeof makeMarketRow>[])),
+    ...overrides,
   };
 }
 
-function mockPredictionsRepo() {
+function mockFixturesRepo(overrides: Record<string, unknown> = {}) {
+  return {
+    upsert: mock(() => Promise.resolve()),
+    findById: mock(() => Promise.resolve(null)),
+    findByStatus: mock(() => Promise.resolve([] as ReturnType<typeof makeFixtureRow>[])),
+    findScheduledUpcoming: mock(() => Promise.resolve([] as ReturnType<typeof makeFixtureRow>[])),
+    ...overrides,
+  };
+}
+
+function mockPredictionsRepo(overrides: Record<string, unknown> = {}) {
   return {
     create: mock(() => Promise.resolve()),
-    findByCompetitor: mock(() => Promise.resolve([])),
-    findByMarket: mock(() => Promise.resolve([])),
-    findByFixtureAndCompetitor: mock(() => Promise.resolve([])),
+    findByCompetitor: mock(() => Promise.resolve([] as unknown[])),
+    findByMarket: mock(() => Promise.resolve([] as unknown[])),
+    findByFixtureAndCompetitor: mock(() => Promise.resolve([] as unknown[])),
+    ...overrides,
   };
 }
 
-function buildDeps(overrides: Partial<PipelineDeps> = {}): PipelineDeps {
+// ─── Fixture row builders (DB shape) ──────────────────────────────────
+
+function makeFixtureRow(id = 100) {
+  return {
+    id,
+    leagueId: 39,
+    leagueName: "Premier League",
+    leagueCountry: "England",
+    leagueSeason: 2024,
+    homeTeamId: 10,
+    homeTeamName: "Team A",
+    homeTeamLogo: "",
+    awayTeamId: 20,
+    awayTeamName: "Team B",
+    awayTeamLogo: "",
+    date: "2026-03-05T20:00:00Z",
+    venue: "Stadium",
+    status: "scheduled" as const,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  };
+}
+
+function makeMarketRow(fixtureId: number | null = 100) {
+  return {
+    id: "market-1",
+    conditionId: "0xabc",
+    slug: "team-a-win",
+    question: "Will Team A win?",
+    outcomes: ["Yes", "No"] as [string, string],
+    outcomePrices: ["0.6", "0.4"] as [string, string],
+    tokenIds: ["tok1", "tok2"] as [string, string],
+    active: true,
+    closed: false,
+    acceptingOrders: true,
+    liquidity: 1000,
+    volume: 5000,
+    gameId: "100",
+    sportsMarketType: "moneyline",
+    line: null,
+    fixtureId,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  };
+}
+
+// ─── Discovery Pipeline Tests ─────────────────────────────────────────
+
+function buildDiscoveryDeps(
+  overrides: Partial<DiscoveryPipelineDeps> = {},
+): DiscoveryPipelineDeps {
   return {
     discovery: mockDiscovery(),
     footballClient: mockFootballClient(),
-    gammaClient: mockGammaClient(),
-    registry: mockRegistry(),
-    bettingService: mockBettingService(),
-    settlementService: mockSettlementService(),
-    marketsRepo: mockRepo() as unknown as PipelineDeps["marketsRepo"],
-    fixturesRepo: mockRepo() as unknown as PipelineDeps["fixturesRepo"],
-    predictionsRepo: mockPredictionsRepo() as unknown as PipelineDeps["predictionsRepo"],
+    marketsRepo: mockMarketsRepo() as unknown as DiscoveryPipelineDeps["marketsRepo"],
+    fixturesRepo: mockFixturesRepo() as unknown as DiscoveryPipelineDeps["fixturesRepo"],
     config: {
       ...DEFAULT_CONFIG,
-      discoveryTtlMs: 0, // cache always misses — existing tests unchanged
       leagues: [
         {
           id: 39,
@@ -276,413 +333,380 @@ function buildDeps(overrides: Partial<PipelineDeps> = {}): PipelineDeps {
   };
 }
 
-// ─── Tests ───────────────────────────────────────────────────────────
+describe("createDiscoveryPipeline", () => {
+  test("discovers events and fetches fixtures", async () => {
+    const deps = buildDiscoveryDeps();
+    const pipeline = createDiscoveryPipeline(deps);
+    const result = await pipeline.run();
 
-describe("createPipeline", () => {
-  describe("runPredictions", () => {
-    test("runs full prediction flow end-to-end", async () => {
-      const deps = buildDeps();
-      const pipeline = createPipeline(deps);
-      const result = await pipeline.runPredictions();
-
-      expect(result.eventsDiscovered).toBe(1);
-      expect(result.fixturesFetched).toBe(1);
-      expect(result.fixturesMatched).toBe(1);
-      expect(result.fixturesProcessed).toBe(1);
-      expect(result.predictionsGenerated).toBe(1);
-      expect(result.errors).toHaveLength(0);
-    });
-
-    test("persists markets during discovery", async () => {
-      const marketsRepoMock = mockRepo();
-      const deps = buildDeps({
-        marketsRepo: marketsRepoMock as unknown as PipelineDeps["marketsRepo"],
-      });
-      const pipeline = createPipeline(deps);
-      await pipeline.runPredictions();
-
-      expect(marketsRepoMock.upsert).toHaveBeenCalled();
-    });
-
-    test("persists fixtures during fetching", async () => {
-      const fixturesRepoMock = mockRepo();
-      const deps = buildDeps({
-        fixturesRepo: fixturesRepoMock as unknown as PipelineDeps["fixturesRepo"],
-      });
-      const pipeline = createPipeline(deps);
-      await pipeline.runPredictions();
-
-      expect(fixturesRepoMock.upsert).toHaveBeenCalled();
-    });
-
-    test("persists predictions after engine runs", async () => {
-      const predictionsRepoMock = mockPredictionsRepo();
-      const deps = buildDeps({
-        predictionsRepo: predictionsRepoMock as unknown as PipelineDeps["predictionsRepo"],
-      });
-      const pipeline = createPipeline(deps);
-      await pipeline.runPredictions();
-
-      expect(predictionsRepoMock.create).toHaveBeenCalled();
-    });
-
-    test("calls bettingService.placeBet for each prediction", async () => {
-      const betting = mockBettingService();
-      const deps = buildDeps({ bettingService: betting });
-      const pipeline = createPipeline(deps);
-      await pipeline.runPredictions();
-
-      expect(betting.placeBet).toHaveBeenCalledTimes(1);
-    });
-
-    test("counts placed bets correctly", async () => {
-      const betting = mockBettingService({
-        status: "placed",
-        bet: {
-          id: "bet-1",
-          orderId: "order-1",
-          marketId: "market-1",
-          fixtureId: 100,
-          competitorId: "baseline",
-          tokenId: "tok1",
-          side: "YES",
-          amount: 5,
-          price: 0.6,
-          shares: 8.33,
-        },
-      });
-      const deps = buildDeps({ bettingService: betting });
-      const pipeline = createPipeline(deps);
-      const result = await pipeline.runPredictions();
-
-      expect(result.betsPlaced).toBe(1);
-      expect(result.betsDryRun).toBe(0);
-    });
-
-    test("counts dry-run bets correctly", async () => {
-      const betting = mockBettingService({ status: "dry_run" });
-      const deps = buildDeps({ bettingService: betting });
-      const pipeline = createPipeline(deps);
-      const result = await pipeline.runPredictions();
-
-      expect(result.betsDryRun).toBe(1);
-      expect(result.betsPlaced).toBe(0);
-    });
-
-    test("counts skipped bets correctly", async () => {
-      const betting = mockBettingService({ status: "skipped", reason: "duplicate" });
-      const deps = buildDeps({ bettingService: betting });
-      const pipeline = createPipeline(deps);
-      const result = await pipeline.runPredictions();
-
-      expect(result.betsSkipped).toBe(1);
-    });
-
-    test("error in one fixture does not prevent processing others", async () => {
-      const market1 = makeMarket({ id: "m1", gameId: "100" });
-      const market2 = makeMarket({ id: "m2", gameId: "200" });
-      const event1 = makeEvent("e1", [market1]);
-      const event2 = makeEvent("e2", [market2]);
-      event2.title = "Team C vs Team D";
-
-      const fixture1 = makeApiFixture(100);
-      const fixture2 = makeApiFixture(200);
-      fixture2.teams = {
-        home: { id: 30, name: "Team C", logo: "", winner: null },
-        away: { id: 40, name: "Team D", logo: "", winner: null },
-      };
-
-      let standingsCallCount = 0;
-      const footballClient = mockFootballClient({
-        getFixtures: mock(() => Promise.resolve(apiResponse([fixture1, fixture2]))),
-        getStandings: mock(() => {
-          standingsCallCount++;
-          if (standingsCallCount === 1) {
-            return Promise.reject(new Error("API rate limit"));
-          }
-          return Promise.resolve(apiResponse(makeStandingsResponse(30, 40)));
-        }),
-      });
-
-      const deps = buildDeps({
-        discovery: mockDiscovery([event1, event2]),
-        footballClient,
-      });
-      const pipeline = createPipeline(deps);
-      const result = await pipeline.runPredictions();
-
-      // First fixture errored, second should still process
-      expect(result.errors.length).toBeGreaterThan(0);
-      expect(result.fixturesProcessed).toBe(1);
-    });
-
-    test("handles zero events gracefully", async () => {
-      const deps = buildDeps({
-        discovery: mockDiscovery([]),
-      });
-      const pipeline = createPipeline(deps);
-      const result = await pipeline.runPredictions();
-
-      expect(result.eventsDiscovered).toBe(0);
-      expect(result.fixturesMatched).toBe(0);
-      expect(result.predictionsGenerated).toBe(0);
-      expect(result.errors).toHaveLength(0);
-    });
-
-    test("handles zero fixtures gracefully", async () => {
-      const footballClient = mockFootballClient({
-        getFixtures: mock(() => Promise.resolve(apiResponse([] as ApiFixture[]))),
-      });
-      const deps = buildDeps({ footballClient });
-      const pipeline = createPipeline(deps);
-      const result = await pipeline.runPredictions();
-
-      expect(result.fixturesFetched).toBe(0);
-      expect(result.fixturesMatched).toBe(0);
-    });
-
-    test("handles zero matched fixtures gracefully", async () => {
-      // Event with no gameId and mismatched title so no match
-      const market = makeMarket({ gameId: null });
-      const event = makeEvent("e1", [market]);
-      event.title = "Unrelated Event";
-
-      const deps = buildDeps({ discovery: mockDiscovery([event]) });
-      const pipeline = createPipeline(deps);
-      const result = await pipeline.runPredictions();
-
-      expect(result.fixturesMatched).toBe(0);
-      expect(result.fixturesProcessed).toBe(0);
-    });
-
-    test("handles engine errors without crashing", async () => {
-      const registry = {
-        register: mock(() => {}),
-        getAll: mock(() => [
-          {
-            competitorId: "bad-engine",
-            name: "Bad Engine",
-            engine: mock(() => {
-              throw new Error("Engine exploded");
-            }),
-          },
-        ]),
-        get: mock(() => undefined),
-      } as unknown as CompetitorRegistry;
-
-      const deps = buildDeps({ registry });
-      const pipeline = createPipeline(deps);
-      const result = await pipeline.runPredictions();
-
-      expect(result.predictionsGenerated).toBe(0);
-      expect(result.errors.some((e) => e.includes("bad-engine"))).toBe(true);
-    });
-
-    test("handles discovery failure gracefully", async () => {
-      const discovery: MarketDiscovery = {
-        discoverFootballMarkets: mock(() => Promise.reject(new Error("Network error"))),
-        fetchActiveEvents: mock(() => Promise.resolve([])),
-      };
-
-      const deps = buildDeps({ discovery });
-      const pipeline = createPipeline(deps);
-      const result = await pipeline.runPredictions();
-
-      expect(result.eventsDiscovered).toBe(0);
-      expect(result.errors).toHaveLength(1);
-      expect(result.errors[0]).toContain("Discovery failed");
-    });
-
-    test("skips predictions when no engines registered", async () => {
-      const emptyRegistry = {
-        register: mock(() => {}),
-        getAll: mock(() => []),
-        get: mock(() => undefined),
-      } as unknown as CompetitorRegistry;
-
-      const deps = buildDeps({ registry: emptyRegistry });
-      const pipeline = createPipeline(deps);
-      const result = await pipeline.runPredictions();
-
-      expect(result.predictionsGenerated).toBe(0);
-      expect(result.fixturesProcessed).toBe(0);
-    });
-
-    test("cache hit skips API discovery and fixture fetch calls", async () => {
-      const disc = mockDiscovery();
-      const fc = mockFootballClient();
-      const deps = buildDeps({
-        discovery: disc,
-        footballClient: fc,
-        config: {
-          ...DEFAULT_CONFIG,
-          discoveryTtlMs: 60_000, // 1 minute TTL
-          leagues: [
-            {
-              id: 39,
-              name: "Premier League",
-              country: "England",
-              polymarketTagIds: [82],
-              polymarketSeriesSlug: "premier-league",
-            },
-          ],
-        },
-      });
-      const pipeline = createPipeline(deps);
-
-      // First run: cache miss, API calls happen
-      const result1 = await pipeline.runPredictions();
-      expect(result1.cacheHit).toBe(false);
-      expect(disc.discoverFootballMarkets).toHaveBeenCalledTimes(1);
-      expect(fc.getFixtures).toHaveBeenCalledTimes(1);
-
-      // Second run: cache hit, no new API calls
-      const result2 = await pipeline.runPredictions();
-      expect(result2.cacheHit).toBe(true);
-      expect(disc.discoverFootballMarkets).toHaveBeenCalledTimes(1); // still 1
-      expect(fc.getFixtures).toHaveBeenCalledTimes(1); // still 1
-    });
-
-    test("cache miss fetches fresh data", async () => {
-      const disc = mockDiscovery();
-      const deps = buildDeps({
-        discovery: disc,
-        config: {
-          ...DEFAULT_CONFIG,
-          discoveryTtlMs: -1, // always miss
-          leagues: [
-            {
-              id: 39,
-              name: "Premier League",
-              country: "England",
-              polymarketTagIds: [82],
-              polymarketSeriesSlug: "premier-league",
-            },
-          ],
-        },
-      });
-      const pipeline = createPipeline(deps);
-
-      await pipeline.runPredictions();
-      await pipeline.runPredictions();
-
-      expect(disc.discoverFootballMarkets).toHaveBeenCalledTimes(2);
-    });
-
-    test("odds refresh updates market prices before bet placement", async () => {
-      const gc = mockGammaClient({
-        getMarketById: mock(() =>
-          Promise.resolve(makeGammaMarket({ outcomePrices: JSON.stringify(["0.70", "0.30"]) })),
-        ),
-      });
-      const marketsRepoMock = mockRepo();
-      const deps = buildDeps({
-        gammaClient: gc,
-        marketsRepo: marketsRepoMock as unknown as PipelineDeps["marketsRepo"],
-      });
-      const pipeline = createPipeline(deps);
-      const result = await pipeline.runPredictions();
-
-      expect(result.oddsRefreshed).toBe(1);
-      expect(gc.getMarketById).toHaveBeenCalledWith("market-1");
-      // Market upsert: once during persist step + once during odds refresh
-      expect(marketsRepoMock.upsert).toHaveBeenCalledTimes(2);
-    });
-
-    test("odds refresh failure falls back to cached prices gracefully", async () => {
-      const gc = mockGammaClient({
-        getMarketById: mock(() => Promise.reject(new Error("Network timeout"))),
-      });
-      const deps = buildDeps({ gammaClient: gc });
-      const pipeline = createPipeline(deps);
-      const result = await pipeline.runPredictions();
-
-      expect(result.oddsRefreshFailed).toBe(1);
-      expect(result.betsDryRun).toBe(1); // bet still placed with cached prices
-      expect(result.errors).toHaveLength(0); // refresh failure is not an error
-    });
-
-    test("handles missing standings for a team", async () => {
-      // Return standings without the away team
-      const onlyHomeStandings: ApiStandingsResponse[] = [
-        {
-          league: {
-            id: 39,
-            name: "Premier League",
-            country: "England",
-            logo: "",
-            flag: "",
-            season: 2024,
-            standings: [
-              [
-                {
-                  rank: 1,
-                  team: { id: 10, name: "Team A", logo: "" },
-                  points: 50,
-                  goalsDiff: 20,
-                  form: "WWWWW",
-                  all: { played: 20, win: 15, draw: 3, lose: 2, goals: { for: 40, against: 20 } },
-                  home: { played: 10, win: 8, draw: 1, lose: 1, goals: { for: 22, against: 8 } },
-                  away: { played: 10, win: 7, draw: 2, lose: 1, goals: { for: 18, against: 12 } },
-                },
-              ],
-            ],
-          },
-        },
-      ];
-      const footballClient = mockFootballClient({
-        getStandings: mock(() => Promise.resolve(apiResponse(onlyHomeStandings))),
-      });
-
-      const deps = buildDeps({ footballClient });
-      const pipeline = createPipeline(deps);
-      const result = await pipeline.runPredictions();
-
-      expect(result.errors.some((e) => e.includes("Standings not found"))).toBe(true);
-      expect(result.fixturesProcessed).toBe(0);
-    });
+    expect(result.eventsDiscovered).toBe(1);
+    expect(result.fixturesFetched).toBe(1);
+    expect(result.fixturesMatched).toBe(1);
+    expect(result.errors).toHaveLength(0);
   });
 
-  describe("runSettlement", () => {
-    test("delegates to settlementService.settleBets", async () => {
-      const settlement = mockSettlementService();
-      const deps = buildDeps({ settlementService: settlement });
-      const pipeline = createPipeline(deps);
-      const result = await pipeline.runSettlement();
+  test("persists markets with fixtureId", async () => {
+    const marketsRepoMock = mockMarketsRepo();
+    const deps = buildDiscoveryDeps({
+      marketsRepo: marketsRepoMock as unknown as DiscoveryPipelineDeps["marketsRepo"],
+    });
+    const pipeline = createDiscoveryPipeline(deps);
+    await pipeline.run();
 
-      expect(settlement.settleBets).toHaveBeenCalledTimes(1);
-      expect(result.settled).toHaveLength(0);
-      expect(result.skipped).toBe(0);
-      expect(result.errors).toHaveLength(0);
+    expect(marketsRepoMock.upsert).toHaveBeenCalled();
+  });
+
+  test("persists fixtures to DB", async () => {
+    const fixturesRepoMock = mockFixturesRepo();
+    const deps = buildDiscoveryDeps({
+      fixturesRepo: fixturesRepoMock as unknown as DiscoveryPipelineDeps["fixturesRepo"],
+    });
+    const pipeline = createDiscoveryPipeline(deps);
+    await pipeline.run();
+
+    expect(fixturesRepoMock.upsert).toHaveBeenCalled();
+  });
+
+  test("handles discovery failure gracefully", async () => {
+    const discovery: MarketDiscovery = {
+      discoverFootballMarkets: mock(() => Promise.reject(new Error("Network error"))),
+      fetchActiveEvents: mock(() => Promise.resolve([])),
+    };
+
+    const deps = buildDiscoveryDeps({ discovery });
+    const pipeline = createDiscoveryPipeline(deps);
+    const result = await pipeline.run();
+
+    expect(result.eventsDiscovered).toBe(0);
+    expect(result.errors).toHaveLength(1);
+    expect(result.errors[0]).toContain("Discovery failed");
+  });
+
+  test("handles zero events gracefully", async () => {
+    const deps = buildDiscoveryDeps({
+      discovery: mockDiscovery([]),
+    });
+    const pipeline = createDiscoveryPipeline(deps);
+    const result = await pipeline.run();
+
+    expect(result.eventsDiscovered).toBe(0);
+    expect(result.fixturesMatched).toBe(0);
+  });
+
+  test("handles zero fixtures gracefully", async () => {
+    const footballClient = mockFootballClient({
+      getFixtures: mock(() => Promise.resolve(apiResponse([] as ApiFixture[]))),
+    });
+    const deps = buildDiscoveryDeps({ footballClient });
+    const pipeline = createDiscoveryPipeline(deps);
+    const result = await pipeline.run();
+
+    expect(result.fixturesFetched).toBe(0);
+    expect(result.fixturesMatched).toBe(0);
+  });
+});
+
+// ─── Prediction Pipeline Tests ─────────────────────────────────────────
+
+function buildPredictionDeps(
+  overrides: Partial<PredictionPipelineDeps> = {},
+): PredictionPipelineDeps {
+  return {
+    gammaClient: mockGammaClient(),
+    footballClient: mockFootballClient(),
+    registry: mockRegistry(),
+    bettingService: mockBettingService(),
+    marketsRepo: mockMarketsRepo() as unknown as PredictionPipelineDeps["marketsRepo"],
+    fixturesRepo: mockFixturesRepo() as unknown as PredictionPipelineDeps["fixturesRepo"],
+    predictionsRepo: mockPredictionsRepo() as unknown as PredictionPipelineDeps["predictionsRepo"],
+    config: {
+      ...DEFAULT_CONFIG,
+      leagues: [
+        {
+          id: 39,
+          name: "Premier League",
+          country: "England",
+          polymarketTagIds: [82],
+          polymarketSeriesSlug: "premier-league",
+        },
+      ],
+    },
+    ...overrides,
+  };
+}
+
+describe("createPredictionPipeline", () => {
+  // Helper: builds fixtures + markets repos that return data for one fixture
+  function withFixtureAndMarkets() {
+    const fr = mockFixturesRepo({
+      findScheduledUpcoming: mock(() => Promise.resolve([makeFixtureRow()])),
+    });
+    const mr = mockMarketsRepo({
+      findByFixtureId: mock(() => Promise.resolve([makeMarketRow()])),
+    });
+    return { fr, mr };
+  }
+
+  test("processes fixtures from DB and generates predictions", async () => {
+    const { fr, mr } = withFixtureAndMarkets();
+    const pr = mockPredictionsRepo();
+
+    const deps = buildPredictionDeps({
+      fixturesRepo: fr as unknown as PredictionPipelineDeps["fixturesRepo"],
+      marketsRepo: mr as unknown as PredictionPipelineDeps["marketsRepo"],
+      predictionsRepo: pr as unknown as PredictionPipelineDeps["predictionsRepo"],
+    });
+    const pipeline = createPredictionPipeline(deps);
+    const result = await pipeline.run();
+
+    expect(result.fixturesProcessed).toBe(1);
+    expect(result.predictionsGenerated).toBe(1);
+    expect(result.errors).toHaveLength(0);
+  });
+
+  test("always saves predictions regardless of bet outcome", async () => {
+    const { fr, mr } = withFixtureAndMarkets();
+    const pr = mockPredictionsRepo();
+    const betting = mockBettingService({ status: "skipped", reason: "duplicate" });
+
+    const deps = buildPredictionDeps({
+      fixturesRepo: fr as unknown as PredictionPipelineDeps["fixturesRepo"],
+      marketsRepo: mr as unknown as PredictionPipelineDeps["marketsRepo"],
+      predictionsRepo: pr as unknown as PredictionPipelineDeps["predictionsRepo"],
+      bettingService: betting,
+    });
+    const pipeline = createPredictionPipeline(deps);
+    const result = await pipeline.run();
+
+    // Prediction is saved even when bet is skipped
+    expect(result.predictionsGenerated).toBe(1);
+    expect(result.betsSkipped).toBe(1);
+    expect(pr.create).toHaveBeenCalledTimes(1);
+  });
+
+  test("skips fixtures with no markets", async () => {
+    const fr = mockFixturesRepo({
+      findScheduledUpcoming: mock(() => Promise.resolve([makeFixtureRow()])),
     });
 
-    test("returns settlement results", async () => {
-      const settlement: SettlementService = {
-        settleBets: mock(() =>
-          Promise.resolve({
-            settled: [
+    const deps = buildPredictionDeps({
+      fixturesRepo: fr as unknown as PredictionPipelineDeps["fixturesRepo"],
+    });
+    const pipeline = createPredictionPipeline(deps);
+    const result = await pipeline.run();
+
+    expect(result.fixturesProcessed).toBe(0);
+    expect(result.predictionsGenerated).toBe(0);
+  });
+
+  test("skips fixture when competitor already predicted", async () => {
+    const { fr, mr } = withFixtureAndMarkets();
+    const pr = mockPredictionsRepo({
+      findByFixtureAndCompetitor: mock(() => Promise.resolve([{ id: 1 }])),
+    });
+
+    const deps = buildPredictionDeps({
+      fixturesRepo: fr as unknown as PredictionPipelineDeps["fixturesRepo"],
+      marketsRepo: mr as unknown as PredictionPipelineDeps["marketsRepo"],
+      predictionsRepo: pr as unknown as PredictionPipelineDeps["predictionsRepo"],
+    });
+    const pipeline = createPredictionPipeline(deps);
+    const result = await pipeline.run();
+
+    expect(result.predictionsGenerated).toBe(0);
+    expect(pr.create).not.toHaveBeenCalled();
+  });
+
+  test("returns empty result when no scheduled fixtures", async () => {
+    const deps = buildPredictionDeps();
+    const pipeline = createPredictionPipeline(deps);
+    const result = await pipeline.run();
+
+    expect(result.fixturesProcessed).toBe(0);
+    expect(result.predictionsGenerated).toBe(0);
+  });
+
+  test("skips predictions when no engines registered", async () => {
+    const fr = mockFixturesRepo({
+      findScheduledUpcoming: mock(() => Promise.resolve([makeFixtureRow()])),
+    });
+
+    const emptyRegistry = {
+      register: mock(() => {}),
+      getAll: mock(() => []),
+      get: mock(() => undefined),
+    } as unknown as CompetitorRegistry;
+
+    const deps = buildPredictionDeps({
+      fixturesRepo: fr as unknown as PredictionPipelineDeps["fixturesRepo"],
+      registry: emptyRegistry,
+    });
+    const pipeline = createPredictionPipeline(deps);
+    const result = await pipeline.run();
+
+    expect(result.predictionsGenerated).toBe(0);
+  });
+
+  test("refreshes odds from Gamma before running engines", async () => {
+    const { fr, mr } = withFixtureAndMarkets();
+
+    const gc = mockGammaClient({
+      getMarketById: mock(() =>
+        Promise.resolve(makeGammaMarket({ outcomePrices: JSON.stringify(["0.70", "0.30"]) })),
+      ),
+    });
+
+    const deps = buildPredictionDeps({
+      fixturesRepo: fr as unknown as PredictionPipelineDeps["fixturesRepo"],
+      marketsRepo: mr as unknown as PredictionPipelineDeps["marketsRepo"],
+      gammaClient: gc,
+    });
+    const pipeline = createPredictionPipeline(deps);
+    const result = await pipeline.run();
+
+    expect(result.oddsRefreshed).toBe(1);
+    expect(gc.getMarketById).toHaveBeenCalledWith("market-1");
+  });
+
+  test("odds refresh failure falls back to cached prices", async () => {
+    const { fr, mr } = withFixtureAndMarkets();
+
+    const gc = mockGammaClient({
+      getMarketById: mock(() => Promise.reject(new Error("Network timeout"))),
+    });
+
+    const deps = buildPredictionDeps({
+      fixturesRepo: fr as unknown as PredictionPipelineDeps["fixturesRepo"],
+      marketsRepo: mr as unknown as PredictionPipelineDeps["marketsRepo"],
+      gammaClient: gc,
+    });
+    const pipeline = createPredictionPipeline(deps);
+    const result = await pipeline.run();
+
+    expect(result.oddsRefreshFailed).toBe(1);
+    // Should still generate prediction with cached prices
+    expect(result.predictionsGenerated).toBe(1);
+  });
+
+  test("handles engine errors without crashing", async () => {
+    const { fr, mr } = withFixtureAndMarkets();
+
+    const registry = {
+      register: mock(() => {}),
+      getAll: mock(() => [
+        {
+          competitorId: "bad-engine",
+          name: "Bad Engine",
+          engine: mock(() => {
+            throw new Error("Engine exploded");
+          }),
+        },
+      ]),
+      get: mock(() => undefined),
+    } as unknown as CompetitorRegistry;
+
+    const deps = buildPredictionDeps({
+      fixturesRepo: fr as unknown as PredictionPipelineDeps["fixturesRepo"],
+      marketsRepo: mr as unknown as PredictionPipelineDeps["marketsRepo"],
+      registry,
+    });
+    const pipeline = createPredictionPipeline(deps);
+    const result = await pipeline.run();
+
+    expect(result.predictionsGenerated).toBe(0);
+    expect(result.errors.some((e: string) => e.includes("bad-engine"))).toBe(true);
+  });
+
+  test("handles missing standings for a team", async () => {
+    const { fr, mr } = withFixtureAndMarkets();
+
+    const onlyHomeStandings: ApiStandingsResponse[] = [
+      {
+        league: {
+          id: 39,
+          name: "Premier League",
+          country: "England",
+          logo: "",
+          flag: "",
+          season: 2024,
+          standings: [
+            [
               {
-                betId: "b1",
-                marketId: "m1",
-                competitorId: "baseline",
-                side: "YES" as const,
-                outcome: "won" as const,
-                profit: 5,
+                rank: 1,
+                team: { id: 10, name: "Team A", logo: "" },
+                points: 50,
+                goalsDiff: 20,
+                form: "WWWWW",
+                all: { played: 20, win: 15, draw: 3, lose: 2, goals: { for: 40, against: 20 } },
+                home: { played: 10, win: 8, draw: 1, lose: 1, goals: { for: 22, against: 8 } },
+                away: { played: 10, win: 7, draw: 2, lose: 1, goals: { for: 18, against: 12 } },
               },
             ],
-            skipped: 2,
-            errors: ["some error"],
-          }),
-        ),
-      };
-
-      const deps = buildDeps({ settlementService: settlement });
-      const pipeline = createPipeline(deps);
-      const result = await pipeline.runSettlement();
-
-      expect(result.settled).toHaveLength(1);
-      expect(result.skipped).toBe(2);
-      expect(result.errors).toHaveLength(1);
+          ],
+        },
+      },
+    ];
+    const footballClient = mockFootballClient({
+      getStandings: mock(() => Promise.resolve(apiResponse(onlyHomeStandings))),
     });
+
+    const deps = buildPredictionDeps({
+      fixturesRepo: fr as unknown as PredictionPipelineDeps["fixturesRepo"],
+      marketsRepo: mr as unknown as PredictionPipelineDeps["marketsRepo"],
+      footballClient,
+    });
+    const pipeline = createPredictionPipeline(deps);
+    const result = await pipeline.run();
+
+    expect(result.errors.some((e: string) => e.includes("Standings not found"))).toBe(true);
+    expect(result.fixturesProcessed).toBe(0);
+  });
+
+  test("counts placed bets correctly", async () => {
+    const { fr, mr } = withFixtureAndMarkets();
+
+    const betting = mockBettingService({
+      status: "placed",
+      bet: {
+        id: "bet-1",
+        orderId: "order-1",
+        marketId: "market-1",
+        fixtureId: 100,
+        competitorId: "baseline",
+        tokenId: "tok1",
+        side: "YES",
+        amount: 5,
+        price: 0.6,
+        shares: 8.33,
+      },
+    });
+
+    const deps = buildPredictionDeps({
+      fixturesRepo: fr as unknown as PredictionPipelineDeps["fixturesRepo"],
+      marketsRepo: mr as unknown as PredictionPipelineDeps["marketsRepo"],
+      bettingService: betting,
+    });
+    const pipeline = createPredictionPipeline(deps);
+    const result = await pipeline.run();
+
+    expect(result.betsPlaced).toBe(1);
+    expect(result.betsDryRun).toBe(0);
+  });
+
+  test("counts dry-run bets correctly", async () => {
+    const { fr, mr } = withFixtureAndMarkets();
+
+    const betting = mockBettingService({ status: "dry_run" });
+
+    const deps = buildPredictionDeps({
+      fixturesRepo: fr as unknown as PredictionPipelineDeps["fixturesRepo"],
+      marketsRepo: mr as unknown as PredictionPipelineDeps["marketsRepo"],
+      bettingService: betting,
+    });
+    const pipeline = createPredictionPipeline(deps);
+    const result = await pipeline.run();
+
+    expect(result.betsDryRun).toBe(1);
+    expect(result.betsPlaced).toBe(0);
   });
 });

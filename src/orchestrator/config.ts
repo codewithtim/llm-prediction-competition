@@ -12,9 +12,9 @@ export type PipelineConfig = {
   leagues: LeagueConfig[];
   season: number;
   fixtureLookAheadDays: number;
+  discoveryIntervalMs: number;
   predictionIntervalMs: number;
   settlementIntervalMs: number;
-  discoveryTtlMs: number;
   betting: BettingConfig;
 };
 
@@ -32,12 +32,12 @@ export const DEFAULT_CONFIG: PipelineConfig = {
   leagues: DEFAULT_LEAGUES,
   season: 2025,
   fixtureLookAheadDays: 7,
+  discoveryIntervalMs: 30 * 60 * 1000, // 30 minutes
   predictionIntervalMs: 6 * 60 * 60 * 1000, // 6 hours
   settlementIntervalMs: 2 * 60 * 60 * 1000, // 2 hours
-  discoveryTtlMs: 60 * 60 * 1000, // 1 hour
   betting: {
     maxStakePerBet: 10,
     maxTotalExposure: 100,
-    dryRun: false,
+    dryRun: true,
   },
 };

@@ -28,5 +28,9 @@ export function fixturesRepo(db: Database) {
     ) {
       return db.select().from(fixtures).where(eq(fixtures.status, status)).all();
     },
+
+    async findScheduledUpcoming() {
+      return db.select().from(fixtures).where(eq(fixtures.status, "scheduled")).all();
+    },
   };
 }

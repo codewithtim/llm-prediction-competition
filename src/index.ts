@@ -17,7 +17,8 @@ import { createGammaClient } from "./infrastructure/polymarket/gamma-client.ts";
 import { createMarketDiscovery } from "./infrastructure/polymarket/market-discovery.ts";
 import { createFootballClient } from "./infrastructure/sports-data/client.ts";
 import { DEFAULT_CONFIG } from "./orchestrator/config.ts";
-import { createPipeline } from "./orchestrator/pipeline.ts";
+import { createDiscoveryPipeline } from "./orchestrator/discovery-pipeline.ts";
+import { createPredictionPipeline } from "./orchestrator/prediction-pipeline.ts";
 import { createScheduler } from "./orchestrator/scheduler.ts";
 import { env } from "./shared/env.ts";
 import { logger } from "./shared/logger.ts";
@@ -82,21 +83,32 @@ for (const entry of engines) {
   registry.register(entry.competitorId, entry.name, entry.engine, entry.walletConfig);
 }
 
-// ── Pipeline & scheduler ─────────────────────────────────────────────
-const pipeline = createPipeline({
+// ── Pipelines & scheduler ────────────────────────────────────────────
+const discoveryPipeline = createDiscoveryPipeline({
   discovery,
   footballClient,
+  marketsRepo: markets,
+  fixturesRepo: fixtures,
+  config: DEFAULT_CONFIG,
+});
+
+const predictionPipeline = createPredictionPipeline({
   gammaClient,
+  footballClient,
   registry,
   bettingService,
-  settlementService,
   marketsRepo: markets,
   fixturesRepo: fixtures,
   predictionsRepo: preds,
   config: DEFAULT_CONFIG,
 });
 
-const scheduler = createScheduler(pipeline, DEFAULT_CONFIG);
+const scheduler = createScheduler({
+  discoveryPipeline,
+  predictionPipeline,
+  settlementService,
+  config: DEFAULT_CONFIG,
+});
 
 // ── HTTP server ──────────────────────────────────────────────────────
 const server = Bun.serve({

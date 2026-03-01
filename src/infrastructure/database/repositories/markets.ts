@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { and, eq, isNotNull } from "drizzle-orm";
 import type { Database } from "../client";
 import { markets } from "../schema";
 
@@ -17,6 +17,7 @@ export function marketsRepo(db: Database) {
             acceptingOrders: market.acceptingOrders,
             liquidity: market.liquidity,
             volume: market.volume,
+            fixtureId: market.fixtureId,
             updatedAt: new Date(),
           },
         })
@@ -33,6 +34,18 @@ export function marketsRepo(db: Database) {
 
     async findByGameId(gameId: string) {
       return db.select().from(markets).where(eq(markets.gameId, gameId)).all();
+    },
+
+    async findByFixtureId(fixtureId: number) {
+      return db.select().from(markets).where(eq(markets.fixtureId, fixtureId)).all();
+    },
+
+    async findActiveWithFixture() {
+      return db
+        .select()
+        .from(markets)
+        .where(and(eq(markets.active, true), isNotNull(markets.fixtureId)))
+        .all();
     },
   };
 }

@@ -1,12 +1,54 @@
+import type { SettlementService } from "../domain/services/settlement.ts";
 import { logger } from "../shared/logger.ts";
 import type { PipelineConfig } from "./config.ts";
-import type { Pipeline } from "./pipeline.ts";
+import type { DiscoveryPipeline } from "./discovery-pipeline.ts";
+import type { PredictionPipeline } from "./prediction-pipeline.ts";
 
-export function createScheduler(pipeline: Pipeline, config: PipelineConfig) {
+export type SchedulerDeps = {
+  discoveryPipeline: DiscoveryPipeline;
+  predictionPipeline: PredictionPipeline;
+  settlementService: SettlementService;
+  config: PipelineConfig;
+};
+
+export function createScheduler(deps: SchedulerDeps) {
+  const { discoveryPipeline, predictionPipeline, settlementService, config } = deps;
+
+  let discoveryTimer: ReturnType<typeof setInterval> | null = null;
   let predictionTimer: ReturnType<typeof setInterval> | null = null;
   let settlementTimer: ReturnType<typeof setInterval> | null = null;
+  let discoveryRunning = false;
   let predictionRunning = false;
   let settlementRunning = false;
+
+  async function runDiscovery() {
+    if (discoveryRunning) {
+      logger.warn("Scheduler: discovery run skipped (previous run still in progress)");
+      return;
+    }
+    discoveryRunning = true;
+    const start = Date.now();
+    try {
+      logger.info("Scheduler: starting discovery run");
+      const result = await discoveryPipeline.run();
+      const durationMs = Date.now() - start;
+      logger.info("Scheduler: discovery run complete", {
+        durationMs,
+        eventsDiscovered: result.eventsDiscovered,
+        fixturesMatched: result.fixturesMatched,
+        marketsUpserted: result.marketsUpserted,
+        errors: result.errors.length,
+      });
+      for (const error of result.errors) {
+        logger.error("Scheduler: discovery error", { message: error });
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      logger.error("Scheduler: discovery run failed", { error: msg });
+    } finally {
+      discoveryRunning = false;
+    }
+  }
 
   async function runPredictions() {
     if (predictionRunning) {
@@ -17,10 +59,11 @@ export function createScheduler(pipeline: Pipeline, config: PipelineConfig) {
     const start = Date.now();
     try {
       logger.info("Scheduler: starting prediction run");
-      const result = await pipeline.runPredictions();
+      const result = await predictionPipeline.run();
       const durationMs = Date.now() - start;
       logger.info("Scheduler: prediction run complete", {
         durationMs,
+        fixturesProcessed: result.fixturesProcessed,
         predictions: result.predictionsGenerated,
         betsPlaced: result.betsPlaced,
         errors: result.errors.length,
@@ -45,7 +88,7 @@ export function createScheduler(pipeline: Pipeline, config: PipelineConfig) {
     const start = Date.now();
     try {
       logger.info("Scheduler: starting settlement run");
-      const result = await pipeline.runSettlement();
+      const result = await settlementService.settleBets();
       const durationMs = Date.now() - start;
       logger.info("Scheduler: settlement run complete", {
         durationMs,
@@ -67,20 +110,27 @@ export function createScheduler(pipeline: Pipeline, config: PipelineConfig) {
   return {
     start() {
       logger.info("Scheduler: starting", {
+        discoveryIntervalMs: config.discoveryIntervalMs,
         predictionIntervalMs: config.predictionIntervalMs,
         settlementIntervalMs: config.settlementIntervalMs,
       });
 
       // Run immediately, then on interval
+      runDiscovery();
       runPredictions();
       runSettlement();
 
+      discoveryTimer = setInterval(runDiscovery, config.discoveryIntervalMs);
       predictionTimer = setInterval(runPredictions, config.predictionIntervalMs);
       settlementTimer = setInterval(runSettlement, config.settlementIntervalMs);
     },
 
     stop() {
       logger.info("Scheduler: stopping");
+      if (discoveryTimer) {
+        clearInterval(discoveryTimer);
+        discoveryTimer = null;
+      }
       if (predictionTimer) {
         clearInterval(predictionTimer);
         predictionTimer = null;

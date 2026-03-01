@@ -29,6 +29,13 @@
       "when": 1772258400000,
       "tag": "0003_rename-competitor-ids",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1772350759198,
+      "tag": "0004_jazzy_shotgun",
+      "breakpoints": true
     }
   ]
 }
