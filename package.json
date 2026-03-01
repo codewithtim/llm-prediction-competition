@@ -19,6 +19,7 @@
     "wallets:create": "bun run src/scripts/manage-wallets.ts create",
     "wallets:list": "bun run src/scripts/manage-wallets.ts list",
     "wallets:export": "bun run src/scripts/manage-wallets.ts export",
+    "wallets:import": "bun run src/scripts/import-wallets.ts",
     "wallets:remove": "bun run src/scripts/manage-wallets.ts remove"
   },
   "devDependencies": {
