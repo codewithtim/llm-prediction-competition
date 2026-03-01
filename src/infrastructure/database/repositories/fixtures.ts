@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import type { Database } from "../client";
 import { fixtures } from "../schema";
 
@@ -13,6 +13,22 @@ export function fixturesRepo(db: Database) {
           set: {
             status: fixture.status,
             venue: fixture.venue,
+            updatedAt: new Date(),
+          },
+        })
+        .run();
+    },
+
+    async bulkUpsert(rows: (typeof fixtures.$inferInsert)[]) {
+      if (rows.length === 0) return;
+      return db
+        .insert(fixtures)
+        .values(rows)
+        .onConflictDoUpdate({
+          target: fixtures.id,
+          set: {
+            status: sql.raw("excluded.status"),
+            venue: sql.raw("excluded.venue"),
             updatedAt: new Date(),
           },
         })

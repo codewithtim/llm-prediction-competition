@@ -1,4 +1,4 @@
-import { and, eq, isNotNull } from "drizzle-orm";
+import { and, eq, isNotNull, sql } from "drizzle-orm";
 import type { Database } from "../client";
 import { markets } from "../schema";
 
@@ -18,6 +18,27 @@ export function marketsRepo(db: Database) {
             liquidity: market.liquidity,
             volume: market.volume,
             fixtureId: market.fixtureId,
+            updatedAt: new Date(),
+          },
+        })
+        .run();
+    },
+
+    async bulkUpsert(rows: (typeof markets.$inferInsert)[]) {
+      if (rows.length === 0) return;
+      return db
+        .insert(markets)
+        .values(rows)
+        .onConflictDoUpdate({
+          target: markets.id,
+          set: {
+            outcomePrices: sql.raw("excluded.outcome_prices"),
+            active: sql.raw("excluded.active"),
+            closed: sql.raw("excluded.closed"),
+            acceptingOrders: sql.raw("excluded.accepting_orders"),
+            liquidity: sql.raw("excluded.liquidity"),
+            volume: sql.raw("excluded.volume"),
+            fixtureId: sql.raw("excluded.fixture_id"),
             updatedAt: new Date(),
           },
         })
