@@ -14,6 +14,7 @@ export type PipelineConfig = {
   fixtureLookAheadDays: number;
   predictionIntervalMs: number;
   settlementIntervalMs: number;
+  discoveryTtlMs: number;
   betting: BettingConfig;
 };
 
@@ -33,9 +34,10 @@ export const DEFAULT_CONFIG: PipelineConfig = {
   fixtureLookAheadDays: 7,
   predictionIntervalMs: 6 * 60 * 60 * 1000, // 6 hours
   settlementIntervalMs: 2 * 60 * 60 * 1000, // 2 hours
+  discoveryTtlMs: 60 * 60 * 1000, // 1 hour
   betting: {
     maxStakePerBet: 10,
     maxTotalExposure: 100,
-    dryRun: true,
+    dryRun: false,
   },
 };

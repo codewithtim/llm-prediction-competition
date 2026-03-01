@@ -10,6 +10,7 @@ function makeConfig(overrides: Partial<PipelineConfig> = {}): PipelineConfig {
     fixtureLookAheadDays: 7,
     predictionIntervalMs: 100,
     settlementIntervalMs: 100,
+    discoveryTtlMs: 0,
     betting: { maxStakePerBet: 10, maxTotalExposure: 100, dryRun: true },
     ...overrides,
   };
@@ -25,6 +26,9 @@ function emptyResult() {
     betsPlaced: 0,
     betsDryRun: 0,
     betsSkipped: 0,
+    cacheHit: false,
+    oddsRefreshed: 0,
+    oddsRefreshFailed: 0,
     errors: [],
   };
 }

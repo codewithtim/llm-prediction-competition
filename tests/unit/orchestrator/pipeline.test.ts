@@ -4,7 +4,9 @@ import type { PredictionOutput } from "../../../src/domain/contracts/prediction.
 import type { Market } from "../../../src/domain/models/market.ts";
 import type { BettingService, PlaceBetResult } from "../../../src/domain/services/betting.ts";
 import type { SettlementService } from "../../../src/domain/services/settlement.ts";
+import type { GammaClient } from "../../../src/infrastructure/polymarket/gamma-client.ts";
 import type { MarketDiscovery } from "../../../src/infrastructure/polymarket/market-discovery.ts";
+import type { GammaMarket } from "../../../src/infrastructure/polymarket/types.ts";
 import type { FootballClient } from "../../../src/infrastructure/sports-data/client.ts";
 import type {
   ApiFixture,
@@ -190,6 +192,43 @@ function mockSettlementService(): SettlementService {
   };
 }
 
+function makeGammaMarket(overrides: Partial<GammaMarket> = {}): GammaMarket {
+  return {
+    id: "market-1",
+    question: "Will Team A win?",
+    conditionId: "0xabc",
+    slug: "team-a-win",
+    outcomes: JSON.stringify(["Yes", "No"]),
+    outcomePrices: JSON.stringify(["0.65", "0.35"]),
+    clobTokenIds: JSON.stringify(["tok1", "tok2"]),
+    active: true,
+    closed: false,
+    acceptingOrders: true,
+    liquidity: "1000",
+    liquidityNum: 1000,
+    volume: "5000",
+    volumeNum: 5000,
+    gameId: "100",
+    sportsMarketType: "moneyline",
+    bestBid: 0.64,
+    bestAsk: 0.66,
+    lastTradePrice: 0.65,
+    orderPriceMinTickSize: 0.01,
+    orderMinSize: 1,
+    ...overrides,
+  };
+}
+
+function mockGammaClient(overrides: Partial<GammaClient> = {}): GammaClient {
+  return {
+    getSports: mock(() => Promise.resolve([])),
+    getEvents: mock(() => Promise.resolve([])),
+    getTags: mock(() => Promise.resolve([])),
+    getMarketById: mock(() => Promise.resolve(makeGammaMarket())),
+    ...overrides,
+  };
+}
+
 function mockRepo() {
   return {
     upsert: mock(() => Promise.resolve()),
@@ -213,6 +252,7 @@ function buildDeps(overrides: Partial<PipelineDeps> = {}): PipelineDeps {
   return {
     discovery: mockDiscovery(),
     footballClient: mockFootballClient(),
+    gammaClient: mockGammaClient(),
     registry: mockRegistry(),
     bettingService: mockBettingService(),
     settlementService: mockSettlementService(),
@@ -221,6 +261,7 @@ function buildDeps(overrides: Partial<PipelineDeps> = {}): PipelineDeps {
     predictionsRepo: mockPredictionsRepo() as unknown as PipelineDeps["predictionsRepo"],
     config: {
       ...DEFAULT_CONFIG,
+      discoveryTtlMs: 0, // cache always misses — existing tests unchanged
       leagues: [
         {
           id: 39,
@@ -465,6 +506,100 @@ describe("createPipeline", () => {
 
       expect(result.predictionsGenerated).toBe(0);
       expect(result.fixturesProcessed).toBe(0);
+    });
+
+    test("cache hit skips API discovery and fixture fetch calls", async () => {
+      const disc = mockDiscovery();
+      const fc = mockFootballClient();
+      const deps = buildDeps({
+        discovery: disc,
+        footballClient: fc,
+        config: {
+          ...DEFAULT_CONFIG,
+          discoveryTtlMs: 60_000, // 1 minute TTL
+          leagues: [
+            {
+              id: 39,
+              name: "Premier League",
+              country: "England",
+              polymarketTagIds: [82],
+              polymarketSeriesSlug: "premier-league",
+            },
+          ],
+        },
+      });
+      const pipeline = createPipeline(deps);
+
+      // First run: cache miss, API calls happen
+      const result1 = await pipeline.runPredictions();
+      expect(result1.cacheHit).toBe(false);
+      expect(disc.discoverFootballMarkets).toHaveBeenCalledTimes(1);
+      expect(fc.getFixtures).toHaveBeenCalledTimes(1);
+
+      // Second run: cache hit, no new API calls
+      const result2 = await pipeline.runPredictions();
+      expect(result2.cacheHit).toBe(true);
+      expect(disc.discoverFootballMarkets).toHaveBeenCalledTimes(1); // still 1
+      expect(fc.getFixtures).toHaveBeenCalledTimes(1); // still 1
+    });
+
+    test("cache miss fetches fresh data", async () => {
+      const disc = mockDiscovery();
+      const deps = buildDeps({
+        discovery: disc,
+        config: {
+          ...DEFAULT_CONFIG,
+          discoveryTtlMs: -1, // always miss
+          leagues: [
+            {
+              id: 39,
+              name: "Premier League",
+              country: "England",
+              polymarketTagIds: [82],
+              polymarketSeriesSlug: "premier-league",
+            },
+          ],
+        },
+      });
+      const pipeline = createPipeline(deps);
+
+      await pipeline.runPredictions();
+      await pipeline.runPredictions();
+
+      expect(disc.discoverFootballMarkets).toHaveBeenCalledTimes(2);
+    });
+
+    test("odds refresh updates market prices before bet placement", async () => {
+      const gc = mockGammaClient({
+        getMarketById: mock(() =>
+          Promise.resolve(makeGammaMarket({ outcomePrices: JSON.stringify(["0.70", "0.30"]) })),
+        ),
+      });
+      const marketsRepoMock = mockRepo();
+      const deps = buildDeps({
+        gammaClient: gc,
+        marketsRepo: marketsRepoMock as unknown as PipelineDeps["marketsRepo"],
+      });
+      const pipeline = createPipeline(deps);
+      const result = await pipeline.runPredictions();
+
+      expect(result.oddsRefreshed).toBe(1);
+      expect(gc.getMarketById).toHaveBeenCalledWith("market-1");
+      // Market upsert: once during persist step + once during odds refresh
+      expect(marketsRepoMock.upsert).toHaveBeenCalledTimes(2);
+    });
+
+    test("odds refresh failure falls back to cached prices gracefully", async () => {
+      const gc = mockGammaClient({
+        getMarketById: mock(() => Promise.reject(new Error("Network timeout"))),
+      });
+      const deps = buildDeps({ gammaClient: gc });
+      const pipeline = createPipeline(deps);
+      const result = await pipeline.runPredictions();
+
+      expect(result.oddsRefreshFailed).toBe(1);
+      expect(result.betsDryRun).toBe(1); // bet still placed with cached prices
+      expect(result.errors).toHaveLength(0); // refresh failure is not an error
     });
 
     test("handles missing standings for a team", async () => {

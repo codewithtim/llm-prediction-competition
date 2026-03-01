@@ -10,6 +10,8 @@ import type { EngineResult } from "../engine/types.ts";
 import type { fixturesRepo as fixturesRepoFactory } from "../infrastructure/database/repositories/fixtures.ts";
 import type { marketsRepo as marketsRepoFactory } from "../infrastructure/database/repositories/markets.ts";
 import type { predictionsRepo as predictionsRepoFactory } from "../infrastructure/database/repositories/predictions.ts";
+import type { GammaClient } from "../infrastructure/polymarket/gamma-client.ts";
+import { mapGammaMarketToMarket } from "../infrastructure/polymarket/mappers.ts";
 import type { MarketDiscovery } from "../infrastructure/polymarket/market-discovery.ts";
 import type { FootballClient } from "../infrastructure/sports-data/client.ts";
 import {
@@ -19,10 +21,12 @@ import {
 } from "../infrastructure/sports-data/mappers.ts";
 import { logger } from "../shared/logger.ts";
 import type { PipelineConfig } from "./config.ts";
+import { createDiscoveryCache } from "./discovery-cache.ts";
 
 export type PipelineDeps = {
   discovery: MarketDiscovery;
   footballClient: FootballClient;
+  gammaClient: GammaClient;
   registry: CompetitorRegistry;
   bettingService: BettingService;
   settlementService: SettlementService;
@@ -41,6 +45,9 @@ export type PredictionPipelineResult = {
   betsPlaced: number;
   betsDryRun: number;
   betsSkipped: number;
+  cacheHit: boolean;
+  oddsRefreshed: number;
+  oddsRefreshFailed: number;
   errors: string[];
 };
 
@@ -104,6 +111,7 @@ export function createPipeline(deps: PipelineDeps) {
   const {
     discovery,
     footballClient,
+    gammaClient,
     registry,
     bettingService,
     settlementService,
@@ -112,6 +120,8 @@ export function createPipeline(deps: PipelineDeps) {
     predictionsRepo,
     config,
   } = deps;
+
+  const cache = createDiscoveryCache(config.discoveryTtlMs);
 
   return {
     async runPredictions(): Promise<PredictionPipelineResult> {
@@ -124,75 +134,111 @@ export function createPipeline(deps: PipelineDeps) {
         betsPlaced: 0,
         betsDryRun: 0,
         betsSkipped: 0,
+        cacheHit: false,
+        oddsRefreshed: 0,
+        oddsRefreshFailed: 0,
         errors: [],
       };
 
-      // Step 1: Discover markets
-      logger.info("Pipeline: discovering football markets");
+      // Check discovery cache
+      const cached = cache.get();
       let events: Event[];
-      try {
-        events = await discovery.discoverFootballMarkets();
+      const allFixtures: Fixture[] = [];
+
+      if (cached) {
+        // Cache hit — reuse events and fixtures
+        result.cacheHit = true;
+        events = cached.events;
+        allFixtures.push(...cached.fixtures);
         result.eventsDiscovered = events.length;
-        logger.info("Pipeline: markets discovered", { events: events.length });
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        result.errors.push(`Discovery failed: ${msg}`);
-        logger.error("Pipeline: discovery failed", { error: msg });
-        return result;
+        result.fixturesFetched = allFixtures.length;
+        logger.info("Pipeline: discovery cache hit, reusing cached data", {
+          events: events.length,
+          fixtures: allFixtures.length,
+        });
+      } else {
+        // Step 1: Discover markets
+        logger.info("Pipeline: discovering football markets");
+        try {
+          events = await discovery.discoverFootballMarkets();
+          result.eventsDiscovered = events.length;
+          logger.info("Pipeline: markets discovered", { events: events.length });
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          result.errors.push(`Discovery failed: ${msg}`);
+          logger.error("Pipeline: discovery failed", { error: msg });
+          return result;
+        }
+
+        // Step 3: Fetch fixtures
+        logger.info("Pipeline: fetching fixtures", { leagues: config.leagues.length });
+        const today = new Date();
+        const lookAhead = new Date(today);
+        lookAhead.setDate(lookAhead.getDate() + config.fixtureLookAheadDays);
+        const from = formatDateISO(today);
+        const to = formatDateISO(lookAhead);
+
+        for (const league of config.leagues) {
+          try {
+            const resp = await footballClient.getFixtures({
+              league: league.id,
+              season: config.season,
+              from,
+              to,
+            });
+            const fixtures = resp.response.map(mapApiFixtureToFixture);
+            allFixtures.push(...fixtures);
+            logger.info("Pipeline: fixtures fetched", {
+              league: league.name,
+              count: fixtures.length,
+            });
+          } catch (err) {
+            const msg = err instanceof Error ? err.message : String(err);
+            result.errors.push(`Fixtures fetch failed (${league.name}): ${msg}`);
+            logger.error("Pipeline: fixture fetch failed", { league: league.name, error: msg });
+          }
+        }
+        result.fixturesFetched = allFixtures.length;
+
+        // Update cache with fresh data
+        cache.set(events, allFixtures);
       }
 
-      // Step 2: Persist markets
+      // Step 2: Persist markets (always — upserts are idempotent)
+      let marketsUpserted = 0;
+      let marketsTotal = 0;
       for (const event of events) {
         for (const market of event.markets) {
+          marketsTotal++;
           try {
             await marketsRepo.upsert(marketToDbRow(market));
+            marketsUpserted++;
           } catch (err) {
             const msg = err instanceof Error ? err.message : String(err);
             result.errors.push(`Market upsert failed (${market.id}): ${msg}`);
           }
         }
       }
+      logger.info("Pipeline: markets persisted", {
+        upserted: marketsUpserted,
+        total: marketsTotal,
+      });
 
-      // Step 3: Fetch fixtures
-      logger.info("Pipeline: fetching fixtures", { leagues: config.leagues.length });
-      const today = new Date();
-      const lookAhead = new Date(today);
-      lookAhead.setDate(lookAhead.getDate() + config.fixtureLookAheadDays);
-      const from = formatDateISO(today);
-      const to = formatDateISO(lookAhead);
-
-      const allFixtures: Fixture[] = [];
-      for (const league of config.leagues) {
-        try {
-          const resp = await footballClient.getFixtures({
-            league: league.id,
-            season: config.season,
-            from,
-            to,
-          });
-          const fixtures = resp.response.map(mapApiFixtureToFixture);
-          allFixtures.push(...fixtures);
-          logger.info("Pipeline: fixtures fetched", {
-            league: league.name,
-            count: fixtures.length,
-          });
-        } catch (err) {
-          const msg = err instanceof Error ? err.message : String(err);
-          result.errors.push(`Fixtures fetch failed (${league.name}): ${msg}`);
-          logger.error("Pipeline: fixture fetch failed", { league: league.name, error: msg });
-        }
-      }
-      result.fixturesFetched = allFixtures.length;
-
-      // Step 4: Persist fixtures
+      // Step 4: Persist fixtures (always — upserts are idempotent)
+      let fixturesUpserted = 0;
       for (const fixture of allFixtures) {
         try {
           await fixturesRepo.upsert(fixtureToDbRow(fixture));
+          fixturesUpserted++;
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err);
           result.errors.push(`Fixture upsert failed (${fixture.id}): ${msg}`);
         }
       }
+      logger.info("Pipeline: fixtures persisted", {
+        upserted: fixturesUpserted,
+        total: allFixtures.length,
+      });
 
       if (events.length === 0 || allFixtures.length === 0) {
         logger.info("Pipeline: no events or fixtures to match", {
@@ -279,7 +325,7 @@ export function createPipeline(deps: PipelineDeps) {
 
             for (const prediction of predictions) {
               // Resolve the Market object for this prediction
-              const market = marketMap.get(prediction.marketId);
+              let market = marketMap.get(prediction.marketId);
               if (!market) {
                 result.errors.push(
                   `Engine ${competitorId} returned prediction for unknown market ${prediction.marketId}`,
@@ -287,22 +333,30 @@ export function createPipeline(deps: PipelineDeps) {
                 continue;
               }
 
-              result.predictionsGenerated++;
-
-              // Persist prediction
+              // Refresh odds before bet placement
               try {
-                await predictionsRepo.create({
-                  marketId: prediction.marketId,
-                  fixtureId: fixture.id,
-                  competitorId,
-                  side: prediction.side,
-                  confidence: prediction.confidence,
-                  stake: prediction.stake,
-                  reasoning: prediction.reasoning,
-                });
+                const freshGamma = await gammaClient.getMarketById(market.id);
+                if (freshGamma) {
+                  const freshMarket = mapGammaMarketToMarket(freshGamma);
+                  if (freshMarket) {
+                    logger.info("Pipeline: odds refreshed before bet", {
+                      marketId: market.id,
+                      oldPrices: market.outcomePrices,
+                      newPrices: freshMarket.outcomePrices,
+                    });
+                    await marketsRepo.upsert(marketToDbRow(freshMarket));
+                    market = freshMarket;
+                    marketMap.set(market.id, market);
+                    result.oddsRefreshed++;
+                  }
+                }
               } catch (err) {
                 const msg = err instanceof Error ? err.message : String(err);
-                result.errors.push(`Prediction save failed: ${msg}`);
+                logger.warn("Pipeline: odds refresh failed, using cached prices", {
+                  marketId: market.id,
+                  error: msg,
+                });
+                result.oddsRefreshFailed++;
               }
 
               // Place bet
@@ -316,9 +370,35 @@ export function createPipeline(deps: PipelineDeps) {
                   walletConfig: engineEntry?.walletConfig,
                 });
 
-                if (betResult.status === "placed") result.betsPlaced++;
-                else if (betResult.status === "dry_run") result.betsDryRun++;
-                else result.betsSkipped++;
+                if (betResult.status === "placed" || betResult.status === "dry_run") {
+                  if (betResult.status === "placed") result.betsPlaced++;
+                  else result.betsDryRun++;
+
+                  // Persist prediction only when bet is placed or dry_run
+                  try {
+                    await predictionsRepo.create({
+                      marketId: prediction.marketId,
+                      fixtureId: fixture.id,
+                      competitorId,
+                      side: prediction.side,
+                      confidence: prediction.confidence,
+                      stake: prediction.stake,
+                      reasoning: prediction.reasoning,
+                    });
+                    result.predictionsGenerated++;
+                  } catch (err) {
+                    const msg = err instanceof Error ? err.message : String(err);
+                    result.errors.push(`Prediction save failed: ${msg}`);
+                  }
+                } else {
+                  result.betsSkipped++;
+                  logger.info("Pipeline: bet skipped", {
+                    competitorId,
+                    fixtureId: fixture.id,
+                    marketId: market.id,
+                    reason: betResult.reason,
+                  });
+                }
               } catch (err) {
                 const msg = err instanceof Error ? err.message : String(err);
                 result.errors.push(`Bet placement failed: ${msg}`);
@@ -338,13 +418,20 @@ export function createPipeline(deps: PipelineDeps) {
       }
 
       logger.info("Pipeline: prediction run complete", {
+        cacheHit: result.cacheHit,
         fixturesProcessed: result.fixturesProcessed,
         predictions: result.predictionsGenerated,
         betsPlaced: result.betsPlaced,
         betsDryRun: result.betsDryRun,
         betsSkipped: result.betsSkipped,
+        oddsRefreshed: result.oddsRefreshed,
+        oddsRefreshFailed: result.oddsRefreshFailed,
         errors: result.errors.length,
       });
+
+      for (const error of result.errors) {
+        logger.error("Pipeline error", { message: error });
+      }
 
       return result;
     },
