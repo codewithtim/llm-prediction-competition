@@ -1,8 +1,4 @@
 {
   "mcpServers": {
-    "workflow-pilot": {
-      "command": "workflow-pilot-mcp",
-      "args": []
-    }
   }
 }

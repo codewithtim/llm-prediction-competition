@@ -16,7 +16,10 @@
       "Bash(cargo:*)",
       "Fetch(crates.io)",
       "Fetch(docs.rs)",
-      "Fetch(github.com)"
+      "Fetch(github.com)",
+      "Read(docs/features/**)",
+      "Edit(docs/features/**)",
+      "Write(docs/features/**)"
     ]
   }
 }
