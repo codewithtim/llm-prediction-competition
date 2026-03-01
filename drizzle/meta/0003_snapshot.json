@@ -373,7 +373,7 @@
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false,
-          "default": "'codegen'"
+          "default": "'weight-tuned'"
         },
         "config": {
           "name": "config",

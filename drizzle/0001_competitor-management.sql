@@ -19,13 +19,13 @@ CREATE TABLE `__competitors_new` (
 	`model` text NOT NULL,
 	`engine_path` text,
 	`status` text NOT NULL DEFAULT 'active',
-	`type` text NOT NULL DEFAULT 'codegen',
+	`type` text NOT NULL DEFAULT 'weight-tuned',
 	`config` text,
 	`created_at` integer NOT NULL
 );
 --> statement-breakpoint
 INSERT INTO `__competitors_new` (`id`, `name`, `model`, `engine_path`, `status`, `type`, `created_at`)
-	SELECT `id`, `name`, `model`, `engine_path`, 'active', 'codegen', `created_at` FROM `competitors`;
+	SELECT `id`, `name`, `model`, `engine_path`, 'active', 'weight-tuned', `created_at` FROM `competitors`;
 --> statement-breakpoint
 DROP TABLE `competitors`;
 --> statement-breakpoint
@@ -35,7 +35,6 @@ ALTER TABLE `__competitors_new` RENAME TO `competitors`;
 -- Built-in competitors (inserted once via migration, managed via DB thereafter)
 INSERT INTO `competitors` (`id`, `name`, `type`, `status`, `model`, `engine_path`, `config`, `created_at`)
 VALUES
-	('baseline', 'Manual Baseline', 'baseline', 'active', 'heuristic', 'src/competitors/baseline/engine.ts', NULL, unixepoch()),
-	('claude-runtime', 'Claude Sonnet (Runtime)', 'runtime', 'active', 'anthropic/claude-sonnet-4', NULL, '{"model":"anthropic/claude-sonnet-4"}', unixepoch()),
-	('gpt4o-runtime', 'GPT-4o (Runtime)', 'runtime', 'active', 'openai/gpt-4o', NULL, '{"model":"openai/gpt-4o"}', unixepoch()),
-	('gemini-runtime', 'Gemini Flash (Runtime)', 'runtime', 'active', 'google/gemini-2.0-flash-001', NULL, '{"model":"google/gemini-2.0-flash-001"}', unixepoch());
+	('wt-claude-sonnet', 'Weight-Tuned Claude Sonnet', 'weight-tuned', 'active', 'anthropic/claude-sonnet-4', '', '{"model":"anthropic/claude-sonnet-4"}', unixepoch()),
+	('wt-gpt-4o', 'Weight-Tuned GPT-4o', 'weight-tuned', 'active', 'openai/gpt-4o', '', '{"model":"openai/gpt-4o"}', unixepoch()),
+	('wt-gemini-flash', 'Weight-Tuned Gemini Flash', 'weight-tuned', 'active', 'google/gemini-2.0-flash-001', '', '{"model":"google/gemini-2.0-flash-001"}', unixepoch());

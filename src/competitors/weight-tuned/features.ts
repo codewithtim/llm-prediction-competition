@@ -1,5 +1,32 @@
-import type { Statistics } from "../../domain/contracts/statistics";
-import { computeH2hAdvantage, computeHomeWinRate, parseForm } from "../baseline/engine";
+import type { H2H, Statistics, TeamStats } from "../../domain/contracts/statistics";
+
+export function parseForm(form: string | null): number {
+  if (!form) return 0.5;
+  let score = 0;
+  let count = 0;
+  for (const ch of form) {
+    if (ch === "W") {
+      score += 1;
+      count++;
+    } else if (ch === "D") {
+      score += 0.5;
+      count++;
+    } else if (ch === "L") {
+      count++;
+    }
+  }
+  return count === 0 ? 0.5 : score / count;
+}
+
+export function computeHomeWinRate(home: TeamStats): number {
+  if (home.homeRecord.played === 0) return 0.5;
+  return home.homeRecord.wins / home.homeRecord.played;
+}
+
+export function computeH2hAdvantage(h2h: H2H): number {
+  if (h2h.totalMatches === 0) return 0.5;
+  return h2h.homeWins / h2h.totalMatches;
+}
 
 export type FeatureExtractor = (statistics: Statistics) => number;
 

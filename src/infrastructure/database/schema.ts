@@ -57,7 +57,7 @@ export const competitors = sqliteTable("competitors", {
   model: text("model").notNull(),
   enginePath: text("engine_path"),
   status: text("status").notNull().default("active"),
-  type: text("type").notNull().default("codegen"),
+  type: text("type").notNull().default("weight-tuned"),
   config: text("config"),
   createdAt: integer("created_at", { mode: "timestamp" })
     .notNull()

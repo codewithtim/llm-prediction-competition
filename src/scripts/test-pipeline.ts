@@ -10,7 +10,8 @@
  * Only requires API_SPORTS_KEY. Polymarket Gamma API is public (no auth).
  */
 
-import { BASELINE_ID, BASELINE_NAME, baselineEngine } from "../competitors/baseline/engine.ts";
+import { createWeightedEngine } from "../competitors/weight-tuned/engine.ts";
+import { DEFAULT_STAKE_CONFIG, DEFAULT_WEIGHTS } from "../competitors/weight-tuned/types.ts";
 import type { MarketContext, Statistics } from "../domain/contracts/statistics.ts";
 import type { Fixture } from "../domain/models/fixture.ts";
 import type { Event, Market } from "../domain/models/market.ts";
@@ -290,7 +291,7 @@ async function main() {
   }
 
   // ── Step 5: Build Statistics and run engine ───────────────────────────
-  divider("Step 5: Running baseline prediction engine");
+  divider("Step 5: Running weight-tuned prediction engine");
 
   const statistics: Statistics = {
     fixtureId: targetFixture.id,
@@ -301,11 +302,13 @@ async function main() {
     markets: marketContexts,
   };
 
+  const weightTunedEngine = createWeightedEngine(DEFAULT_WEIGHTS, DEFAULT_STAKE_CONFIG);
+
   console.log(`Market source: ${matchSource}`);
-  console.log(`Engine: ${BASELINE_NAME} (${BASELINE_ID})\n`);
+  console.log(`Engine: Weight-Tuned (default weights)\n`);
 
   const result = await runEngine(
-    { competitorId: BASELINE_ID, name: BASELINE_NAME, engine: baselineEngine },
+    { competitorId: "test-pipeline", name: "Weight-Tuned", engine: weightTunedEngine },
     statistics,
   );
 
