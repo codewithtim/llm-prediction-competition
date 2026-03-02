@@ -73,4 +73,12 @@ describe("marketsRepo", () => {
     const found = await repo.findById("nonexistent");
     expect(found).toBeUndefined();
   });
+
+  it("finds all markets", async () => {
+    const repo = marketsRepo(db);
+    await repo.upsert(sampleMarket);
+    await repo.upsert({ ...sampleMarket, id: "market-2" });
+    const all = await repo.findAll();
+    expect(all).toHaveLength(2);
+  });
 });

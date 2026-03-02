@@ -1,0 +1,150 @@
+export type PerformanceStatsDTO = {
+  totalBets: number;
+  wins: number;
+  losses: number;
+  pending: number;
+  totalStaked: number;
+  totalReturned: number;
+  profitLoss: number;
+  accuracy: number;
+  roi: number;
+};
+
+export type CompetitorSummary = {
+  id: string;
+  name: string;
+  model: string;
+  status: string;
+  type: string;
+  hasWallet: boolean;
+  walletAddress: string | null;
+  createdAt: string;
+  stats: PerformanceStatsDTO;
+};
+
+export type CompetitorDetailResponse = {
+  id: string;
+  name: string;
+  model: string;
+  status: string;
+  type: string;
+  hasWallet: boolean;
+  walletAddress: string | null;
+  createdAt: string;
+  stats: PerformanceStatsDTO;
+  versions: VersionSummary[];
+  recentBets: BetSummary[];
+  recentPredictions: PredictionSummary[];
+};
+
+export type VersionSummary = {
+  id: number;
+  version: number;
+  model: string;
+  enginePath: string;
+  performanceSnapshot: {
+    totalBets: number;
+    wins: number;
+    losses: number;
+    accuracy: number;
+    roi: number;
+    profitLoss: number;
+  } | null;
+  generatedAt: string;
+};
+
+export type FixtureSummary = {
+  id: number;
+  leagueName: string;
+  leagueCountry: string;
+  homeTeamName: string;
+  awayTeamName: string;
+  date: string;
+  venue: string | null;
+  status: string;
+  marketCount: number;
+};
+
+export type FixtureDetailResponse = {
+  id: number;
+  leagueId: number;
+  leagueName: string;
+  leagueCountry: string;
+  leagueSeason: number;
+  homeTeamId: number;
+  homeTeamName: string;
+  homeTeamLogo: string | null;
+  awayTeamId: number;
+  awayTeamName: string;
+  awayTeamLogo: string | null;
+  date: string;
+  venue: string | null;
+  status: string;
+  markets: MarketSummary[];
+  predictions: PredictionSummary[];
+};
+
+export type MarketSummary = {
+  id: string;
+  question: string;
+  outcomes: [string, string];
+  outcomePrices: [string, string];
+  active: boolean;
+  closed: boolean;
+  liquidity: number;
+  volume: number;
+  fixtureId: number | null;
+  fixtureSummary: string | null;
+  sportsMarketType: string | null;
+  status: string;
+};
+
+export type BetSummary = {
+  id: string;
+  competitorId: string;
+  competitorName: string;
+  marketId: string;
+  marketQuestion: string;
+  fixtureId: number;
+  side: "YES" | "NO";
+  amount: number;
+  price: number;
+  shares: number;
+  status: string;
+  placedAt: string;
+  settledAt: string | null;
+  profit: number | null;
+};
+
+export type PredictionSummary = {
+  id: number;
+  competitorId: string;
+  competitorName: string;
+  marketId: string;
+  marketQuestion: string;
+  fixtureId: number;
+  side: "YES" | "NO";
+  confidence: number;
+  stake: number;
+  reasoning: string;
+  createdAt: string;
+};
+
+export type LeaderboardEntry = {
+  competitor: CompetitorSummary;
+  rank: number;
+};
+
+export type DashboardResponse = {
+  totalCompetitors: number;
+  activeCompetitors: number;
+  totalFixtures: number;
+  totalMarkets: number;
+  activeMarkets: number;
+  totalBets: number;
+  pendingBets: number;
+  totalProfitLoss: number;
+  overallAccuracy: number;
+  leaderboard: LeaderboardEntry[];
+  recentBets: BetSummary[];
+};

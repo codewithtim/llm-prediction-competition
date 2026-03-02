@@ -124,4 +124,20 @@ describe("betsRepo", () => {
       expect(stats.roi).toBe(0);
     });
   });
+
+  it("finds all bets", async () => {
+    const repo = betsRepo(db);
+    await repo.create(sampleBet);
+    await repo.create({ ...sampleBet, id: "bet-2", orderId: "order-2" });
+    const all = await repo.findAll();
+    expect(all).toHaveLength(2);
+  });
+
+  it("finds recent bets ordered by placedAt", async () => {
+    const repo = betsRepo(db);
+    await repo.create(sampleBet);
+    await repo.create({ ...sampleBet, id: "bet-2", orderId: "order-2" });
+    const recent = await repo.findRecent(1);
+    expect(recent).toHaveLength(1);
+  });
 });

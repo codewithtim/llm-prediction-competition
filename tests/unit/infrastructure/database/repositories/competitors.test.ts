@@ -59,4 +59,13 @@ describe("competitorsRepo", () => {
     const found = await repo.findById("nonexistent");
     expect(found).toBeUndefined();
   });
+
+  it("finds all competitors", async () => {
+    const repo = competitorsRepo(db);
+    const before = await repo.findAll();
+    await repo.create(sampleCompetitor);
+    await repo.create({ ...sampleCompetitor, id: "gpt-1", name: "GPT-4", status: "disabled" });
+    const after = await repo.findAll();
+    expect(after.length).toBe(before.length + 2);
+  });
 });

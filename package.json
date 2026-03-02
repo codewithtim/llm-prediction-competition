@@ -5,6 +5,9 @@
   "private": true,
   "scripts": {
     "dev": "bun run --watch src/index.ts",
+    "dev:api": "bun run --watch src/index.ts",
+    "dev:ui": "cd ui && bun run dev",
+    "build:ui": "cd ui && bun run build",
     "start": "bun run src/index.ts",
     "test": "bun test",
     "typecheck": "tsc --noEmit",
@@ -37,6 +40,7 @@
     "@polymarket/clob-client": "^5.2.4",
     "drizzle-orm": "^0.45.1",
     "ethers": "^6.16.0",
+    "hono": "^4.12.3",
     "zod": "^4.3.6"
   }
 }

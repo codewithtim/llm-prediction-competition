@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 import type { Database } from "../client";
 import { bets } from "../schema";
 
@@ -10,6 +10,14 @@ export function betsRepo(db: Database) {
 
     async findById(id: string) {
       return db.select().from(bets).where(eq(bets.id, id)).get();
+    },
+
+    async findAll() {
+      return db.select().from(bets).all();
+    },
+
+    async findRecent(limit: number) {
+      return db.select().from(bets).orderBy(desc(bets.placedAt)).limit(limit).all();
     },
 
     async findByCompetitor(competitorId: string) {

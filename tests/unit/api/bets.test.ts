@@ -1,0 +1,58 @@
+import { describe, expect, test } from "bun:test";
+import { Hono } from "hono";
+import { betsRoutes } from "../../../src/api/routes/bets";
+import { createMockDeps } from "./helpers";
+
+describe("GET /api/bets", () => {
+  test("returns enriched bets", async () => {
+    const deps = createMockDeps({
+      betsRepo: {
+        findAll: async () => [
+          {
+            id: "b1", competitorId: "c1", marketId: "m1", fixtureId: 1001,
+            side: "YES", amount: 10, price: 0.65, shares: 15.38,
+            status: "pending", placedAt: new Date("2026-01-01"), settledAt: null, profit: null,
+          },
+        ],
+      } as any,
+      competitorsRepo: {
+        findAll: async () => [{ id: "c1", name: "Claude" }],
+      } as any,
+      marketsRepo: {
+        findAll: async () => [{ id: "m1", question: "Will Arsenal win?" }],
+      } as any,
+    });
+
+    const app = new Hono();
+    app.route("/api", betsRoutes(deps));
+
+    const res = await app.request("/api/bets");
+    expect(res.status).toBe(200);
+
+    const data = await res.json();
+    expect(data).toHaveLength(1);
+    expect(data[0].competitorName).toBe("Claude");
+    expect(data[0].marketQuestion).toBe("Will Arsenal win?");
+  });
+
+  test("filters by status", async () => {
+    const deps = createMockDeps({
+      betsRepo: {
+        findAll: async () => [
+          { id: "b1", status: "pending", competitorId: "c1", marketId: "m1", placedAt: new Date() },
+          { id: "b2", status: "filled", competitorId: "c1", marketId: "m1", placedAt: new Date() },
+        ],
+      } as any,
+      competitorsRepo: { findAll: async () => [{ id: "c1", name: "Claude" }] } as any,
+      marketsRepo: { findAll: async () => [{ id: "m1", question: "Q" }] } as any,
+    });
+
+    const app = new Hono();
+    app.route("/api", betsRoutes(deps));
+
+    const res = await app.request("/api/bets?status=pending");
+    const data = await res.json();
+    expect(data).toHaveLength(1);
+    expect(data[0].id).toBe("b1");
+  });
+});

@@ -83,4 +83,19 @@ describe("predictionsRepo", () => {
     const results = await repo.findByCompetitor("nonexistent");
     expect(results).toHaveLength(0);
   });
+
+  it("finds all predictions", async () => {
+    const repo = predictionsRepo(db);
+    await repo.create(samplePrediction);
+    const all = await repo.findAll();
+    expect(all).toHaveLength(1);
+  });
+
+  it("finds recent predictions with limit", async () => {
+    const repo = predictionsRepo(db);
+    await repo.create(samplePrediction);
+    await repo.create({ ...samplePrediction, confidence: 0.5 });
+    const recent = await repo.findRecent(1);
+    expect(recent).toHaveLength(1);
+  });
 });

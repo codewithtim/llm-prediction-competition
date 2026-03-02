@@ -63,4 +63,12 @@ describe("fixturesRepo", () => {
     const found = await repo.findById(9999);
     expect(found).toBeUndefined();
   });
+
+  it("finds all fixtures", async () => {
+    const repo = fixturesRepo(db);
+    await repo.upsert(sampleFixture);
+    await repo.upsert({ ...sampleFixture, id: 1002, status: "finished" });
+    const all = await repo.findAll();
+    expect(all).toHaveLength(2);
+  });
 });

@@ -13,6 +13,10 @@ export function competitorsRepo(db: Database) {
       return db.select().from(competitors).where(eq(competitors.id, id)).get();
     },
 
+    async findAll() {
+      return db.select().from(competitors).all();
+    },
+
     async findByStatus(status: CompetitorStatus) {
       return db.select().from(competitors).where(eq(competitors.status, status)).all();
     },

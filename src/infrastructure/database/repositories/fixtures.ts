@@ -35,6 +35,10 @@ export function fixturesRepo(db: Database) {
         .run();
     },
 
+    async findAll() {
+      return db.select().from(fixtures).all();
+    },
+
     async findById(id: number) {
       return db.select().from(fixtures).where(eq(fixtures.id, id)).get();
     },

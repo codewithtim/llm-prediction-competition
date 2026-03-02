@@ -1,4 +1,6 @@
 import { sql } from "drizzle-orm";
+import { serveStatic } from "hono/bun";
+import { createApi } from "./api/index.ts";
 import { loadCompetitors } from "./competitors/loader.ts";
 import { createRegistry } from "./competitors/registry.ts";
 import { createBettingService } from "./domain/services/betting.ts";
@@ -111,17 +113,25 @@ const scheduler = createScheduler({
 });
 
 // ── HTTP server ──────────────────────────────────────────────────────
+const api = createApi({
+  competitorsRepo: comps,
+  competitorVersionsRepo: versions,
+  betsRepo: bets,
+  predictionsRepo: preds,
+  marketsRepo: markets,
+  fixturesRepo: fixtures,
+  walletsRepo: wallets,
+});
+
+api.get("/health", (c) => c.json({ status: "ok" }));
+
+// Serve static UI files in production
+api.use("/*", serveStatic({ root: "./ui/dist" }));
+api.get("*", serveStatic({ root: "./ui/dist", path: "index.html" }));
+
 const server = Bun.serve({
   port: env.PORT,
-  fetch(req) {
-    const url = new URL(req.url);
-
-    if (url.pathname === "/health") {
-      return Response.json({ status: "ok" });
-    }
-
-    return Response.json({ error: "not found" }, { status: 404 });
-  },
+  fetch: api.fetch,
 });
 
 logger.info("Server running", { port: server.port });

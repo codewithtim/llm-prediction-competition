@@ -1,15 +1,24 @@
 FROM oven/bun:latest AS base
 WORKDIR /app
 
-# Install dependencies
+# Install backend dependencies
 FROM base AS deps
 COPY package.json bun.lock ./
 RUN bun install --frozen-lockfile --production
 
-# Build stage (copy source)
+# Build UI
+FROM base AS ui-build
+COPY ui/package.json ui/bun.lock ./ui/
+RUN cd ui && bun install --frozen-lockfile
+COPY ui/ ./ui/
+COPY src/shared/ ./src/shared/
+RUN cd ui && bun run build
+
+# Release stage
 FROM base AS release
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
+COPY --from=ui-build /app/ui/dist ./ui/dist
 
 RUN mkdir -p /app/data
 

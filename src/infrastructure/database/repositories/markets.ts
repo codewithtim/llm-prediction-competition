@@ -45,6 +45,10 @@ export function marketsRepo(db: Database) {
         .run();
     },
 
+    async findAll() {
+      return db.select().from(markets).all();
+    },
+
     async findById(id: string) {
       return db.select().from(markets).where(eq(markets.id, id)).get();
     },
