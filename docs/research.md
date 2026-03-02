@@ -18,6 +18,12 @@ The system runs as three independent automated loops: **discovery** (fetch marke
 | Testing | Bun test runner | Built-in, Jest-compatible API, extremely fast (~10x Vitest). No config needed |
 | Linting/Formatting | Biome | Fast all-in-one linter and formatter. Configured with 2-space indent, 100 char line width, recommended rules, import organising |
 | Validation | Zod (v4) | Runtime type validation for API responses and LLM-generated weight configs |
+| API Framework | Hono | Zero-dep, TypeScript-first HTTP framework. `app.fetch` plugs directly into `Bun.serve()` |
+| Frontend | React 19 + Vite | SPA dashboard for operational visibility. Served as static files in production |
+| UI Routing | TanStack Router | File-based, type-safe route params |
+| Data Fetching | TanStack Query (React Query) | Caching, auto-refresh (30s), loading/error states |
+| Styling | Tailwind CSS v4 + shadcn/ui | Dark theme (zinc palette), New York style components |
+| Charts | Recharts | Composable charting for P&L visualisation |
 | Polymarket SDK | `@polymarket/clob-client` + `ethers` | Official TypeScript client. `ethers` provides wallet and EIP-712 signing for order placement |
 | Sports Data | API-Sports ecosystem | $19/mo per sport, typed responses, good coverage |
 | LLM Integration | OpenRouter via `@openrouter/sdk` | Single API key for all models (Claude, GPT-4, Gemini, etc.). Official TypeScript SDK. Structured JSON output for weight generation |
@@ -348,11 +354,13 @@ Market          — a Polymarket betting market (binary YES/NO outcome), linked 
 Event           — a sporting event (game/match) containing one or more Markets (Gamma API grouping)
 Fixture         — an upcoming game with teams, date, venue (from API-Football)
 Statistics      — strongly-typed stats bundle for a fixture (standings, H2H, market context with fresh odds)
-Prediction      — an engine's output: market, side (YES/NO), confidence, stake, reasoning
+Prediction      — an engine's output: market, side (YES/NO), confidence, stake (bankroll fraction), reasoning (structured JSON)
+Reasoning       — structured prediction rationale: { summary, sections[{ label, content, data? }] }
 Bet             — a placed bet on Polymarket (market, side, amount, price, shares, status)
 Competitor      — a registered competitor with a type ("weight-tuned" or "external"), model, and wallet
-CompetitorVersion — a historical version of a competitor's weights/code with performance snapshot
+CompetitorVersion — a historical version of a competitor's weights/code with raw LLM output and performance snapshot
 WalletConfig    — encrypted Polymarket wallet credentials for a competitor
+BankrollProvider — estimates available bankroll per competitor: initialBankroll + settledP&L − pendingExposure
 ```
 
 ---
@@ -361,7 +369,17 @@ WalletConfig    — encrypted Polymarket wallet credentials for a competitor
 
 ```
 src/
-├── index.ts                           # Bun.serve entry point — wires all components, starts scheduler
+├── index.ts                           # Bun.serve entry point — wires all components, starts scheduler, serves API + UI
+├── api/
+│   ├── index.ts                       # createApi() factory — mounts all routes on a Hono app
+│   └── routes/
+│       ├── dashboard.ts               # GET /api/dashboard — aggregated overview (counts, leaderboard, recent bets)
+│       ├── competitors.ts             # GET /api/competitors, GET /api/competitors/:id
+│       ├── fixtures.ts                # GET /api/fixtures, GET /api/fixtures/:id
+│       ├── markets.ts                 # GET /api/markets
+│       ├── bets.ts                    # GET /api/bets
+│       └── predictions.ts            # GET /api/predictions
+│
 ├── domain/
 │   ├── models/
 │   │   ├── market.ts                  # Market, Event domain models
@@ -371,11 +389,12 @@ src/
 │   ├── contracts/
 │   │   ├── engine.ts                  # PredictionEngine interface
 │   │   ├── statistics.ts             # Statistics & MarketContext schemas (Zod-validated)
-│   │   └── prediction.ts             # PredictionOutput schema (Zod-validated)
+│   │   └── prediction.ts             # PredictionOutput + Reasoning schemas (Zod-validated, structured JSON)
 │   ├── types/
 │   │   └── competitor.ts             # COMPETITOR_TYPES, WalletConfig, CompetitorConfig
 │   └── services/
 │       ├── betting.ts                 # placeBet() — constraint checking, dry-run mode, exposure limits
+│       ├── bankroll.ts               # BankrollProvider — estimates available bankroll per competitor
 │       ├── settlement.ts             # settleBets() — market resolution, profit calculation
 │       ├── market-matching.ts        # matchEventsToFixtures() — gameId + team-name+date fallback
 │       ├── event-parser.ts           # Event title parsing utilities
@@ -416,27 +435,28 @@ src/
 │   ├── openrouter/
 │   │   └── client.ts                 # OpenRouter LLM client — structured JSON output for weight generation
 │   └── database/
-│       ├── schema.ts                 # Drizzle schema (8 tables)
+│       ├── schema.ts                 # Drizzle schema (7 tables)
 │       ├── client.ts                 # Turso DB connection factory
 │       ├── migrate.ts                # Migration runner
 │       ├── migrations/               # DB migrations (via drizzle-kit generate)
 │       └── repositories/
-│           ├── markets.ts            # upsert, bulkUpsert, findByFixtureId, findActive, etc.
-│           ├── fixtures.ts           # upsert, bulkUpsert, findScheduledUpcoming, etc.
-│           ├── predictions.ts        # create, findByFixtureAndCompetitor (duplicate guard)
-│           ├── bets.ts               # create, updateStatus, findByStatus, findByCompetitor
-│           ├── competitors.ts        # findByStatus, setStatus
+│           ├── markets.ts            # upsert, bulkUpsert, findByFixtureId, findActive, findAll, etc.
+│           ├── fixtures.ts           # upsert, bulkUpsert, findScheduledUpcoming, findAll, etc.
+│           ├── predictions.ts        # create, findByFixtureAndCompetitor, findAll, findRecent
+│           ├── bets.ts               # create, updateStatus, findByStatus, findByCompetitor, findAll, findRecent
+│           ├── competitors.ts        # findByStatus, setStatus, findAll
 │           ├── competitor-versions.ts # Store weight/code iterations with performance snapshots
 │           └── wallets.ts            # Encrypted wallet CRUD per competitor
 │
 ├── orchestrator/
-│   ├── config.ts                      # PipelineConfig type, DEFAULT_CONFIG (leagues, intervals, delays)
+│   ├── config.ts                      # PipelineConfig type, DEFAULT_CONFIG (leagues, intervals, delays, betting)
 │   ├── discovery-pipeline.ts         # Fetch markets + fixtures → match → bulk upsert to DB
 │   ├── prediction-pipeline.ts        # Read DB → refresh odds → run engines → save predictions → place bets
 │   └── scheduler.ts                  # 3 independent loops with overlap prevention + configurable start delays
 │
 ├── scripts/
 │   ├── iterate.ts                     # LLM iteration loop (generate/update weights)
+│   ├── add-competitor.ts             # CLI to register a new competitor in the DB
 │   ├── import-wallets.ts             # Decrypt and re-import wallet files into DB
 │   ├── manage-wallets.ts             # Wallet management utilities
 │   ├── test-pipeline.ts              # Manual pipeline testing
@@ -445,19 +465,69 @@ src/
 └── shared/
     ├── env.ts                         # Zod-validated environment variables
     ├── logger.ts                      # Structured JSON logger (info/warn/error/debug)
-    └── crypto.ts                      # AES encryption/decryption for wallet credentials
+    ├── crypto.ts                      # AES encryption/decryption for wallet credentials
+    └── api-types.ts                   # Shared DTO types for API responses (imported by both backend and UI)
+
+ui/                                    # React SPA dashboard (Vite + TanStack Router)
+├── src/
+│   ├── main.tsx                       # Entry: QueryClientProvider + SidebarProvider + RouterProvider
+│   ├── router.tsx                     # TanStack Router route tree (7 routes)
+│   ├── lib/
+│   │   ├── api.ts                     # Typed fetch functions + TanStack Query hooks (30s auto-refresh)
+│   │   ├── format.ts                  # Date, currency, percentage formatters
+│   │   └── utils.ts                   # cn() helper (Tailwind class merging)
+│   ├── routes/
+│   │   ├── index.tsx                  # Dashboard — stat cards, P&L chart, leaderboard, recent bets
+│   │   ├── competitors/
+│   │   │   ├── index.tsx              # Competitors list with performance stats
+│   │   │   └── $id.tsx                # Competitor detail — versions, bets, predictions tabs
+│   │   ├── fixtures/
+│   │   │   ├── index.tsx              # Fixtures list with date sorting and status tabs
+│   │   │   └── $id.tsx                # Fixture detail — markets table, predictions with reasoning modal
+│   │   ├── markets/
+│   │   │   └── index.tsx              # Markets list with active/closed filters, sortable columns
+│   │   └── bets/
+│   │       └── index.tsx              # Bets list with status tabs and competitor filter
+│   └── components/
+│       ├── layout/
+│       │   ├── sidebar.tsx            # Collapsible navigation sidebar (w-64 ↔ w-16)
+│       │   ├── sidebar-context.tsx    # Sidebar collapse state (React Context + localStorage)
+│       │   └── page-shell.tsx         # Page wrapper (title + subtitle + content)
+│       ├── dashboard/
+│       │   ├── stats-cards.tsx        # KPI cards (competitors, fixtures, markets, bets)
+│       │   ├── leaderboard.tsx        # Competitor ranking table sorted by P&L
+│       │   ├── recent-activity.tsx    # Last 10 bets feed
+│       │   └── pnl-chart.tsx          # Cumulative P&L area chart (Recharts)
+│       ├── shared/
+│       │   ├── reasoning-modal.tsx    # Click-to-open modal for structured reasoning sections
+│       │   ├── model-logo.tsx         # Brand icons for LLM models (Claude, GPT, Gemini, etc.)
+│       │   ├── status-badge.tsx       # Colour-coded status indicators
+│       │   ├── stat-card.tsx          # Single metric card
+│       │   ├── money.tsx              # Currency formatting (green/red)
+│       │   ├── loading-skeleton.tsx   # Skeleton loading states
+│       │   └── empty-state.tsx        # Empty data placeholder
+│       └── ui/                        # shadcn/ui primitives (table, tabs, dialog, button, etc.)
+└── vite.config.ts                     # Vite config with Tailwind plugin, /api proxy, path aliases
 
 tests/
 └── unit/
     ├── health.test.ts
     ├── shared/
     │   └── crypto.test.ts
+    ├── api/
+    │   ├── dashboard.test.ts          # Dashboard aggregation endpoint
+    │   ├── competitors.test.ts        # Competitors list + detail endpoints
+    │   ├── fixtures.test.ts           # Fixtures list + detail endpoints
+    │   ├── markets.test.ts            # Markets list endpoint
+    │   ├── bets.test.ts               # Bets list endpoint
+    │   └── predictions.test.ts        # Predictions list endpoint
     ├── domain/
     │   ├── contracts/
-    │   │   ├── prediction.test.ts
+    │   │   ├── prediction.test.ts     # Prediction + Reasoning schema validation
     │   │   └── statistics.test.ts
     │   └── services/
     │       ├── betting.test.ts
+    │       ├── bankroll.test.ts       # BankrollProvider unit tests
     │       ├── settlement.test.ts
     │       ├── matching.test.ts
     │       ├── event-parser.test.ts
@@ -471,7 +541,12 @@ tests/
     │   └── weight-tuned/
     │       ├── engine.test.ts
     │       ├── features.test.ts
+    │       ├── feedback.test.ts       # Feedback prompt generation
+    │       ├── generator.test.ts      # LLM weight generation
+    │       ├── iteration.test.ts      # Iteration loop orchestration
     │       └── validator.test.ts
+    ├── scripts/
+    │   └── add-competitor.test.ts     # CLI competitor registration
     ├── infrastructure/
     │   ├── database/repositories/
     │   │   ├── bets.test.ts
@@ -510,7 +585,11 @@ docs/
     ├── per-competitor-wallets/plan.md
     ├── single-bet-per-fixture/plan.md
     ├── weight-tuned-engine/plan.md
-    └── pipeline-split/plan.md
+    ├── pipeline-split/plan.md
+    ├── weight-generation-cleanup/review.md
+    ├── bankroll-relative-staking/plan.md
+    ├── bankroll-relative-staking/review.md
+    └── structured-reasoning/plan.md
 
 # Root config files:
 # biome.json            — Biome linter/formatter config
@@ -525,13 +604,13 @@ docs/
 
 ## Database Schema
 
-**Drizzle ORM with SQLite/libSQL (Turso). 8 tables.**
+**Drizzle ORM with SQLite/libSQL (Turso). 7 tables.**
 
 SQLite has limited types — everything is `text`, `integer`, `real`, or `blob`. Drizzle provides modes for richer semantics:
 
 - `integer("col", { mode: "timestamp" })` — stores seconds since epoch, returns `Date`
 - `integer("col", { mode: "boolean" })` — stores 0/1, returns `boolean`
-- `text("col", { mode: "json" })` — stores JSON string, returns parsed object
+- `text("col", { mode: "json" })` — stores JSON string, returns parsed object. Used with `.$type<T>()` for typed access
 - `text("col", { enum: ["a", "b"] })` — text with TypeScript enum constraint
 - `real("col")` — floating point (for prices, amounts)
 
@@ -540,11 +619,11 @@ SQLite has limited types — everything is `text`, `integer`, `real`, or `blob`.
 | Table | Primary Key | Key Columns | Notes |
 |-------|-------------|-------------|-------|
 | `markets` | `id` (text) | conditionId, gameId, sportsMarketType, fixtureId (FK) | Polymarket markets. Tuple fields (outcomes, tokenIds, outcomePrices) stored as JSON text columns. `fixtureId` nullable — set when matched to a fixture |
-| `fixtures` | `id` (integer) | leagueId, homeTeamId, awayTeamId, date, status | API-Sports fixtures. League and team data denormalised |
-| `competitors` | `id` (text) | name, model, type, status, config | LLM competitors. `type` is "weight-tuned" or "external". `status` is "active", "disabled", "pending", or "error" |
-| `competitor_versions` | auto-increment int | competitorId (FK), version, code, model | Historical weight/code versions. `code` stores serialised JSON weights. `performanceSnapshot` stores wins/losses/ROI at time of version |
+| `fixtures` | `id` (integer) | leagueId, homeTeamId, awayTeamId, date, status | API-Sports fixtures. League and team data denormalised. Team logos stored |
+| `competitors` | `id` (text) | name, model, type, status, config | LLM competitors. `type` is "weight-tuned". `status` is "active", "disabled", "pending", or "error" |
+| `competitor_versions` | auto-increment int | competitorId (FK), version, code, rawLlmOutput, model, performanceSnapshot | Historical weight/code versions. `code` stores serialised JSON weights. `rawLlmOutput` stores the raw LLM API response for debugging. `performanceSnapshot` (JSON) stores wins/losses/ROI at time of version |
 | `competitor_wallets` | auto-increment int | competitorId (FK, unique), walletAddress | Encrypted Polymarket credentials (private key, API key, secret, passphrase). One wallet per competitor |
-| `predictions` | auto-increment int | marketId (FK), fixtureId (FK), competitorId (FK), side, confidence, stake, reasoning | Engine outputs — saved unconditionally (not gated on bet success) |
+| `predictions` | auto-increment int | marketId (FK), fixtureId (FK), competitorId (FK), side, confidence, stake, reasoning (JSON) | Engine outputs. `reasoning` is structured JSON: `{ summary, sections[{ label, content, data? }] }`. Saved unconditionally (not gated on bet success) |
 | `bets` | `id` (text) | orderId, marketId (FK), fixtureId (FK), competitorId (FK), tokenId, side, amount, price, shares, status | Placed Polymarket orders. Status: pending → filled → settled_won/settled_lost. `profit` set on settlement |
 
 **Denormalisation decisions:**
@@ -552,7 +631,7 @@ SQLite has limited types — everything is `text`, `integer`, `real`, or `blob`.
 - `markets` table stores outcomes/tokenIds/outcomePrices as JSON text columns since they're always read as a pair and never queried individually.
 - Performance stats are computed on-the-fly from the `bets` table, or stored as snapshots in `competitor_versions.performanceSnapshot`.
 
-**Repository pattern:** each table gets a repository file with typed CRUD functions. Repositories take a `db` instance (dependency injection) so they're testable. Key methods include `bulkUpsert` for efficient batch writes during discovery.
+**Repository pattern:** each table gets a repository file with typed CRUD functions. Repositories take a `db` instance (dependency injection) so they're testable. Key methods include `bulkUpsert` for efficient batch writes during discovery, and `findAll`/`findRecent` for API-layer queries.
 
 ---
 
@@ -579,9 +658,9 @@ Instead of having each LLM write arbitrary prediction code, all competitors use 
 
 5. **Value edge** — for each market, compute edge on both YES and NO sides vs. current Polymarket odds. Select the best-edge market per fixture
 
-6. **Stake sizing** — bankroll-relative, confidence-modulated. Bounded by per-bet and total exposure limits
+6. **Stake sizing** — engines output a **bankroll fraction** (0–1), not an absolute dollar amount. The prediction pipeline resolves this to an absolute stake via the BankrollProvider. Confidence-modulated, bounded by `StakeConfig.maxBetPct` and `StakeConfig.minBetPct`
 
-7. **Output** — at most **1 prediction per fixture** (the best-edge market)
+7. **Output** — at most **1 prediction per fixture** (the best-edge market). Includes structured reasoning with probability breakdown, signal values, and edge analysis
 
 ### Weight Tuning via LLM
 
@@ -619,7 +698,9 @@ The system runs three independent loops that communicate via the database:
    d. BUILD    → Assemble Statistics object with fresh odds
    e. PREDICT  → Run all registered engines against the statistics
    f. SAVE     → Save predictions to DB (unconditional — not gated on bet success)
-   g. BET      → Attempt bet placement (may be skipped: dry-run, duplicate, exposure limit)
+   g. BANKROLL → Fetch competitor's current bankroll (initial + settled P&L − pending exposure)
+   h. RESOLVE  → Convert engine's stake fraction (0–1) to absolute dollar amount
+   i. BET      → Attempt bet placement (may be skipped: dry-run, duplicate, exposure limit)
 ```
 
 ### Settlement Loop (every 2 hours)
@@ -649,9 +730,70 @@ The scheduler manages all three loops with:
   predictionIntervalMs: 6 * 60 * 60 * 1000,  // 6 hours
   settlementIntervalMs: 2 * 60 * 60 * 1000,  // 2 hours
   predictionDelayMs: 30_000,                  // 30s delay to let discovery run first
-  betting: { maxStakePerBet: 10, maxTotalExposure: 100, dryRun: true },
+  betting: {
+    maxStakePerBet: 10,                       // Absolute dollar cap per bet
+    maxBetPctOfBankroll: 0.1,                 // No single bet > 10% of bankroll
+    maxTotalExposure: 100,                    // Total pending exposure limit
+    initialBankroll: 100,                     // Starting bankroll per competitor
+    minBetAmount: 0.01,                       // Minimum bet size
+    dryRun: false,                            // Live betting (was true during development)
+  },
 }
 ```
+
+---
+
+## Dashboard & API
+
+A read-only web dashboard provides operational visibility into the system. The API and UI are served from the same `Bun.serve()` instance.
+
+```
+Browser ──→ Bun.serve() ──→ Hono router
+                              ├── /api/*     → JSON responses (repository queries)
+                              ├── /health    → { status: "ok" }
+                              └── /*         → ui/dist/index.html (SPA fallback)
+```
+
+### API Endpoints
+
+All endpoints are `GET` (read-only). The API factory (`createApi`) receives all repository instances via dependency injection.
+
+| Endpoint | Purpose | Filters |
+|----------|---------|---------|
+| `GET /api/dashboard` | Aggregated overview: counts, leaderboard (sorted by P&L), last 10 bets | — |
+| `GET /api/competitors` | Competitor list with performance stats | `?status=active\|disabled\|pending\|error` |
+| `GET /api/competitors/:id` | Detail with version history, recent bets, recent predictions | — |
+| `GET /api/fixtures` | Fixture list with market counts | `?status=scheduled\|in_progress\|finished\|postponed\|cancelled` |
+| `GET /api/fixtures/:id` | Detail with linked markets and predictions | — |
+| `GET /api/markets` | Market list | `?active=true\|false&closed=true\|false` |
+| `GET /api/bets` | Bet list with enriched competitor/market names | `?status=...&competitorId=...` |
+| `GET /api/predictions` | Prediction list with enriched names | `?competitorId=...` |
+
+**Security:** Wallet credentials, raw LLM output, and weight config code are never exposed via the API. Only `hasWallet: boolean` and `walletAddress: string` are surfaced.
+
+**Shared types:** API response shapes (`DashboardResponse`, `CompetitorSummary`, `BetSummary`, etc.) are defined in `src/shared/api-types.ts` and imported by both the API routes and the UI.
+
+### UI Pages
+
+| Page | Route | Key Features |
+|------|-------|--------------|
+| Dashboard | `/` | 4 stat cards, cumulative P&L area chart (Recharts), leaderboard table, recent bets feed. Auto-refreshes every 30s |
+| Competitors | `/competitors` | Table with model logo, status badge, W/L, P&L, ROI, accuracy. Links to detail |
+| Competitor Detail | `/competitors/:id` | Header with stats, tabbed: Bets / Predictions / Versions |
+| Fixtures | `/fixtures` | Date-sorted table with status filter tabs, market count per fixture |
+| Fixture Detail | `/fixtures/:id` | Markets table (prices, liquidity), predictions table with reasoning modal |
+| Markets | `/markets` | Active/closed filter, sortable by liquidity/volume |
+| Bets | `/bets` | Status tabs (pending, filled, settled), competitor filter |
+
+**Theme:** Full dark mode — zinc-950 sidebar, zinc-900 content, emerald-500 for profit, red-500 for loss. Status badges colour-coded (blue/amber/green/red/grey).
+
+**Dev workflow:**
+```bash
+bun run dev:api    # Backend with --watch
+cd ui && bun run dev  # Vite dev server with /api proxy to localhost:3000
+```
+
+**Production:** `bun run build:ui` outputs to `ui/dist/`, served via Hono's `serveStatic` middleware with SPA fallback.
 
 ---
 
@@ -659,11 +801,12 @@ The scheduler manages all three loops with:
 
 | Layer | What | How |
 |-------|------|-----|
-| **Domain contracts** | Statistics and prediction Zod schemas | Validation tests — ensure schemas accept/reject correctly |
-| **Domain services** | Betting, settlement, market matching, event parsing, team names | Unit tests — pure functions with mocked dependencies |
+| **Domain contracts** | Statistics and prediction Zod schemas (including structured reasoning) | Validation tests — ensure schemas accept/reject correctly |
+| **Domain services** | Betting, bankroll, settlement, market matching, event parsing, team names | Unit tests — pure functions with mocked dependencies |
 | **Engine** | Runner (parallel execution), output validation | Unit tests — run sample engines, assert contract compliance |
-| **Competitors** | Weight-tuned engine, feature extraction, weight validation, registry, loader | Unit tests — known inputs/outputs, edge cases |
-| **Infrastructure** | API clients, mappers, repositories | Unit tests — mock HTTP responses, mock DB, verify mapping logic |
+| **Competitors** | Weight-tuned engine, feature extraction, weight validation, feedback, generator, iteration, registry, loader | Unit tests — known inputs/outputs, edge cases |
+| **API routes** | Dashboard, competitors, fixtures, markets, bets, predictions endpoints | Unit tests — Hono `app.request()` with mock repo objects, no real DB |
+| **Infrastructure** | API clients, mappers, repositories | Unit tests — mock HTTP responses, in-memory SQLite DB, verify mapping logic |
 | **Orchestrator** | Discovery pipeline, prediction pipeline, scheduler | Unit tests — mock all dependencies, verify sequencing and error handling |
 
 ---
@@ -672,8 +815,10 @@ The scheduler manages all three loops with:
 
 1. **Sport:** Football only (Premier League). No multi-sport support until football works end-to-end.
 2. **How LLMs compete:** LLMs don't write arbitrary code. They tune JSON weights for a shared prediction algorithm. This is safer, faster to iterate, and easier to validate than arbitrary code generation.
-3. **Iteration process:** LLM receives current weights + performance feedback via structured prompt. Outputs new weights as JSON. Orchestrated via `src/scripts/iterate.ts`.
-4. **Stake sizing:** Bankroll-relative, confidence-modulated. Bounded by `maxStakePerBet` (default $10) and `maxTotalExposure` (default $100). One prediction per fixture per competitor.
-5. **Budget management:** Per-competitor wallets with encrypted credentials. `maxTotalExposure` prevents runaway betting. Dry-run mode enabled by default.
+3. **Iteration process:** LLM receives current weights + performance feedback via structured prompt. Outputs new weights as JSON. Raw LLM output stored in `competitor_versions.rawLlmOutput` for debugging. Orchestrated via `src/scripts/iterate.ts`.
+4. **Stake sizing:** Engines output bankroll fractions (0–1). Pipeline resolves to absolute amounts via BankrollProvider (`initialBankroll + settledP&L − pendingExposure`). Bounded by `maxStakePerBet` (default $10), `maxBetPctOfBankroll` (10%), and `maxTotalExposure` (default $100). One prediction per fixture per competitor.
+5. **Budget management:** Per-competitor wallets with encrypted credentials. `maxTotalExposure` prevents runaway betting. Each competitor has an independent bankroll tracked via settled bet history.
 6. **Pipeline architecture:** Two independent pipelines (discovery + prediction) communicating via the database, plus a separate settlement loop. Predictions saved unconditionally. Odds refreshed from Gamma before engine execution.
 7. **Competitor wallets:** Per-competitor encrypted wallets stored in DB (not env vars). Each competitor has its own funded Polygon wallet.
+8. **Structured reasoning:** Predictions store reasoning as structured JSON (`{ summary, sections[] }`) rather than free text. Each section has a label, content, and optional key-value data. Validated via Zod schema. Displayed in the UI via a click-to-open modal with data grids.
+9. **Dashboard:** Read-only web UI (React SPA) served alongside the API via Hono. Provides operational visibility into competitors, fixtures, markets, bets, and predictions. Auto-refreshes every 30 seconds. Dark theme with zinc palette. No authentication — designed for internal monitoring only.
