@@ -42,6 +42,6 @@ export const DEFAULT_CONFIG: PipelineConfig = {
   betting: {
     maxStakePerBet: 10,
     maxTotalExposure: 100,
-    dryRun: true,
+    dryRun: false,
   },
 };

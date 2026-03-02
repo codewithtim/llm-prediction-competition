@@ -4,6 +4,7 @@ import type { PredictionOutput } from "../../../src/domain/contracts/prediction.
 import type { Market } from "../../../src/domain/models/market.ts";
 import type { BettingService, PlaceBetResult } from "../../../src/domain/services/betting.ts";
 import type { GammaClient } from "../../../src/infrastructure/polymarket/gamma-client.ts";
+import type { MarketDiscovery } from "../../../src/infrastructure/polymarket/market-discovery.ts";
 import type { GammaMarket } from "../../../src/infrastructure/polymarket/types.ts";
 import type { FootballClient } from "../../../src/infrastructure/sports-data/client.ts";
 import type {
@@ -20,7 +21,6 @@ import {
   createPredictionPipeline,
   type PredictionPipelineDeps,
 } from "../../../src/orchestrator/prediction-pipeline.ts";
-import type { MarketDiscovery } from "../../../src/infrastructure/polymarket/market-discovery.ts";
 
 // ─── Fixtures for tests ──────────────────────────────────────────────
 
@@ -311,9 +311,7 @@ function makeMarketRow(fixtureId: number | null = 100) {
 
 // ─── Discovery Pipeline Tests ─────────────────────────────────────────
 
-function buildDiscoveryDeps(
-  overrides: Partial<DiscoveryPipelineDeps> = {},
-): DiscoveryPipelineDeps {
+function buildDiscoveryDeps(overrides: Partial<DiscoveryPipelineDeps> = {}): DiscoveryPipelineDeps {
   return {
     discovery: mockDiscovery(),
     footballClient: mockFootballClient(),

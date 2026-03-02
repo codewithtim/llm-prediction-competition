@@ -1,8 +1,10 @@
-# LLM Betting Competition — Research & Proposal
+# LLM Betting Competition — Research & Architecture
 
 ## Overview
 
-A platform that pits LLMs against each other in sports prediction markets on Polymarket. Each LLM writes and iterates on its own prediction engine code, which consumes strongly-typed sports statistics and outputs betting decisions. The system places bets on Polymarket, tracks results, and feeds outcomes back to each LLM so it can evolve its strategy.
+A platform that pits LLMs against each other in sports prediction markets on Polymarket. Each LLM tunes the weights of a shared prediction engine via structured JSON output, which consumes strongly-typed sports statistics and outputs betting decisions. The system places bets on Polymarket, tracks results, and feeds outcomes back to each LLM so it can evolve its strategy.
+
+The system runs as three independent automated loops: **discovery** (fetch markets and fixtures), **prediction** (run engines and place bets), and **settlement** (resolve bets and calculate P&L). These communicate via the database — discovery writes markets/fixtures, prediction reads them.
 
 ---
 
@@ -11,16 +13,16 @@ A platform that pits LLMs against each other in sports prediction markets on Pol
 | Layer | Choice | Rationale |
 |-------|--------|-----------|
 | Language | TypeScript (strict mode) | Strong typing for the stats contracts, good Polymarket SDK support |
-| Runtime | Bun | Native TS execution (no build step), 2-4x faster than Node, built-in test runner. Owned by Anthropic — long-term support guaranteed |
+| Runtime | Bun | Native TS execution (no build step), 2-4x faster than Node, built-in test runner |
 | Package Manager | Bun (built-in) | 3-5x faster installs than pnpm, zero additional tooling |
 | Testing | Bun test runner | Built-in, Jest-compatible API, extremely fast (~10x Vitest). No config needed |
 | Linting/Formatting | Biome | Fast all-in-one linter and formatter. Configured with 2-space indent, 100 char line width, recommended rules, import organising |
-| Validation | Zod (v4) | Runtime type validation for API responses and LLM-generated code contracts |
+| Validation | Zod (v4) | Runtime type validation for API responses and LLM-generated weight configs |
 | Polymarket SDK | `@polymarket/clob-client` + `ethers` | Official TypeScript client. `ethers` provides wallet and EIP-712 signing for order placement |
 | Sports Data | API-Sports ecosystem | $19/mo per sport, typed responses, good coverage |
-| LLM Integration | OpenRouter via `@openrouter/sdk` | Single API key for all models (Claude, GPT-4, Gemini, etc.). Official TypeScript SDK (pinned version). Model switching is just changing a string |
+| LLM Integration | OpenRouter via `@openrouter/sdk` | Single API key for all models (Claude, GPT-4, Gemini, etc.). Official TypeScript SDK. Structured JSON output for weight generation |
 | Database | Turso (hosted libSQL) + Drizzle ORM + Drizzle Kit | Managed distributed SQLite — free tier covers our usage (5GB, 500M reads/mo). Drizzle Kit handles schema generation and migrations |
-| LLM Code Lifecycle | Generate → test → commit → run | LLMs write prediction engines that are committed to the repo. No sandboxing — code is reviewed and tested before running |
+| Competitor Model | Weight-tuned engines | LLMs don't write code — they tune ~16 JSON weight parameters for a shared prediction algorithm. Weights are validated via Zod and stored in the database |
 
 ### Deployment
 
@@ -44,12 +46,6 @@ A platform that pits LLMs against each other in sports prediction markets on Pol
 All secrets stored as environment variables on the DigitalOcean Droplet. Never committed to the repo.
 
 ```
-# Polymarket — Polygon wallet (chain ID 137, funded with USDC)
-POLY_PRIVATE_KEY=0x...          # Polygon wallet private key (signs orders via EIP-712)
-POLY_API_KEY=...                # Derived once from private key, then stored
-POLY_API_SECRET=...             # HMAC secret for API requests
-POLY_API_PASSPHRASE=...         # Passphrase for API requests
-
 # OpenRouter
 OPENROUTER_API_KEY=...          # Single key for all LLM models
 
@@ -59,28 +55,27 @@ API_SPORTS_KEY=...              # API-Sports API key
 # Turso
 TURSO_DATABASE_URL=...          # libSQL connection URL
 TURSO_AUTH_TOKEN=...            # Turso auth token
+
+# Wallet encryption
+WALLET_ENCRYPTION_KEY=...       # AES key for encrypting competitor wallet credentials in the DB
 ```
 
-**Polymarket auth flow:**
+**Per-competitor Polymarket wallets:**
+
+Each competitor has its own dedicated Polygon wallet. Wallet credentials (private key, API key, secret, passphrase) are stored **encrypted** in the `competitor_wallets` table using AES encryption with `WALLET_ENCRYPTION_KEY`. This means:
+
+- No Polymarket credentials are stored as environment variables (except the encryption key)
+- Each competitor has isolated funds and can be independently funded/managed
+- Wallet import is handled via `src/scripts/import-wallets.ts`
+
+**Polymarket auth flow (per wallet):**
 
 Polymarket uses a two-tier system. Both tiers are needed at runtime:
 
 1. **L1 (Private key / EIP-712)** — signs every order locally. The private key must be available at runtime because order placement requires cryptographic signing.
 2. **L2 (API key / HMAC-SHA256)** — used for cancelling orders, checking balances, retrieving order status.
 
-The API credentials (key, secret, passphrase) are **derived once** from the private key using `client.createOrDeriveApiKey()`, then stored as env vars. This avoids a derivation call on every deploy.
-
-**Setup steps:**
-
-1. Create a dedicated Polygon wallet for this project (do not reuse personal wallets)
-2. Fund it with USDC on Polygon
-3. Derive API credentials locally:
-   ```typescript
-   const client = new ClobClient("https://clob.polymarket.com", 137, new Wallet(privateKey));
-   const creds = await client.createOrDeriveApiKey();
-   // Store creds.apiKey, creds.secret, creds.passphrase as env vars
-   ```
-4. Set all four env vars on the Droplet
+The API credentials (key, secret, passphrase) are **derived once** from the private key using `client.createOrDeriveApiKey()`, then encrypted and stored in the database.
 
 ---
 
@@ -92,12 +87,12 @@ Polymarket has two separate APIs that serve different purposes:
 
 | API | Base URL | Purpose | Auth |
 |-----|----------|---------|------|
-| **Gamma** | `https://gamma-api.polymarket.com` | Market discovery, event metadata, sport filtering, tag lookup | None (public) |
-| **CLOB** | `https://clob.polymarket.com` | Real-time pricing, order books, order placement/cancellation | Read-only: none. Write: wallet + API key |
+| **Gamma** | `https://gamma-api.polymarket.com` | Market discovery, event metadata, sport filtering, tag lookup, odds refresh | None (public) |
+| **CLOB** | `https://clob.polymarket.com` | Order placement/cancellation | Wallet + API key |
 
-**Key insight:** The CLOB client SDK (`@polymarket/clob-client`) wraps the CLOB API only. For sports market discovery, we must call the Gamma API directly via HTTP — there is no SDK for it.
+**Key insight:** The CLOB client SDK (`@polymarket/clob-client`) wraps the CLOB API only. For sports market discovery and odds, we call the Gamma API directly via HTTP — there is no SDK for it.
 
-#### Gamma API — Market Discovery
+#### Gamma API — Market Discovery & Odds
 
 **Endpoints we use:**
 
@@ -106,6 +101,7 @@ Polymarket has two separate APIs that serve different purposes:
 | `GET /sports` | List all supported sports with tag IDs and metadata | `?sport=epl` for specific sport |
 | `GET /events` | Fetch events (with nested markets) | `tag_id`, `active`, `closed`, `limit`, `offset`, `order`, `ascending` |
 | `GET /markets` | Fetch individual markets (no event grouping) | Same filters as events |
+| `GET /markets/{id}` | Fetch a single market by ID | Used for odds refresh before prediction |
 
 **Sport entry shape** (from `GET /sports`):
 ```json
@@ -184,7 +180,7 @@ There are 150+ sport entries covering football (EPL, La Liga, Serie A, Bundeslig
 - `gameId` links a market to an external sports data provider's game ID.
 - Finished matches have `score` (e.g., "4-0"), `elapsed` (e.g., "90"), `period` (e.g., "FT").
 
-#### CLOB Client SDK — Pricing & Order Books
+#### CLOB Client SDK — Order Placement
 
 **Read-only instantiation (no auth):**
 ```typescript
@@ -234,12 +230,13 @@ The bridge between the two APIs:
 - Gamma market `clobTokenIds[0]` → CLOB `getOrderBook(tokenId)` for the first outcome
 - Gamma market `clobTokenIds[1]` → CLOB `getOrderBook(tokenId)` for the second outcome
 
-**Workflow for Feature 3:**
-1. `GET /sports` → discover football leagues → extract tag IDs
-2. `GET /events?tag_id=X&active=true&closed=false` → fetch match events with nested markets
+**Discovery workflow:**
+1. `GET /events?tag_id=X&active=true&closed=false` → fetch match events with nested markets
+2. Filter to moneyline markets with matching `seriesSlug`
 3. Parse JSON string fields (`outcomes`, `outcomePrices`, `clobTokenIds`)
 4. Map to domain `Market` and `Event` types
-5. Use CLOB client for real-time pricing: `getOrderBook(tokenId)`, `getMidpoint(tokenId)`
+5. Match to API-Football fixtures by `gameId` or team-name+date fallback
+6. Persist to database (bulk upsert)
 
 - Docs: https://docs.polymarket.com
 
@@ -256,7 +253,6 @@ The bridge between the two APIs:
 | Endpoint | Purpose | Key Params |
 |----------|---------|------------|
 | `GET /fixtures` | Upcoming/past fixtures by league, season, date range | `league`, `season`, `from`, `to`, `status`, `date` |
-| `GET /teams/statistics` | Full season stats for a team | `league`, `season`, `team` (all required) |
 | `GET /fixtures/headtohead` | Head-to-head history between two teams | `h2h` (format: `{teamId1}-{teamId2}`) |
 | `GET /standings` | League table with rankings, form, records | `league`, `season` |
 
@@ -300,28 +296,6 @@ The bridge between the two APIs:
 - `PST`, `SUSP`, `INT` → `"postponed"`
 - `CANC`, `ABD` → `"cancelled"`
 
-#### Teams/statistics response shape
-
-```json
-{
-  "league": { "id": 39, "name": "Premier League", "country": "England", "season": 2024 },
-  "team": { "id": 33, "name": "Manchester United", "logo": "..." },
-  "form": "WLLWDLDWLDWDWLLWLLLDWLWLLDWDWLDLLDLLLW",
-  "fixtures": {
-    "played": { "home": 19, "away": 19, "total": 38 },
-    "wins":   { "home": 7,  "away": 4,  "total": 11 },
-    "draws":  { "home": 3,  "away": 6,  "total": 9 },
-    "loses":  { "home": 9,  "away": 9,  "total": 18 }
-  },
-  "goals": {
-    "for":     { "total": { "home": 23, "away": 21, "total": 44 } },
-    "against": { "total": { "home": 28, "away": 26, "total": 54 } }
-  },
-  "clean_sheet": { "home": 5, "away": 5, "total": 10 },
-  "failed_to_score": { "home": 8, "away": 7, "total": 15 }
-}
-```
-
 #### Standings response shape
 
 ```json
@@ -360,7 +334,7 @@ Returns an array of fixtures (same structure as `GET /fixtures`). We aggregate c
 - **Unified LLM gateway**: single API key, 400+ models from 60+ providers
 - **SDK**: using `@openrouter/sdk` (official TypeScript SDK) rather than the `openai` compatibility layer
 - **Model switching**: just change the `model` string (e.g. `anthropic/claude-sonnet-4`, `openai/gpt-4o`, `google/gemini-2.0-flash-001`)
-- **Features**: structured output / JSON mode, tool calling, streaming — all work across providers
+- **Structured JSON output**: used for weight generation — LLM returns weights matching a Zod-validated JSON schema
 - **Pricing**: no per-token markup, 5.5% fee on credit purchases
 - **Rate limits**: ~$1 credit balance = 1 req/s, up to 500 RPS max
 - Docs: https://openrouter.ai/docs/quickstart
@@ -370,16 +344,15 @@ Returns an array of fixtures (same structure as `GET /fixtures`). We aggregate c
 ## Domain Model
 
 ```
-Market          — a Polymarket betting market (binary YES/NO outcome)
-Event           — a sporting event (game/match) linked to one or more Markets
-Sport           — a sport category (football only to start)
-Fixture         — an upcoming game with teams, date, venue
-Statistics      — strongly-typed stats bundle for a fixture
-Prediction      — an LLM's output: direction (YES/NO), confidence, stake
-Bet             — a placed bet on Polymarket (market, side, amount, price)
-Result          — the outcome of a settled market
-Competitor      — an LLM with its own prediction engine committed to the repo
-PerformanceLog  — historical record of a Competitor's predictions vs results
+Market          — a Polymarket betting market (binary YES/NO outcome), linked to a Fixture via fixtureId
+Event           — a sporting event (game/match) containing one or more Markets (Gamma API grouping)
+Fixture         — an upcoming game with teams, date, venue (from API-Football)
+Statistics      — strongly-typed stats bundle for a fixture (standings, H2H, market context with fresh odds)
+Prediction      — an engine's output: market, side (YES/NO), confidence, stake, reasoning
+Bet             — a placed bet on Polymarket (market, side, amount, price, shares, status)
+Competitor      — a registered competitor with a type ("weight-tuned" or "external"), model, and wallet
+CompetitorVersion — a historical version of a competitor's weights/code with performance snapshot
+WalletConfig    — encrypted Polymarket wallet credentials for a competitor
 ```
 
 ---
@@ -388,84 +361,158 @@ PerformanceLog  — historical record of a Competitor's predictions vs results
 
 ```
 src/
-├── index.ts                    # ✅ Bun.serve entry point (health check at /health)
-├── domain/                     # Core domain types and logic (no external deps)
+├── index.ts                           # Bun.serve entry point — wires all components, starts scheduler
+├── domain/
 │   ├── models/
-│   │   ├── market.ts           # Market, Event, Sport
-│   │   ├── fixture.ts          # Fixture, Statistics
-│   │   ├── prediction.ts       # Prediction, Bet, Result
-│   │   └── competitor.ts       # Competitor, PerformanceLog
+│   │   ├── market.ts                  # Market, Event domain models
+│   │   ├── fixture.ts                 # Fixture domain model
+│   │   ├── prediction.ts             # Prediction domain model
+│   │   └── competitor.ts             # Competitor domain model
 │   ├── contracts/
-│   │   ├── statistics.ts       # Strongly-typed stats interface (passed to LLMs)
-│   │   └── prediction.ts       # Prediction output contract (returned by LLMs)
+│   │   ├── engine.ts                  # PredictionEngine interface
+│   │   ├── statistics.ts             # Statistics & MarketContext schemas (Zod-validated)
+│   │   └── prediction.ts             # PredictionOutput schema (Zod-validated)
+│   ├── types/
+│   │   └── competitor.ts             # COMPETITOR_TYPES, WalletConfig, CompetitorConfig
 │   └── services/
-│       ├── scoring.ts          # Calculate P&L, accuracy, ROI per competitor
-│       └── market-matching.ts  # Match fixtures to Polymarket markets
+│       ├── betting.ts                 # placeBet() — constraint checking, dry-run mode, exposure limits
+│       ├── settlement.ts             # settleBets() — market resolution, profit calculation
+│       ├── market-matching.ts        # matchEventsToFixtures() — gameId + team-name+date fallback
+│       ├── event-parser.ts           # Event title parsing utilities
+│       └── team-names.ts             # Team name normalisation for fuzzy matching
 │
-├── infrastructure/             # External integrations
+├── engine/
+│   ├── types.ts                       # PredictionEngine type, RegisteredEngine
+│   ├── runner.ts                      # runAllEngines() — executes all registered engines in parallel
+│   └── validator.ts                   # validatePredictions() — Zod contract validation
+│
+├── competitors/
+│   ├── registry.ts                    # CompetitorRegistry — in-memory engine registration
+│   ├── loader.ts                      # loadCompetitors() — loads from DB, creates engines from weights
+│   └── weight-tuned/
+│       ├── types.ts                   # WeightConfig schema, DEFAULT_WEIGHTS, WEIGHT_JSON_SCHEMA
+│       ├── features.ts               # 7 feature extractors (homeWinRate, formDiff, h2h, etc.)
+│       ├── engine.ts                  # createWeightedEngine() — main prediction algorithm
+│       ├── validator.ts              # Weight validation via Zod
+│       ├── stake-validator.ts        # Post-prediction bankroll/exposure constraints
+│       ├── generator.ts              # LLM weight generation via OpenRouter
+│       ├── feedback.ts               # Builds feedback prompt for LLM iteration
+│       ├── iteration.ts             # Orchestrates weight tuning loop
+│       └── sample-statistics.ts      # Test data for weight-tuned engine
+│
+├── infrastructure/
 │   ├── polymarket/
-│   │   ├── client.ts           # Polymarket API wrapper
-│   │   ├── market-discovery.ts # Find and filter sports markets
-│   │   ├── betting.ts          # Place and manage bets
-│   │   └── settlement.ts       # Track results and settlement
+│   │   ├── gamma-client.ts           # REST client for Gamma API (discovery + odds refresh)
+│   │   ├── market-discovery.ts       # discoverFootballMarkets() — tag/series/moneyline filtering
+│   │   ├── betting-client.ts         # Place orders on Polymarket via CLOB
+│   │   ├── betting-client-factory.ts # Creates per-competitor betting clients from wallet config
+│   │   ├── pricing-client.ts         # Pricing data access
+│   │   ├── mappers.ts                # Gamma API ↔ domain type converters
+│   │   └── types.ts                  # Gamma API response types
 │   ├── sports-data/
-│   │   ├── client.ts           # API-Sports wrapper
-│   │   ├── fixtures.ts         # Fetch upcoming fixtures
-│   │   ├── statistics.ts       # Fetch and normalise stats
-│   │   └── mappers.ts          # Map API responses → domain Statistics type
+│   │   ├── client.ts                 # API-Football REST client (fixtures, standings, H2H)
+│   │   ├── mappers.ts                # API-Football ↔ domain type converters
+│   │   └── types.ts                  # API-Football response types
+│   ├── openrouter/
+│   │   └── client.ts                 # OpenRouter LLM client — structured JSON output for weight generation
 │   └── database/
-│       ├── schema.ts           # ✅ Drizzle schema definitions (placeholder)
-│       ├── migrate.ts          # ✅ Migration runner (reads Turso creds from env)
-│       ├── migrations/         # DB migrations (via drizzle-kit generate)
-│       └── repositories/       # Data access layer
-│           ├── bets.ts
-│           ├── competitors.ts
-│           └── results.ts
+│       ├── schema.ts                 # Drizzle schema (8 tables)
+│       ├── client.ts                 # Turso DB connection factory
+│       ├── migrate.ts                # Migration runner
+│       ├── migrations/               # DB migrations (via drizzle-kit generate)
+│       └── repositories/
+│           ├── markets.ts            # upsert, bulkUpsert, findByFixtureId, findActive, etc.
+│           ├── fixtures.ts           # upsert, bulkUpsert, findScheduledUpcoming, etc.
+│           ├── predictions.ts        # create, findByFixtureAndCompetitor (duplicate guard)
+│           ├── bets.ts               # create, updateStatus, findByStatus, findByCompetitor
+│           ├── competitors.ts        # findByStatus, setStatus
+│           ├── competitor-versions.ts # Store weight/code iterations with performance snapshots
+│           └── wallets.ts            # Encrypted wallet CRUD per competitor
 │
-├── engine/                     # Prediction engine orchestration
-│   ├── runner.ts               # Import and execute each competitor's prediction engine
-│   └── validator.ts            # Validate prediction output against contract
+├── orchestrator/
+│   ├── config.ts                      # PipelineConfig type, DEFAULT_CONFIG (leagues, intervals, delays)
+│   ├── discovery-pipeline.ts         # Fetch markets + fixtures → match → bulk upsert to DB
+│   ├── prediction-pipeline.ts        # Read DB → refresh odds → run engines → save predictions → place bets
+│   └── scheduler.ts                  # 3 independent loops with overlap prevention + configurable start delays
 │
-├── competitors/                # LLM prediction engines (one per LLM)
-│   ├── registry.ts             # Register and discover competitor engines
-│   ├── claude/
-│   │   └── engine.ts           # Claude's prediction engine (written by Claude)
-│   ├── gpt/
-│   │   └── engine.ts           # GPT's prediction engine (written by GPT)
-│   └── gemini/
-│       └── engine.ts           # Gemini's prediction engine (written by Gemini)
+├── scripts/
+│   ├── iterate.ts                     # LLM iteration loop (generate/update weights)
+│   ├── import-wallets.ts             # Decrypt and re-import wallet files into DB
+│   ├── manage-wallets.ts             # Wallet management utilities
+│   ├── test-pipeline.ts              # Manual pipeline testing
+│   └── discover-tags.ts             # Discover Polymarket sport tag IDs
 │
-├── orchestrator/               # Top-level workflow coordination
-│   ├── scheduler.ts            # Cron/scheduling: when to fetch, predict, bet
-│   ├── pipeline.ts             # Full pipeline: stats → predict → bet → settle
-│   └── config.ts               # App configuration
-│
-└── shared/                     # Cross-cutting concerns
-    ├── env.ts                  # ✅ Zod-validated environment variables
-    ├── logger.ts               # ✅ Structured JSON logger (info/warn/error/debug)
-    ├── errors.ts
-    └── types.ts                # Shared utility types
-
-# ✅ = implemented, unmarked = planned
+└── shared/
+    ├── env.ts                         # Zod-validated environment variables
+    ├── logger.ts                      # Structured JSON logger (info/warn/error/debug)
+    └── crypto.ts                      # AES encryption/decryption for wallet credentials
 
 tests/
-├── unit/                       # Pure logic tests (domain, scoring, validation)
-│   ├── domain/
-│   ├── engine/
-│   └── competitors/
-├── integration/                # Tests with real API calls (mocked or sandboxed)
-│   ├── polymarket/
-│   ├── sports-data/
-│   └── database/
-└── e2e/                        # Full pipeline tests
-    └── pipeline.test.ts
+└── unit/
+    ├── health.test.ts
+    ├── shared/
+    │   └── crypto.test.ts
+    ├── domain/
+    │   ├── contracts/
+    │   │   ├── prediction.test.ts
+    │   │   └── statistics.test.ts
+    │   └── services/
+    │       ├── betting.test.ts
+    │       ├── settlement.test.ts
+    │       ├── matching.test.ts
+    │       ├── event-parser.test.ts
+    │       └── team-names.test.ts
+    ├── engine/
+    │   ├── runner.test.ts
+    │   └── validator.test.ts
+    ├── competitors/
+    │   ├── registry.test.ts
+    │   ├── loader.test.ts
+    │   └── weight-tuned/
+    │       ├── engine.test.ts
+    │       ├── features.test.ts
+    │       └── validator.test.ts
+    ├── infrastructure/
+    │   ├── database/repositories/
+    │   │   ├── bets.test.ts
+    │   │   ├── competitors.test.ts
+    │   │   ├── fixtures.test.ts
+    │   │   ├── markets.test.ts
+    │   │   └── predictions.test.ts
+    │   ├── polymarket/
+    │   │   ├── gamma-client.test.ts
+    │   │   ├── mappers.test.ts
+    │   │   ├── market-discovery.test.ts
+    │   │   └── betting-client.test.ts
+    │   └── sports-data/
+    │       ├── client.test.ts
+    │       └── mappers.test.ts
+    └── orchestrator/
+        ├── pipeline.test.ts           # Discovery + prediction pipeline tests
+        └── scheduler.test.ts          # Scheduler tests (delays, overlap, stop)
 
 docs/
-├── research.md                 # This document
-├── llm-instructions.md         # Instructions given to competing LLMs
-└── statistics-schema.md        # Detailed docs for the stats contract
+├── research.md                        # This document
+├── llm-weight-instructions.md         # System prompt / instructions for LLM weight tuning
+└── features/                          # Feature plan documents (historical)
+    ├── project-setup/plan.md
+    ├── domain-types/plan.md
+    ├── database-schema/plan.md
+    ├── polymarket-read/plan.md
+    ├── sports-data/plan.md
+    ├── betting/plan.md
+    ├── settlement/plan.md
+    ├── pipeline/plan.md
+    ├── llm-generation/plan.md
+    ├── iteration-loop/plan.md
+    ├── competitor-management/plan.md
+    ├── fix-market-discovery-filtering/plan.md
+    ├── per-competitor-wallets/plan.md
+    ├── single-bet-per-fixture/plan.md
+    ├── weight-tuned-engine/plan.md
+    └── pipeline-split/plan.md
 
-# Root config files (all ✅ implemented):
+# Root config files:
 # biome.json            — Biome linter/formatter config
 # drizzle.config.ts     — Drizzle Kit config (Turso dialect)
 # tsconfig.json         — Strict mode, path aliases (@domain/*, @shared/*, etc.)
@@ -476,9 +523,9 @@ docs/
 
 ---
 
-## Database Design Notes
+## Database Schema
 
-**Drizzle ORM v0.45 with SQLite/libSQL (Turso).**
+**Drizzle ORM with SQLite/libSQL (Turso). 8 tables.**
 
 SQLite has limited types — everything is `text`, `integer`, `real`, or `blob`. Drizzle provides modes for richer semantics:
 
@@ -488,22 +535,123 @@ SQLite has limited types — everything is `text`, `integer`, `real`, or `blob`.
 - `text("col", { enum: ["a", "b"] })` — text with TypeScript enum constraint
 - `real("col")` — floating point (for prices, amounts)
 
-**Tables needed** (mapped from domain models):
+### Tables
 
 | Table | Primary Key | Key Columns | Notes |
 |-------|-------------|-------------|-------|
-| `markets` | `id` (text) | conditionId, gameId, sportsMarketType | Polymarket markets. Tuple fields (outcomes, tokenIds, outcomePrices) stored as JSON text columns |
-| `fixtures` | `id` (integer) | leagueId, homeTeamId, awayTeamId, date, status | API-Sports fixtures. League and team data denormalised (no separate tables — not worth the joins for read-heavy lookups) |
-| `competitors` | `id` (text) | name, model, enginePath, active | LLM competitors |
-| `predictions` | auto-increment integer | marketId, fixtureId, competitorId, side, confidence, stake | Engine outputs |
-| `bets` | `id` (text) | orderId, marketId, fixtureId, competitorId, side, amount, price, status | Placed Polymarket orders |
+| `markets` | `id` (text) | conditionId, gameId, sportsMarketType, fixtureId (FK) | Polymarket markets. Tuple fields (outcomes, tokenIds, outcomePrices) stored as JSON text columns. `fixtureId` nullable — set when matched to a fixture |
+| `fixtures` | `id` (integer) | leagueId, homeTeamId, awayTeamId, date, status | API-Sports fixtures. League and team data denormalised |
+| `competitors` | `id` (text) | name, model, type, status, config | LLM competitors. `type` is "weight-tuned" or "external". `status` is "active", "disabled", "pending", or "error" |
+| `competitor_versions` | auto-increment int | competitorId (FK), version, code, model | Historical weight/code versions. `code` stores serialised JSON weights. `performanceSnapshot` stores wins/losses/ROI at time of version |
+| `competitor_wallets` | auto-increment int | competitorId (FK, unique), walletAddress | Encrypted Polymarket credentials (private key, API key, secret, passphrase). One wallet per competitor |
+| `predictions` | auto-increment int | marketId (FK), fixtureId (FK), competitorId (FK), side, confidence, stake, reasoning | Engine outputs — saved unconditionally (not gated on bet success) |
+| `bets` | `id` (text) | orderId, marketId (FK), fixtureId (FK), competitorId (FK), tokenId, side, amount, price, shares, status | Placed Polymarket orders. Status: pending → filled → settled_won/settled_lost. `profit` set on settlement |
 
 **Denormalisation decisions:**
 - `fixtures` table stores league name/country/season and team names directly rather than in separate `leagues` and `teams` tables. These are reference data from API-Sports that rarely changes and is always read together with the fixture.
 - `markets` table stores outcomes/tokenIds/outcomePrices as JSON text columns since they're always read as a pair and never queried individually.
-- `PerformanceStats` is computed, not stored — derived from aggregating the `bets` table. No separate table needed.
+- Performance stats are computed on-the-fly from the `bets` table, or stored as snapshots in `competitor_versions.performanceSnapshot`.
 
-**Repository pattern:** each table gets a repository file with typed CRUD functions. Repositories take a `db` instance (dependency injection) so they're testable with an in-memory libSQL client.
+**Repository pattern:** each table gets a repository file with typed CRUD functions. Repositories take a `db` instance (dependency injection) so they're testable. Key methods include `bulkUpsert` for efficient batch writes during discovery.
+
+---
+
+## Weight-Tuned Prediction Engine
+
+Instead of having each LLM write arbitrary prediction code, all competitors use a **shared prediction algorithm** parameterised by ~16 JSON weight values. LLMs compete by tuning these weights.
+
+### Algorithm
+
+1. **Feature extraction** — 7 features, all normalised to [0, 1]:
+   - `homeWinRate` — home team's win rate at home
+   - `awayLossRate` — away team's loss rate on the road
+   - `formDiff` — recent form difference (W/D/L averaging)
+   - `h2h` — head-to-head home win rate
+   - `goalDiff` — goal difference per game
+   - `pointsPerGame` — points per game difference
+   - `defensiveStrength` — away team concedes minus home team concedes
+
+2. **Weighted average** — compute `homeStrength = Σ(weight_i × feature_i)` normalised to [0, 1]
+
+3. **Probability model** — Gaussian draw curve with tuneable `drawPeak` and `drawWidth` parameters. Remaining probability split by `homeStrength` ratio into home/away probabilities
+
+4. **Market classification** — each market's question text is classified as home-win, away-win, or draw
+
+5. **Value edge** — for each market, compute edge on both YES and NO sides vs. current Polymarket odds. Select the best-edge market per fixture
+
+6. **Stake sizing** — bankroll-relative, confidence-modulated. Bounded by per-bet and total exposure limits
+
+7. **Output** — at most **1 prediction per fixture** (the best-edge market)
+
+### Weight Tuning via LLM
+
+- LLM receives: current weights (JSON table), feature descriptions, algorithm explanation, performance feedback
+- LLM outputs: new weights as **structured JSON** matching `WEIGHT_JSON_SCHEMA`
+- Weights validated via Zod before DB storage
+- Version history tracked in `competitor_versions` table
+- See `docs/llm-weight-instructions.md` for the full LLM prompt
+
+---
+
+## Pipeline Architecture
+
+The system runs three independent loops that communicate via the database:
+
+### Discovery Pipeline (every 30 minutes)
+
+```
+1. DISCOVER    → Fetch active Polymarket events for configured leagues (Gamma API)
+                 Filter to moneyline markets, deduplicate by tag
+2. FETCH       → Fetch upcoming fixtures from API-Football (configured look-ahead window)
+3. MATCH       → Match events to fixtures (gameId first, team-name+date fallback)
+4. PERSIST     → Bulk upsert ALL fixtures to DB
+                 Bulk upsert ALL markets to DB (matched ones get fixtureId, unmatched get null)
+```
+
+### Prediction Pipeline (every 6 hours, delayed 30s after startup)
+
+```
+1. READ        → Find scheduled upcoming fixtures from DB
+2. FOR EACH FIXTURE:
+   a. MARKETS  → Find linked markets from DB (by fixtureId)
+   b. REFRESH  → Refresh odds from Gamma API → update market prices in DB
+   c. STATS    → Fetch standings + H2H from API-Football
+   d. BUILD    → Assemble Statistics object with fresh odds
+   e. PREDICT  → Run all registered engines against the statistics
+   f. SAVE     → Save predictions to DB (unconditional — not gated on bet success)
+   g. BET      → Attempt bet placement (may be skipped: dry-run, duplicate, exposure limit)
+```
+
+### Settlement Loop (every 2 hours)
+
+```
+1. FIND        → Query pending/filled bets from DB
+2. CHECK       → For each bet, fetch market state from Gamma API
+3. RESOLVE     → If market is closed: determine winning outcome (price ≥ 0.99)
+4. SETTLE      → Calculate profit/loss, update bet status in DB
+```
+
+### Scheduler
+
+The scheduler manages all three loops with:
+- **Overlap prevention** — if a run is still in progress, the next interval tick is skipped
+- **Configurable start delays** — e.g. prediction pipeline delayed 30s so discovery can populate data first
+- **Graceful shutdown** — `stop()` clears all 6 timers (3 interval + 3 delay)
+
+### Default Configuration
+
+```typescript
+{
+  leagues: [{ id: 39, name: "Premier League", polymarketTagIds: [82], polymarketSeriesSlug: "premier-league" }],
+  season: 2025,
+  fixtureLookAheadDays: 7,
+  discoveryIntervalMs: 30 * 60 * 1000,      // 30 minutes
+  predictionIntervalMs: 6 * 60 * 60 * 1000,  // 6 hours
+  settlementIntervalMs: 2 * 60 * 60 * 1000,  // 2 hours
+  predictionDelayMs: 30_000,                  // 30s delay to let discovery run first
+  betting: { maxStakePerBet: 10, maxTotalExposure: 100, dryRun: true },
+}
+```
 
 ---
 
@@ -511,219 +659,21 @@ SQLite has limited types — everything is `text`, `integer`, `real`, or `blob`.
 
 | Layer | What | How |
 |-------|------|-----|
-| **Domain** | Models, scoring, market matching | Unit tests — pure functions, no mocks needed |
-| **Contracts** | Stats and prediction schemas | Validation tests — ensure Zod schemas accept/reject correctly |
-| **Infrastructure** | API clients, mappers, repositories | Integration tests — mock HTTP responses, test DB with Turso local dev mode |
-| **Engine** | Runner, output validation | Unit tests — run sample prediction code, assert outputs conform to contract |
-| **Competitors** | Each LLM's prediction engine | Unit tests — shared test suite that every engine must pass to confirm contract compliance |
-| **Pipeline** | End-to-end flow | E2E tests — full pipeline with mocked external APIs |
+| **Domain contracts** | Statistics and prediction Zod schemas | Validation tests — ensure schemas accept/reject correctly |
+| **Domain services** | Betting, settlement, market matching, event parsing, team names | Unit tests — pure functions with mocked dependencies |
+| **Engine** | Runner (parallel execution), output validation | Unit tests — run sample engines, assert contract compliance |
+| **Competitors** | Weight-tuned engine, feature extraction, weight validation, registry, loader | Unit tests — known inputs/outputs, edge cases |
+| **Infrastructure** | API clients, mappers, repositories | Unit tests — mock HTTP responses, mock DB, verify mapping logic |
+| **Orchestrator** | Discovery pipeline, prediction pipeline, scheduler | Unit tests — mock all dependencies, verify sequencing and error handling |
 
 ---
 
-## Key Design Decisions to Resolve
+## Key Design Decisions (Resolved)
 
-1. **Which sports to start with?** Football only. No other sports until football is fully working.
-2. **How do LLMs write prediction code?** Each LLM receives the `Statistics` interface, the `Prediction` output contract, and an instruction doc. It writes its own prediction engine. The code is tested, reviewed, and committed to the repo.
-3. **Iteration process** — after results come in, the LLM receives its own code + the results and can update its engine. Updated code is tested and committed.
-4. **Stake sizing** — fixed per bet? Proportional to confidence? Configurable per competitor?
-5. **Iteration frequency** — after every game? Daily? Weekly?
-6. **Budget management** — max total exposure per LLM? Stop-loss?
-7. **Which LLMs to compete?** Claude, GPT-4, Gemini, etc.
-8. **Sport:** Football only. No multi-sport support until football works end-to-end.
-
----
-
-## Pipeline Flow
-
-```
-SETUP (one-time per LLM)
-1. GENERATE    → Give LLM the instruction doc + Statistics interface + Prediction contract
-2. WRITE       → LLM writes its prediction engine (engine.ts)
-3. TEST        → Run test suite to confirm engine conforms to contract
-4. COMMIT      → Review and commit engine to repo
-
-RUNTIME (automated loop)
-5. DISCOVER    → Fetch upcoming Polymarket sports markets
-6. MATCH       → Match markets to fixtures via sports data API
-7. STATS       → Pull statistics for matched fixtures
-8. PREDICT     → Run each competitor's committed engine against the stats
-9. BET         → Place bets on Polymarket based on predictions
-10. SETTLE     → Monitor markets for resolution
-11. SCORE      → Record results, calculate P&L per competitor
-
-ITERATION (periodic)
-12. FEEDBACK   → Pass results + competitor's own code back to the LLM
-13. UPDATE     → LLM rewrites/improves its engine
-14. TEST       → Re-run test suite
-15. COMMIT     → Review and commit updated engine
-16. GOTO 5
-```
-
----
-
-## Feature Breakdown (MVP Order)
-
-The project is broken into incremental features, each building on the last. Each feature gets its own plan document in `docs/features/<feature>/plan.md`. The ordering follows an MVP approach — get data flowing end-to-end as quickly as possible, then layer on complexity.
-
-### What's already done
-
-- **Feature 0: Project Setup** ✅ — repo scaffold, tooling, CI/CD, Docker, health check server. See `docs/features/project-setup/plan.md`.
-
-### Features to build
-
-#### Feature 1: Domain Types & Contracts
-
-The foundation everything else depends on. Define the core TypeScript types and Zod validation schemas.
-
-- Domain models: `Market`, `Event`, `Sport`, `Fixture`, `Prediction`, `Bet`, `Result`, `Competitor`, `PerformanceLog`
-- Contracts: `Statistics` input interface (what LLMs receive), `PredictionOutput` schema (what LLMs return)
-- Pure types — no external dependencies, no database, no API calls
-- Unit tests for all Zod schemas (valid/invalid inputs)
-- **Why first:** every other feature imports these types. Getting the shapes right early prevents cascading changes.
-
-#### Feature 2: Database Schema & Repositories
-
-Persistence layer. Drizzle tables and data access functions.
-
-- Drizzle schema for all domain entities (markets, fixtures, bets, competitors, results, performance logs)
-- Repository functions: CRUD operations for each entity
-- Generate and apply initial migration to Turso
-- Integration tests against a local libSQL instance
-- **Depends on:** Feature 1 (domain types define the table shapes)
-
-#### Feature 3: Polymarket Integration (Read-Only)
-
-Connect to Polymarket and discover sports betting markets. Read-only — no betting yet.
-
-- Polymarket client wrapper (authenticated with API key)
-- Market discovery: fetch sports markets, filter by sport/tag
-- Price/odds fetching: get current prices for markets
-- Map Polymarket responses to domain `Market` and `Event` types
-- Integration tests with mocked HTTP responses
-- **Depends on:** Feature 1 (Market/Event types)
-
-#### Feature 4: Sports Data Integration
-
-Connect to API-Sports and fetch fixture data and statistics.
-
-- API-Sports client wrapper
-- Fetch upcoming fixtures for football
-- Fetch team/player statistics for a fixture
-- Map API responses to domain `Fixture` and `Statistics` types
-- Populate the `Statistics` contract with real data shapes
-- Integration tests with mocked HTTP responses
-- **Depends on:** Feature 1 (Fixture/Statistics types)
-
-#### Feature 5: Market-Fixture Matching
-
-The bridge between Polymarket markets and sports fixtures. Given a list of Polymarket markets and a list of upcoming fixtures, match them together.
-
-- Matching logic: team names, dates, sport type
-- Fuzzy matching for team name variations (e.g. "LA Lakers" vs "Los Angeles Lakers")
-- Output: paired `Market + Fixture` objects ready for prediction
-- Unit tests with known matchups
-- **Depends on:** Features 1, 3, 4 (needs Market and Fixture types and real data shapes to design the matcher)
-
-#### Feature 6: Prediction Engine Framework
-
-The runner that executes competitor prediction engines and validates their output.
-
-- `PredictionEngine` interface: `(statistics: Statistics) => PredictionOutput`
-- Engine runner: import and execute a competitor's engine, catch errors
-- Output validator: validate engine output against the `PredictionOutput` Zod schema
-- Competitor registry: discover and register engines from `src/competitors/`
-- Unit tests: run a dummy engine, assert output conforms to contract
-- **Depends on:** Feature 1 (Statistics and PredictionOutput contracts)
-
-#### Feature 7: First Competitor (Manual Baseline)
-
-A hand-written prediction engine to prove the framework works end-to-end. Not LLM-generated — just a simple heuristic.
-
-- Write a basic `src/competitors/baseline/engine.ts` — e.g. always bet on the home team, or bet based on win rate
-- Must conform to the `PredictionEngine` interface
-- Register it in the competitor registry
-- Unit tests confirming it passes the contract test suite
-- **Depends on:** Feature 6 (engine framework)
-
-#### Feature 8: Betting (Polymarket Write)
-
-Place actual bets on Polymarket based on predictions. This is the high-stakes feature.
-
-- Betting module: create and submit orders via CLOB
-- Stake sizing: start with a fixed amount per bet (e.g. $1)
-- Budget guard: max total exposure, reject bets that exceed it
-- Bet recording: save every bet to the database
-- Dry-run mode: log what would be bet without actually placing orders
-- Integration tests with mocked CLOB responses
-- **Depends on:** Features 2, 3, 6 (database, Polymarket client, prediction output)
-
-#### Feature 9: Settlement & Scoring
-
-Track bet outcomes and score competitors.
-
-- Settlement: poll Polymarket for resolved markets, match to placed bets
-- Scoring: calculate P&L, accuracy (% correct), ROI per competitor
-- Performance log: record each prediction vs actual outcome
-- Database updates: mark bets as won/lost, update competitor stats
-- Unit tests for scoring logic
-- **Depends on:** Features 2, 3, 8 (database, Polymarket client, placed bets)
-
-#### Feature 10: Pipeline Orchestration
-
-Wire everything together into the automated runtime loop.
-
-- Pipeline: discover → match → stats → predict → bet → settle → score
-- Scheduler: cron-based timing (e.g. run daily, or before game days)
-- Config: which sports, which competitors, stake limits, dry-run toggle
-- Logging: structured logs for each pipeline step
-- Error handling: individual step failures don't crash the whole pipeline
-- **Depends on:** Features 3-9 (all runtime components)
-
-#### Feature 11: LLM Competitor Generation
-
-Use OpenRouter to have LLMs write their own prediction engines.
-
-- OpenRouter client wrapper
-- Instruction document: what the LLM receives (Statistics interface, PredictionOutput contract, examples, constraints)
-- Generation flow: prompt LLM → receive code → validate → test → commit
-- Support multiple models (Claude, GPT-4, Gemini) via model string
-- **Depends on:** Features 6, 7 (engine framework, baseline engine as reference)
-
-#### Feature 12: Iteration Loop
-
-Feed results back to LLMs so they can improve their engines.
-
-- Feedback prompt: competitor's current code + its results + overall leaderboard
-- Update flow: LLM rewrites engine → test → commit (replace previous version)
-- Iteration tracking: version history per competitor
-- **Depends on:** Features 9, 11 (scoring data, LLM generation)
-
-### Dependency graph
-
-```
-Feature 0 (Setup) ✅
-    │
-Feature 1 (Domain Types)
-    │
-    ├── Feature 2 (Database)
-    │       │
-    ├── Feature 3 (Polymarket Read) ──┐
-    │       │                         │
-    ├── Feature 4 (Sports Data) ──────┤
-    │                                 │
-    ├── Feature 5 (Market Matching) ──┘
-    │
-    ├── Feature 6 (Engine Framework)
-    │       │
-    │       └── Feature 7 (Baseline Competitor)
-    │
-    ├── Feature 8 (Betting) ← needs 2, 3, 6
-    │       │
-    │       └── Feature 9 (Settlement & Scoring) ← needs 2, 3, 8
-    │
-    ├── Feature 10 (Pipeline) ← needs 3-9
-    │
-    ├── Feature 11 (LLM Generation) ← needs 6, 7
-    │       │
-    │       └── Feature 12 (Iteration Loop) ← needs 9, 11
-    ```
+1. **Sport:** Football only (Premier League). No multi-sport support until football works end-to-end.
+2. **How LLMs compete:** LLMs don't write arbitrary code. They tune JSON weights for a shared prediction algorithm. This is safer, faster to iterate, and easier to validate than arbitrary code generation.
+3. **Iteration process:** LLM receives current weights + performance feedback via structured prompt. Outputs new weights as JSON. Orchestrated via `src/scripts/iterate.ts`.
+4. **Stake sizing:** Bankroll-relative, confidence-modulated. Bounded by `maxStakePerBet` (default $10) and `maxTotalExposure` (default $100). One prediction per fixture per competitor.
+5. **Budget management:** Per-competitor wallets with encrypted credentials. `maxTotalExposure` prevents runaway betting. Dry-run mode enabled by default.
+6. **Pipeline architecture:** Two independent pipelines (discovery + prediction) communicating via the database, plus a separate settlement loop. Predictions saved unconditionally. Odds refreshed from Gamma before engine execution.
+7. **Competitor wallets:** Per-competitor encrypted wallets stored in DB (not env vars). Each competitor has its own funded Polygon wallet.

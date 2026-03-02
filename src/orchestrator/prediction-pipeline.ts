@@ -8,8 +8,10 @@ import type { EngineResult } from "../engine/types.ts";
 import type { fixturesRepo as fixturesRepoFactory } from "../infrastructure/database/repositories/fixtures.ts";
 import type { marketsRepo as marketsRepoFactory } from "../infrastructure/database/repositories/markets.ts";
 import type { predictionsRepo as predictionsRepoFactory } from "../infrastructure/database/repositories/predictions.ts";
-import type { markets as marketsTable } from "../infrastructure/database/schema.ts";
-import type { fixtures as fixturesTable } from "../infrastructure/database/schema.ts";
+import type {
+  fixtures as fixturesTable,
+  markets as marketsTable,
+} from "../infrastructure/database/schema.ts";
 import type { GammaClient } from "../infrastructure/polymarket/gamma-client.ts";
 import { mapGammaMarketToMarket } from "../infrastructure/polymarket/mappers.ts";
 import type { FootballClient } from "../infrastructure/sports-data/client.ts";

@@ -47,7 +47,10 @@ export function walletsRepo(db: Database) {
     },
 
     async delete(competitorId: string) {
-      return db.delete(competitorWallets).where(eq(competitorWallets.competitorId, competitorId)).run();
+      return db
+        .delete(competitorWallets)
+        .where(eq(competitorWallets.competitorId, competitorId))
+        .run();
     },
 
     async listAll() {
