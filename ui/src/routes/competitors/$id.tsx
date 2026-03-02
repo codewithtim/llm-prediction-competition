@@ -1,10 +1,10 @@
 import { useParams } from "@tanstack/react-router";
-import { useState } from "react";
 import { PageShell } from "@/components/layout/page-shell";
 import { EmptyState } from "@/components/shared/empty-state";
 import { LoadingSkeleton } from "@/components/shared/loading-skeleton";
 import { ModelLogo } from "@/components/shared/model-logo";
 import { Money } from "@/components/shared/money";
+import { ReasoningCell } from "@/components/shared/reasoning-modal";
 import { StatCard } from "@/components/shared/stat-card";
 import { StatusBadge } from "@/components/shared/status-badge";
 import {
@@ -131,8 +131,8 @@ export function CompetitorDetailPage() {
                       <TableCell className="text-right font-mono text-zinc-300">
                         ${p.stake.toFixed(2)}
                       </TableCell>
-                      <TableCell className="text-sm max-w-96">
-                        <ExpandableReasoning text={p.reasoning} />
+                      <TableCell className="text-sm">
+                        <ReasoningCell text={p.reasoning} market={p.marketQuestion} />
                       </TableCell>
                       <TableCell className="text-zinc-400 text-sm">
                         {formatDateTime(p.createdAt)}
@@ -182,19 +182,3 @@ export function CompetitorDetailPage() {
   );
 }
 
-function ExpandableReasoning({ text }: { text: string }) {
-  const [expanded, setExpanded] = useState(false);
-
-  if (!text) return <span className="text-zinc-500">--</span>;
-
-  return (
-    <button
-      type="button"
-      className={`text-left text-zinc-400 ${expanded ? "" : "line-clamp-2"}`}
-      onClick={() => setExpanded(!expanded)}
-      title={expanded ? "Click to collapse" : "Click to expand"}
-    >
-      {text}
-    </button>
-  );
-}

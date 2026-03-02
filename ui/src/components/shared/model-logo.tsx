@@ -1,30 +1,53 @@
-const MODEL_CONFIG: Record<string, { label: string; bg: string; text: string }> = {
-  claude: { label: "C", bg: "bg-amber-600", text: "text-amber-100" },
-  gpt: { label: "G", bg: "bg-emerald-600", text: "text-emerald-100" },
-  gemini: { label: "G", bg: "bg-blue-600", text: "text-blue-100" },
-  llama: { label: "L", bg: "bg-purple-600", text: "text-purple-100" },
-  mistral: { label: "M", bg: "bg-cyan-600", text: "text-cyan-100" },
-  deepseek: { label: "D", bg: "bg-indigo-600", text: "text-indigo-100" },
-  qwen: { label: "Q", bg: "bg-rose-600", text: "text-rose-100" },
+import {
+  SiAnthropic,
+  SiChatbot,
+  SiGooglegemini,
+  SiMeta,
+  SiMistralai,
+  SiOllama,
+} from "@icons-pack/react-simple-icons";
+import { Bot } from "lucide-react";
+import type { ComponentType } from "react";
+
+type IconComponent = ComponentType<{ size?: number; className?: string }>;
+
+type ModelConfig = {
+  icon: IconComponent;
+  color: string;
 };
 
-function getModelConfig(model: string) {
+const MODEL_REGISTRY: [string, ModelConfig][] = [
+  ["claude", { icon: SiAnthropic, color: "text-amber-500" }],
+  ["anthropic", { icon: SiAnthropic, color: "text-amber-500" }],
+  ["gpt", { icon: SiChatbot, color: "text-emerald-400" }],
+  ["chatgpt", { icon: SiChatbot, color: "text-emerald-400" }],
+  ["openai", { icon: SiChatbot, color: "text-emerald-400" }],
+  ["o1", { icon: SiChatbot, color: "text-emerald-400" }],
+  ["o3", { icon: SiChatbot, color: "text-emerald-400" }],
+  ["gemini", { icon: SiGooglegemini, color: "text-blue-400" }],
+  ["llama", { icon: SiMeta, color: "text-blue-300" }],
+  ["ollama", { icon: SiOllama, color: "text-zinc-300" }],
+  ["meta", { icon: SiMeta, color: "text-blue-300" }],
+  ["mistral", { icon: SiMistralai, color: "text-orange-400" }],
+  ["deepseek", { icon: Bot, color: "text-blue-500" }],
+  ["qwen", { icon: Bot, color: "text-rose-400" }],
+];
+
+function getModelConfig(model: string): ModelConfig {
   const lower = model.toLowerCase();
-  for (const [key, config] of Object.entries(MODEL_CONFIG)) {
+  for (const [key, config] of MODEL_REGISTRY) {
     if (lower.includes(key)) return config;
   }
-  return { label: model.charAt(0).toUpperCase(), bg: "bg-zinc-600", text: "text-zinc-100" };
+  return { icon: Bot, color: "text-zinc-400" };
 }
 
 export function ModelLogo({ model, size = "sm" }: { model: string; size?: "sm" | "md" }) {
   const config = getModelConfig(model);
-  const sizeClass = size === "sm" ? "h-6 w-6 text-xs" : "h-8 w-8 text-sm";
+  const px = size === "sm" ? 18 : 22;
+  const Icon = config.icon;
   return (
-    <span
-      className={`inline-flex shrink-0 items-center justify-center rounded-full font-semibold ${sizeClass} ${config.bg} ${config.text}`}
-      title={model}
-    >
-      {config.label}
+    <span className={`inline-flex shrink-0 ${config.color}`} title={model}>
+      <Icon size={px} />
     </span>
   );
 }
