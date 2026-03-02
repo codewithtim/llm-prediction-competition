@@ -3,7 +3,7 @@
 **Reviewed:** 2026-03-03
 **Reviewer:** Claude (Principal Engineer Review)
 **Plan:** [plan.md](./plan.md)
-**Verdict:** APPROVED WITH CHANGES
+**Verdict:** APPROVED
 
 ## Summary
 
@@ -107,25 +107,25 @@ These add test coverage noise and create the expectation that callers depend on 
 
 - [x] **Add cleanup for stuck `submitting` bets** — `order-confirmation.ts` now queries `findByStatus("submitting")` first and marks any submitting bet older than `maxOrderAgeMs` as `failed` with `errorCategory: "unknown"`. Prevents orphaned rows from permanently blocking the duplicate check on the same market.
 
-- [ ] **Remove or integrate `isRetryable`, `findByStatusMultiple`, `findByMarketAndCompetitor`** — These are exported, tested, and unused in production. To be addressed in follow-up commit.
+- [x] **Remove or integrate `isRetryable`, `findByStatusMultiple`, `findByMarketAndCompetitor`** — All three removed. `findRetryableBets` updated to use DB-level `notInArray` filter. `BetStatus` imported from domain instead of redefined locally in repository.
 
 ---
 
 ## Should-Do Changes
 
-- [ ] **Import `BetStatus` from domain instead of redefining it** — `src/infrastructure/database/repositories/bets.ts:3-12`. Replace the local type with `import type { BetStatus } from "../../../domain/models/prediction"` to prevent the two types diverging.
+- [x] **Import `BetStatus` from domain instead of redefining it** — Done. Repository imports `BetStatus` from `domain/models/prediction`.
 
-- [ ] **Implement `retryDelayMs`** — Add `retryDelayMs` to `RetryConfig` and `DEFAULT_CONFIG`. In `findRetryableBets`, add a `lt(bets.lastAttemptAt, new Date(Date.now() - retryDelayMs))` filter (or pass the threshold to the repo). Prevents hammering Polymarket with immediate retries after rate limiting.
+- [x] **Implement `retryDelayMs`** — `findRetryableBets` accepts optional `minRetryDelayMs` and applies a DB-level `lastAttemptAt` filter when provided.
 
 - [x] **Add `submitting` to `status-badge.tsx` color map** — Added with amber color.
 
 - [x] **Include `submitting` in dashboard pending count** — Dashboard now filters `submitting || pending || filled` for the pending bets widget.
 
-- [ ] **Update stale mock for `getPerformanceStats`** — `tests/unit/domain/services/bet-retry.test.ts:67-80` and `order-confirmation.test.ts:67-80`. Add `failed: 0, lockedAmount: 0` to match the current return type. This future-proofs the mocks and makes the `as unknown as BetsRepo` cast less dangerous.
+- [x] **Update stale mock for `getPerformanceStats`** — Both test mocks now include `failed: 0` and `lockedAmount: 0`.
 
-- [ ] **Add scheduler tests for new run functions** — `tests/unit/orchestrator/scheduler.test.ts`. Add tests for: (a) `orderConfirmationRunning` flag preventing concurrent runs, (b) optional service injection (scheduler starts without them), (c) timers cleared on `stop()`.
+- [x] **Add scheduler tests for new run functions** — Tests added for: optional service injection, overlap prevention flag, and timer cleanup on `stop()`.
 
-- [x] **Make `orderId` nullable in schema** — Done via migration `0008`. Submitting bets now use `null`; ghost order check uses `== null`.
+- [x] **Make `orderId` nullable in schema** — Done via migration `0008`. Submitting bets use `null`; ghost order check uses `== null`. Domain `Bet.orderId` type updated to `string | null`.
 
 ---
 

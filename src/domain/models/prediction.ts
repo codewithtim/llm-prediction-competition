@@ -21,7 +21,7 @@ export type BetErrorCategory =
 
 export type Bet = {
   id: string;
-  orderId: string;
+  orderId: string | null;
   marketId: string;
   fixtureId: number;
   competitorId: string;
