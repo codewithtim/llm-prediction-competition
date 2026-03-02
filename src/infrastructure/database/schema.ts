@@ -1,4 +1,5 @@
 import { integer, real, sqliteTable, text } from "drizzle-orm/sqlite-core";
+import type { Reasoning } from "../../domain/contracts/prediction.ts";
 
 export const markets = sqliteTable("markets", {
   id: text("id").primaryKey(),
@@ -123,7 +124,7 @@ export const predictions = sqliteTable("predictions", {
   side: text("side", { enum: ["YES", "NO"] }).notNull(),
   confidence: real("confidence").notNull(),
   stake: real("stake").notNull(),
-  reasoning: text("reasoning").notNull(),
+  reasoning: text("reasoning", { mode: "json" }).notNull().$type<Reasoning>(),
   createdAt: integer("created_at", { mode: "timestamp" })
     .notNull()
     .$defaultFn(() => new Date()),

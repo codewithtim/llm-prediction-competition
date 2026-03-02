@@ -42,7 +42,10 @@ function makePrediction(overrides?: Partial<PredictionOutput>): PredictionOutput
     side: "YES",
     confidence: 0.75,
     stake: 0.05,
-    reasoning: "Strong home form",
+    reasoning: {
+      summary: "Strong home form",
+      sections: [{ label: "Analysis", content: "Strong home form" }],
+    },
     ...overrides,
   };
 }

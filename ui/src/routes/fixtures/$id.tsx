@@ -110,7 +110,7 @@ export function FixtureDetailPage() {
                       ${p.stake.toFixed(2)}
                     </TableCell>
                     <TableCell className="text-sm">
-                      <ReasoningCell text={p.reasoning} market={p.marketQuestion} />
+                      <ReasoningCell reasoning={p.reasoning} market={p.marketQuestion} />
                     </TableCell>
                   </TableRow>
                 ))}
@@ -122,4 +122,3 @@ export function FixtureDetailPage() {
     </PageShell>
   );
 }
-

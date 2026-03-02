@@ -51,7 +51,10 @@ describe("predictionsRepo", () => {
     side: "YES",
     confidence: 0.75,
     stake: 5.0,
-    reasoning: "Strong home form",
+    reasoning: {
+      summary: "Strong home form",
+      sections: [{ label: "Analysis", content: "Strong home form" }],
+    },
   };
 
   it("creates and finds by competitor", async () => {
@@ -75,7 +78,10 @@ describe("predictionsRepo", () => {
     await repo.create(samplePrediction);
     const results = await repo.findByFixtureAndCompetitor(1001, "claude-1");
     expect(results).toHaveLength(1);
-    expect(results[0]?.reasoning).toBe("Strong home form");
+    expect(results[0]?.reasoning).toEqual({
+      summary: "Strong home form",
+      sections: [{ label: "Analysis", content: "Strong home form" }],
+    });
   });
 
   it("returns empty array for no matches", async () => {

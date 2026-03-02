@@ -16,7 +16,10 @@ describe("GET /api/predictions", () => {
             side: "YES",
             confidence: 0.75,
             stake: 5,
-            reasoning: "Strong form",
+            reasoning: {
+              summary: "Strong form",
+              sections: [{ label: "Analysis", content: "Strong form" }],
+            },
             createdAt: new Date("2026-01-01"),
           },
         ],

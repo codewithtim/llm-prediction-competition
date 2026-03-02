@@ -1,4 +1,4 @@
-import type { PredictionOutput } from "../../domain/contracts/prediction";
+import type { PredictionOutput, Reasoning } from "../../domain/contracts/prediction";
 import type { MarketContext, Statistics } from "../../domain/contracts/statistics";
 import type { PredictionEngine } from "../../engine/types";
 import { clamp, extractFeatures } from "./features";
@@ -151,15 +151,33 @@ export function createWeightedEngine(
       stakeConfig.maxBetPct,
     );
 
-    const featuresSummary = Object.entries(features)
-      .filter(([name]) => (weights.signals[name] ?? 0) > 0)
+    const activeSignals = Object.entries(features).filter(
+      ([name]) => (weights.signals[name] ?? 0) > 0,
+    );
+    const featuresSummary = activeSignals
       .map(([name, val]) => `${name}=${(val * 100).toFixed(0)}%`)
       .join(", ");
 
-    const reasoning =
-      `Strength: ${(homeStrength * 100).toFixed(1)}% | ` +
-      `P(home/draw/away): ${(pHome * 100).toFixed(0)}/${(drawProb * 100).toFixed(0)}/${(pAway * 100).toFixed(0)} | ` +
-      `Edge: ${(best.edge * 100).toFixed(1)}% | ${featuresSummary}`;
+    const reasoning: Reasoning = {
+      summary: `${best.side} edge ${(best.edge * 100).toFixed(1)}% at ${(homeStrength * 100).toFixed(1)}% strength`,
+      sections: [
+        {
+          label: "Probability",
+          content: `Home ${(pHome * 100).toFixed(0)}% | Draw ${(drawProb * 100).toFixed(0)}% | Away ${(pAway * 100).toFixed(0)}%`,
+          data: { home: pHome, draw: drawProb, away: pAway },
+        },
+        {
+          label: "Signals",
+          content: featuresSummary,
+          data: Object.fromEntries(activeSignals),
+        },
+        {
+          label: "Edge",
+          content: `${(best.edge * 100).toFixed(1)}% edge on ${best.side} at ${best.impliedProb.toFixed(2)}`,
+          data: { edge: best.edge, side: best.side, price: best.impliedProb },
+        },
+      ],
+    };
 
     return [
       {
@@ -167,7 +185,7 @@ export function createWeightedEngine(
         side: best.side,
         confidence: clamp(best.confidence, 0, 1),
         stake: stakeFraction,
-        reasoning: reasoning.slice(0, 500),
+        reasoning,
       },
     ];
   };

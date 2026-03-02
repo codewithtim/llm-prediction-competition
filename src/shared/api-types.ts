@@ -116,6 +116,17 @@ export type BetSummary = {
   profit: number | null;
 };
 
+export type ReasoningSectionDTO = {
+  label: string;
+  content: string;
+  data?: Record<string, unknown>;
+};
+
+export type ReasoningDTO = {
+  summary: string;
+  sections: ReasoningSectionDTO[];
+};
+
 export type PredictionSummary = {
   id: number;
   competitorId: string;
@@ -126,7 +137,7 @@ export type PredictionSummary = {
   side: "YES" | "NO";
   confidence: number;
   stake: number;
-  reasoning: string;
+  reasoning: ReasoningDTO;
   createdAt: string;
 };
 

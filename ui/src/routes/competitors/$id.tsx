@@ -132,7 +132,7 @@ export function CompetitorDetailPage() {
                         ${p.stake.toFixed(2)}
                       </TableCell>
                       <TableCell className="text-sm">
-                        <ReasoningCell text={p.reasoning} market={p.marketQuestion} />
+                        <ReasoningCell reasoning={p.reasoning} market={p.marketQuestion} />
                       </TableCell>
                       <TableCell className="text-zinc-400 text-sm">
                         {formatDateTime(p.createdAt)}
@@ -181,4 +181,3 @@ export function CompetitorDetailPage() {
     </PageShell>
   );
 }
-

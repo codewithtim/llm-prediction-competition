@@ -7,7 +7,10 @@ function makeValidPrediction(overrides?: Record<string, unknown>) {
     side: "YES",
     confidence: 0.75,
     stake: 0.05,
-    reasoning: "Strong home form and H2H advantage",
+    reasoning: {
+      summary: "Strong home form",
+      sections: [{ label: "Analysis", content: "H2H advantage" }],
+    },
     ...overrides,
   };
 }

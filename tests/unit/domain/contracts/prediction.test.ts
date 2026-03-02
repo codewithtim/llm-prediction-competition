@@ -7,7 +7,10 @@ function makeValidPrediction(overrides?: Record<string, unknown>) {
     side: "YES",
     confidence: 0.75,
     stake: 0.05,
-    reasoning: "Home team has strong form and H2H advantage",
+    reasoning: {
+      summary: "Home team has strong form",
+      sections: [{ label: "Analysis", content: "H2H advantage" }],
+    },
     ...overrides,
   };
 }
@@ -55,13 +58,17 @@ describe("predictionOutputSchema", () => {
     expect(() => predictionOutputSchema.parse(makeValidPrediction({ stake: 1 }))).not.toThrow();
   });
 
-  it("rejects empty reasoning", () => {
-    expect(() => predictionOutputSchema.parse(makeValidPrediction({ reasoning: "" }))).toThrow();
+  it("rejects reasoning with empty sections", () => {
+    expect(() =>
+      predictionOutputSchema.parse(
+        makeValidPrediction({ reasoning: { summary: "Test", sections: [] } }),
+      ),
+    ).toThrow();
   });
 
-  it("rejects reasoning over 500 characters", () => {
+  it("rejects string reasoning", () => {
     expect(() =>
-      predictionOutputSchema.parse(makeValidPrediction({ reasoning: "x".repeat(501) })),
+      predictionOutputSchema.parse(makeValidPrediction({ reasoning: "plain string" })),
     ).toThrow();
   });
 

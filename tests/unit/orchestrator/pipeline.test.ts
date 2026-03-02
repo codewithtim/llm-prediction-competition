@@ -139,7 +139,10 @@ function makePrediction(overrides: Partial<PredictionOutput> = {}): PredictionOu
     side: "YES",
     confidence: 0.7,
     stake: 0.05,
-    reasoning: "Team A is stronger",
+    reasoning: {
+      summary: "Team A is stronger",
+      sections: [{ label: "Analysis", content: "Team A is stronger" }],
+    },
     ...overrides,
   };
 }

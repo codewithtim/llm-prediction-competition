@@ -257,10 +257,14 @@ describe("createWeightedEngine", () => {
     expect(predictions[0]?.confidence).toBeLessThanOrEqual(1);
   });
 
-  it("reasoning is non-empty and under 500 chars", () => {
+  it("reasoning has summary and sections", () => {
     const predictions = run(DEFAULT_WEIGHTS, DEFAULT_STAKE_CONFIG, makeStatistics());
-    expect(predictions[0]?.reasoning.length).toBeGreaterThan(0);
-    expect(predictions[0]?.reasoning.length).toBeLessThanOrEqual(500);
+    const reasoning = predictions[0]?.reasoning;
+    expect(reasoning).toBeDefined();
+    expect(reasoning?.summary.length).toBeGreaterThan(0);
+    expect(reasoning?.sections.length).toBeGreaterThanOrEqual(1);
+    expect(reasoning?.sections.some((s) => s.label === "Probability")).toBe(true);
+    expect(reasoning?.sections.some((s) => s.label === "Edge")).toBe(true);
   });
 
   it("handles all weights at zero gracefully", () => {
