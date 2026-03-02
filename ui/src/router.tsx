@@ -1,5 +1,6 @@
 import { createRootRoute, createRoute, createRouter, Outlet } from "@tanstack/react-router";
 import { Sidebar } from "@/components/layout/sidebar";
+import { useSidebar } from "@/components/layout/sidebar-context";
 import { BetsPage } from "@/routes/bets/index";
 import { CompetitorDetailPage } from "@/routes/competitors/$id";
 import { CompetitorsPage } from "@/routes/competitors/index";
@@ -8,15 +9,22 @@ import { FixturesPage } from "@/routes/fixtures/index";
 import { DashboardPage } from "@/routes/index";
 import { MarketsPage } from "@/routes/markets/index";
 
-const rootRoute = createRootRoute({
-  component: () => (
+function RootLayout() {
+  const { collapsed } = useSidebar();
+  return (
     <div className="flex min-h-screen bg-zinc-950">
       <Sidebar />
-      <main className="ml-64 flex-1 p-8">
+      <main
+        className={`flex-1 p-8 transition-[margin] duration-200 ${collapsed ? "ml-16" : "ml-64"}`}
+      >
         <Outlet />
       </main>
     </div>
-  ),
+  );
+}
+
+const rootRoute = createRootRoute({
+  component: RootLayout,
 });
 
 const indexRoute = createRoute({

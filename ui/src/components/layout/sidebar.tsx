@@ -1,4 +1,5 @@
 import { Link, useRouterState } from "@tanstack/react-router";
+import { useSidebar } from "./sidebar-context";
 
 const NAV_ITEMS = [
   { to: "/", label: "Dashboard", icon: LayoutIcon },
@@ -11,32 +12,68 @@ const NAV_ITEMS = [
 export function Sidebar() {
   const router = useRouterState();
   const currentPath = router.location.pathname;
+  const { collapsed, toggle } = useSidebar();
 
   return (
-    <aside className="fixed inset-y-0 left-0 z-50 flex w-64 flex-col bg-zinc-950 border-r border-zinc-800">
-      <div className="flex h-14 items-center px-6 border-b border-zinc-800">
-        <span className="text-lg font-semibold text-zinc-100">LLM Betting</span>
+    <aside
+      className={`fixed inset-y-0 left-0 z-50 flex flex-col bg-zinc-950 border-r border-zinc-800 transition-[width] duration-200 ${collapsed ? "w-16" : "w-64"}`}
+    >
+      <div className="flex h-14 items-center border-b border-zinc-800 px-4">
+        {!collapsed && (
+          <span className="text-lg font-semibold text-zinc-100 pl-2">LLM Betting</span>
+        )}
+        <button
+          type="button"
+          onClick={toggle}
+          className={`flex items-center justify-center h-8 w-8 rounded-md text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 transition-colors ${collapsed ? "mx-auto" : "ml-auto"}`}
+          title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+        >
+          <ChevronIcon className="h-4 w-4" direction={collapsed ? "right" : "left"} />
+        </button>
       </div>
-      <nav className="flex-1 space-y-1 px-3 py-4">
+      <nav className="flex-1 space-y-1 px-2 py-4">
         {NAV_ITEMS.map((item) => {
           const isActive = item.to === "/" ? currentPath === "/" : currentPath.startsWith(item.to);
           return (
             <Link
               key={item.to}
               to={item.to}
-              className={`flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors ${
+              className={`flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors ${collapsed ? "justify-center" : ""} ${
                 isActive
                   ? "bg-zinc-800 text-zinc-100 border-l-2 border-emerald-500"
                   : "text-zinc-400 hover:bg-zinc-900 hover:text-zinc-200"
               }`}
+              title={collapsed ? item.label : undefined}
             >
-              <item.icon className="h-4 w-4" />
-              {item.label}
+              <item.icon className="h-4 w-4 shrink-0" />
+              {!collapsed && item.label}
             </Link>
           );
         })}
       </nav>
     </aside>
+  );
+}
+
+function ChevronIcon({
+  className,
+  direction,
+}: {
+  className?: string;
+  direction: "left" | "right";
+}) {
+  return (
+    <svg
+      className={`${className} transition-transform ${direction === "right" ? "rotate-180" : ""}`}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M15 18l-6-6 6-6" />
+    </svg>
   );
 }
 

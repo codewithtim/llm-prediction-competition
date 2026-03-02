@@ -1,4 +1,5 @@
 import { useParams } from "@tanstack/react-router";
+import { useState } from "react";
 import { PageShell } from "@/components/layout/page-shell";
 import { EmptyState } from "@/components/shared/empty-state";
 import { LoadingSkeleton } from "@/components/shared/loading-skeleton";
@@ -91,6 +92,7 @@ export function FixtureDetailPage() {
                   <TableHead className="text-zinc-400">Side</TableHead>
                   <TableHead className="text-zinc-400 text-right">Confidence</TableHead>
                   <TableHead className="text-zinc-400 text-right">Stake</TableHead>
+                  <TableHead className="text-zinc-400">Reasoning</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -107,6 +109,9 @@ export function FixtureDetailPage() {
                     <TableCell className="text-right font-mono text-zinc-300">
                       ${p.stake.toFixed(2)}
                     </TableCell>
+                    <TableCell className="text-sm max-w-96">
+                      <ExpandableReasoning text={p.reasoning} />
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -115,5 +120,22 @@ export function FixtureDetailPage() {
         )}
       </div>
     </PageShell>
+  );
+}
+
+function ExpandableReasoning({ text }: { text: string }) {
+  const [expanded, setExpanded] = useState(false);
+
+  if (!text) return <span className="text-zinc-500">--</span>;
+
+  return (
+    <button
+      type="button"
+      className={`text-left text-zinc-400 ${expanded ? "" : "line-clamp-2"}`}
+      onClick={() => setExpanded(!expanded)}
+      title={expanded ? "Click to collapse" : "Click to expand"}
+    >
+      {text}
+    </button>
   );
 }

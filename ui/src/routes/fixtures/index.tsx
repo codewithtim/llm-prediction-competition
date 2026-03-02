@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { PageShell } from "@/components/layout/page-shell";
 import { EmptyState } from "@/components/shared/empty-state";
 import { TableSkeleton } from "@/components/shared/loading-skeleton";
@@ -23,9 +23,21 @@ const STATUS_TABS = [
   { value: "finished", label: "Finished" },
 ];
 
+type SortDir = "asc" | "desc";
+
 export function FixturesPage() {
   const [status, setStatus] = useState("");
+  const [sortDir, setSortDir] = useState<SortDir>("desc");
   const { data, isLoading } = useFixtures(status || undefined);
+
+  const sorted = useMemo(() => {
+    if (!data) return [];
+    return [...data].sort((a, b) => {
+      const da = new Date(a.date).getTime();
+      const db = new Date(b.date).getTime();
+      return sortDir === "asc" ? da - db : db - da;
+    });
+  }, [data, sortDir]);
 
   return (
     <PageShell title="Fixtures" subtitle="Football fixtures tracked by the system">
@@ -41,14 +53,22 @@ export function FixturesPage() {
 
       {isLoading ? (
         <TableSkeleton />
-      ) : !data || data.length === 0 ? (
+      ) : sorted.length === 0 ? (
         <EmptyState message="No fixtures found" />
       ) : (
         <div className="rounded-md border border-zinc-800 overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow className="border-zinc-800 hover:bg-transparent">
-                <TableHead className="text-zinc-400">Date</TableHead>
+                <TableHead
+                  className="text-zinc-400 cursor-pointer select-none hover:text-zinc-200 transition-colors"
+                  onClick={() => setSortDir((d) => (d === "asc" ? "desc" : "asc"))}
+                >
+                  <span className="inline-flex items-center gap-1">
+                    Date
+                    <span className="text-xs">{sortDir === "asc" ? "\u2191" : "\u2193"}</span>
+                  </span>
+                </TableHead>
                 <TableHead className="text-zinc-400">Match</TableHead>
                 <TableHead className="text-zinc-400">League</TableHead>
                 <TableHead className="text-zinc-400">Venue</TableHead>
@@ -57,7 +77,7 @@ export function FixturesPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {data.map((f) => (
+              {sorted.map((f) => (
                 <TableRow key={f.id} className="border-zinc-800 hover:bg-zinc-800/50">
                   <TableCell className="text-zinc-400 text-sm">{formatDate(f.date)}</TableCell>
                   <TableCell>

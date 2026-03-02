@@ -15,10 +15,8 @@ export function DashboardPage() {
     <PageShell title="Dashboard" subtitle="Overview of the LLM betting competition">
       <StatsCards data={data} />
       <PnlChart entries={data.leaderboard} />
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Leaderboard entries={data.leaderboard} />
-        <RecentActivity bets={data.recentBets} />
-      </div>
+      <Leaderboard entries={data.leaderboard} />
+      <RecentActivity bets={data.recentBets} />
     </PageShell>
   );
 }

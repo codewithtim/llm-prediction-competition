@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { PageShell } from "@/components/layout/page-shell";
 import { EmptyState } from "@/components/shared/empty-state";
 import { TableSkeleton } from "@/components/shared/loading-skeleton";
@@ -20,11 +20,39 @@ const FILTER_TABS = [
   { value: "closed", label: "Closed" },
 ];
 
+type SortField = "liquidity" | "volume";
+type SortDir = "asc" | "desc";
+
 export function MarketsPage() {
   const [filter, setFilter] = useState("all");
+  const [sortField, setSortField] = useState<SortField>("liquidity");
+  const [sortDir, setSortDir] = useState<SortDir>("desc");
   const filters =
     filter === "active" ? { active: "true" } : filter === "closed" ? { closed: "true" } : undefined;
   const { data, isLoading } = useMarkets(filters);
+
+  const sorted = useMemo(() => {
+    if (!data) return [];
+    return [...data].sort((a, b) => {
+      const va = a[sortField];
+      const vb = b[sortField];
+      return sortDir === "asc" ? va - vb : vb - va;
+    });
+  }, [data, sortField, sortDir]);
+
+  function handleSort(field: SortField) {
+    if (sortField === field) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setSortField(field);
+      setSortDir("desc");
+    }
+  }
+
+  function sortIndicator(field: SortField) {
+    if (sortField !== field) return "\u21C5";
+    return sortDir === "asc" ? "\u2191" : "\u2193";
+  }
 
   return (
     <PageShell title="Markets" subtitle="Polymarket prediction markets">
@@ -40,7 +68,7 @@ export function MarketsPage() {
 
       {isLoading ? (
         <TableSkeleton />
-      ) : !data || data.length === 0 ? (
+      ) : sorted.length === 0 ? (
         <EmptyState message="No markets found" />
       ) : (
         <div className="rounded-md border border-zinc-800 overflow-x-auto">
@@ -50,14 +78,30 @@ export function MarketsPage() {
                 <TableHead className="text-zinc-400">Question</TableHead>
                 <TableHead className="text-zinc-400 text-right">Yes</TableHead>
                 <TableHead className="text-zinc-400 text-right">No</TableHead>
-                <TableHead className="text-zinc-400 text-right">Liquidity</TableHead>
-                <TableHead className="text-zinc-400 text-right">Volume</TableHead>
+                <TableHead
+                  className="text-zinc-400 text-right cursor-pointer select-none hover:text-zinc-200 transition-colors"
+                  onClick={() => handleSort("liquidity")}
+                >
+                  <span className="inline-flex items-center justify-end gap-1">
+                    Liquidity
+                    <span className="text-xs">{sortIndicator("liquidity")}</span>
+                  </span>
+                </TableHead>
+                <TableHead
+                  className="text-zinc-400 text-right cursor-pointer select-none hover:text-zinc-200 transition-colors"
+                  onClick={() => handleSort("volume")}
+                >
+                  <span className="inline-flex items-center justify-end gap-1">
+                    Volume
+                    <span className="text-xs">{sortIndicator("volume")}</span>
+                  </span>
+                </TableHead>
                 <TableHead className="text-zinc-400">Fixture</TableHead>
                 <TableHead className="text-zinc-400">Status</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {data.map((m) => (
+              {sorted.map((m) => (
                 <TableRow key={m.id} className="border-zinc-800 hover:bg-zinc-800/50">
                   <TableCell className="text-zinc-200 max-w-72 truncate">{m.question}</TableCell>
                   <TableCell className="text-right font-mono text-zinc-300">

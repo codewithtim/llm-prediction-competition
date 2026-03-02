@@ -2,6 +2,7 @@ import { Link } from "@tanstack/react-router";
 import { PageShell } from "@/components/layout/page-shell";
 import { EmptyState } from "@/components/shared/empty-state";
 import { TableSkeleton } from "@/components/shared/loading-skeleton";
+import { ModelLogo } from "@/components/shared/model-logo";
 import { Money } from "@/components/shared/money";
 import { StatusBadge } from "@/components/shared/status-badge";
 import {
@@ -51,7 +52,12 @@ export function CompetitorsPage() {
                       {c.name}
                     </Link>
                   </TableCell>
-                  <TableCell className="text-zinc-400 text-sm">{c.model}</TableCell>
+                  <TableCell>
+                    <span className="inline-flex items-center gap-2 text-zinc-400 text-sm">
+                      <ModelLogo model={c.model} />
+                      {c.model}
+                    </span>
+                  </TableCell>
                   <TableCell>
                     <StatusBadge status={c.status} />
                   </TableCell>
