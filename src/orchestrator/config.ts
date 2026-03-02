@@ -41,7 +41,10 @@ export const DEFAULT_CONFIG: PipelineConfig = {
   predictionDelayMs: 30_000,
   betting: {
     maxStakePerBet: 10,
+    maxBetPctOfBankroll: 0.1,
     maxTotalExposure: 100,
+    initialBankroll: 100,
+    minBetAmount: 0.01,
     dryRun: false,
   },
 };

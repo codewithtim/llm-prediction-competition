@@ -2,6 +2,7 @@ import { describe, expect, mock, test } from "bun:test";
 import type { CompetitorRegistry } from "../../../src/competitors/registry.ts";
 import type { PredictionOutput } from "../../../src/domain/contracts/prediction.ts";
 import type { Market } from "../../../src/domain/models/market.ts";
+import type { BankrollProvider } from "../../../src/domain/services/bankroll.ts";
 import type { BettingService, PlaceBetResult } from "../../../src/domain/services/betting.ts";
 import type { GammaClient } from "../../../src/infrastructure/polymarket/gamma-client.ts";
 import type { MarketDiscovery } from "../../../src/infrastructure/polymarket/market-discovery.ts";
@@ -137,7 +138,7 @@ function makePrediction(overrides: Partial<PredictionOutput> = {}): PredictionOu
     marketId: "market-1",
     side: "YES",
     confidence: 0.7,
-    stake: 5,
+    stake: 0.05,
     reasoning: "Team A is stronger",
     ...overrides,
   };
@@ -189,6 +190,12 @@ function mockRegistry(predictions: PredictionOutput[] = [makePrediction()]): Com
 function mockBettingService(result: PlaceBetResult = { status: "dry_run" }): BettingService {
   return {
     placeBet: mock(() => Promise.resolve(result)),
+  };
+}
+
+function mockBankrollProvider(bankroll = 100): BankrollProvider {
+  return {
+    getBankroll: mock(() => Promise.resolve(bankroll)),
   };
 }
 
@@ -416,6 +423,7 @@ function buildPredictionDeps(
     footballClient: mockFootballClient(),
     registry: mockRegistry(),
     bettingService: mockBettingService(),
+    bankrollProvider: mockBankrollProvider(),
     marketsRepo: mockMarketsRepo() as unknown as PredictionPipelineDeps["marketsRepo"],
     fixturesRepo: mockFixturesRepo() as unknown as PredictionPipelineDeps["fixturesRepo"],
     predictionsRepo: mockPredictionsRepo() as unknown as PredictionPipelineDeps["predictionsRepo"],
@@ -708,5 +716,52 @@ describe("createPredictionPipeline", () => {
 
     expect(result.betsDryRun).toBe(1);
     expect(result.betsPlaced).toBe(0);
+  });
+
+  test("records error and skips competitor when bankroll fetch fails", async () => {
+    const { fr, mr } = withFixtureAndMarkets();
+    const betting = mockBettingService();
+
+    const failingBankroll: BankrollProvider = {
+      getBankroll: mock(() => Promise.reject(new Error("DB connection lost"))),
+    };
+
+    const deps = buildPredictionDeps({
+      fixturesRepo: fr as unknown as PredictionPipelineDeps["fixturesRepo"],
+      marketsRepo: mr as unknown as PredictionPipelineDeps["marketsRepo"],
+      bankrollProvider: failingBankroll,
+      bettingService: betting,
+    });
+    const pipeline = createPredictionPipeline(deps);
+    const result = await pipeline.run();
+
+    expect(result.errors.some((e: string) => e.includes("Bankroll fetch failed"))).toBe(true);
+    expect(result.errors.some((e: string) => e.includes("DB connection lost"))).toBe(true);
+    expect(result.predictionsGenerated).toBe(0);
+    expect(betting.placeBet).not.toHaveBeenCalled();
+  });
+
+  test("skips bet and increments betsSkipped when stake validation fails", async () => {
+    const { fr, mr } = withFixtureAndMarkets();
+    const betting = mockBettingService();
+
+    // Engine returns a large stake fraction (50%), but pipeline cap is 10%
+    const registry = mockRegistry([makePrediction({ stake: 0.5 })]);
+
+    const deps = buildPredictionDeps({
+      fixturesRepo: fr as unknown as PredictionPipelineDeps["fixturesRepo"],
+      marketsRepo: mr as unknown as PredictionPipelineDeps["marketsRepo"],
+      registry,
+      bettingService: betting,
+      bankrollProvider: mockBankrollProvider(100),
+    });
+    const pipeline = createPredictionPipeline(deps);
+    const result = await pipeline.run();
+
+    // Prediction is saved but bet is rejected
+    expect(result.predictionsGenerated).toBe(1);
+    expect(result.betsSkipped).toBe(1);
+    expect(result.betsPlaced).toBe(0);
+    expect(betting.placeBet).not.toHaveBeenCalled();
   });
 });

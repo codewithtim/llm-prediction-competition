@@ -12,7 +12,14 @@ function makeConfig(overrides: Partial<PipelineConfig> = {}): PipelineConfig {
     discoveryIntervalMs: 100,
     predictionIntervalMs: 100,
     settlementIntervalMs: 100,
-    betting: { maxStakePerBet: 10, maxTotalExposure: 100, dryRun: true },
+    betting: {
+      maxStakePerBet: 10,
+      maxBetPctOfBankroll: 0.1,
+      maxTotalExposure: 100,
+      initialBankroll: 100,
+      minBetAmount: 0.01,
+      dryRun: true,
+    },
     ...overrides,
   };
 }

@@ -6,7 +6,7 @@ function makeValidPrediction(overrides?: Record<string, unknown>) {
     marketId: "market-1",
     side: "YES",
     confidence: 0.75,
-    stake: 5.0,
+    stake: 0.05,
     reasoning: "Strong home form and H2H advantage",
     ...overrides,
   };

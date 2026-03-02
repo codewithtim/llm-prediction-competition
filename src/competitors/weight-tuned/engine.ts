@@ -131,8 +131,7 @@ export function createWeightedEngine(
     const best = evaluations[0];
     if (!best) return [];
 
-    // Compute bankroll-relative stake
-    const maxBet = stakeConfig.bankroll * stakeConfig.maxBetPct;
+    // Compute stake as fraction of bankroll (0–1)
     const effectiveEdge = Math.max(best.edge, 0);
     const rawStakeFraction = clamp(
       weights.stakingAggression + weights.edgeMultiplier * effectiveEdge,
@@ -146,8 +145,11 @@ export function createWeightedEngine(
         ? 1
         : best.confidence / weights.confidenceThreshold;
 
-    let stake = maxBet * rawStakeFraction * confidenceMultiplier;
-    stake = Math.max(stakeConfig.minBet, Math.min(stake, maxBet));
+    const stakeFraction = clamp(
+      stakeConfig.maxBetPct * rawStakeFraction * confidenceMultiplier,
+      stakeConfig.minBetPct,
+      stakeConfig.maxBetPct,
+    );
 
     const featuresSummary = Object.entries(features)
       .filter(([name]) => (weights.signals[name] ?? 0) > 0)
@@ -164,7 +166,7 @@ export function createWeightedEngine(
         marketId: best.market.marketId,
         side: best.side,
         confidence: clamp(best.confidence, 0, 1),
-        stake,
+        stake: stakeFraction,
         reasoning: reasoning.slice(0, 500),
       },
     ];

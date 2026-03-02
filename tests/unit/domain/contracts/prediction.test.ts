@@ -6,7 +6,7 @@ function makeValidPrediction(overrides?: Record<string, unknown>) {
     marketId: "abc-123",
     side: "YES",
     confidence: 0.75,
-    stake: 5.0,
+    stake: 0.05,
     reasoning: "Home team has strong form and H2H advantage",
     ...overrides,
   };
@@ -42,8 +42,17 @@ describe("predictionOutputSchema", () => {
     expect(() => predictionOutputSchema.parse(makeValidPrediction({ stake: -1 }))).toThrow();
   });
 
-  it("rejects zero stake", () => {
-    expect(() => predictionOutputSchema.parse(makeValidPrediction({ stake: 0 }))).toThrow();
+  it("accepts zero stake fraction", () => {
+    expect(() => predictionOutputSchema.parse(makeValidPrediction({ stake: 0 }))).not.toThrow();
+  });
+
+  it("rejects stake fraction > 1", () => {
+    expect(() => predictionOutputSchema.parse(makeValidPrediction({ stake: 1.5 }))).toThrow();
+  });
+
+  it("accepts stake fraction at boundaries", () => {
+    expect(() => predictionOutputSchema.parse(makeValidPrediction({ stake: 0 }))).not.toThrow();
+    expect(() => predictionOutputSchema.parse(makeValidPrediction({ stake: 1 }))).not.toThrow();
   });
 
   it("rejects empty reasoning", () => {

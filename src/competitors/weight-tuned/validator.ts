@@ -1,7 +1,6 @@
 import { predictionOutputSchema } from "../../domain/contracts/prediction";
 import { createWeightedEngine } from "./engine";
 import { SAMPLE_STATISTICS_MULTI_MARKET } from "./sample-statistics";
-import { validateStake } from "./stake-validator";
 import { type StakeConfig, type WeightConfig, weightConfigSchema } from "./types";
 
 export type ValidationResult =
@@ -42,9 +41,13 @@ export function validateWeights(input: unknown, stakeConfig: StakeConfig): Valid
       return { valid: false, error: `Prediction[${i}] validation failed: ${messages}` };
     }
 
-    const stakeResult = validateStake(result.data, stakeConfig.bankroll, stakeConfig);
-    if (!stakeResult.valid) {
-      return { valid: false, error: `Prediction[${i}] stake issue: ${stakeResult.reason}` };
+    // Stake is now a fraction (0–1); verify it's within the configured range
+    const stake = result.data.stake;
+    if (stake < stakeConfig.minBetPct || stake > stakeConfig.maxBetPct) {
+      return {
+        valid: false,
+        error: `Prediction[${i}] stake fraction ${stake} outside range [${stakeConfig.minBetPct}, ${stakeConfig.maxBetPct}]`,
+      };
     }
   }
 

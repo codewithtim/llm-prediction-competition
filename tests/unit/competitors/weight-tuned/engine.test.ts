@@ -244,12 +244,11 @@ describe("createWeightedEngine", () => {
     expect(validMarketIds).toContain(predictions[0]!.marketId);
   });
 
-  it("stake is within bankroll constraints", () => {
-    const stakeConfig: StakeConfig = { maxBetPct: 0.1, minBet: 0.5, bankroll: 50 };
+  it("stake fraction is within configured range", () => {
+    const stakeConfig: StakeConfig = { maxBetPct: 0.1, minBetPct: 0.005 };
     const predictions = run(DEFAULT_WEIGHTS, stakeConfig, makeStatistics());
-    const maxBet = stakeConfig.bankroll * stakeConfig.maxBetPct;
-    expect(predictions[0]?.stake).toBeGreaterThanOrEqual(stakeConfig.minBet);
-    expect(predictions[0]?.stake).toBeLessThanOrEqual(maxBet);
+    expect(predictions[0]?.stake).toBeGreaterThanOrEqual(stakeConfig.minBetPct);
+    expect(predictions[0]?.stake).toBeLessThanOrEqual(stakeConfig.maxBetPct);
   });
 
   it("confidence is between 0 and 1", () => {

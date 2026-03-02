@@ -2,7 +2,9 @@ import type { CompetitorRegistry } from "../competitors/registry.ts";
 import type { MarketContext, Statistics } from "../domain/contracts/statistics.ts";
 import type { Fixture } from "../domain/models/fixture.ts";
 import type { Market } from "../domain/models/market.ts";
+import type { BankrollProvider } from "../domain/services/bankroll.ts";
 import type { BettingService } from "../domain/services/betting.ts";
+import { validateStake } from "../domain/services/stake-validator.ts";
 import { runAllEngines } from "../engine/runner.ts";
 import type { EngineResult } from "../engine/types.ts";
 import type { fixturesRepo as fixturesRepoFactory } from "../infrastructure/database/repositories/fixtures.ts";
@@ -27,6 +29,7 @@ export type PredictionPipelineDeps = {
   footballClient: FootballClient;
   registry: CompetitorRegistry;
   bettingService: BettingService;
+  bankrollProvider: BankrollProvider;
   marketsRepo: ReturnType<typeof marketsRepoFactory>;
   fixturesRepo: ReturnType<typeof fixturesRepoFactory>;
   predictionsRepo: ReturnType<typeof predictionsRepoFactory>;
@@ -131,6 +134,7 @@ export function createPredictionPipeline(deps: PredictionPipelineDeps) {
     footballClient,
     registry,
     bettingService,
+    bankrollProvider,
     marketsRepo,
     fixturesRepo,
     predictionsRepo,
@@ -282,6 +286,16 @@ export function createPredictionPipeline(deps: PredictionPipelineDeps) {
               continue;
             }
 
+            // Fetch bankroll once per competitor per fixture
+            let bankroll: number;
+            try {
+              bankroll = await bankrollProvider.getBankroll(competitorId);
+            } catch (err) {
+              const msg = err instanceof Error ? err.message : String(err);
+              result.errors.push(`Bankroll fetch failed for ${competitorId}: ${msg}`);
+              continue;
+            }
+
             for (const prediction of predictions) {
               const market = marketMap.get(prediction.marketId);
               if (!market) {
@@ -291,7 +305,10 @@ export function createPredictionPipeline(deps: PredictionPipelineDeps) {
                 continue;
               }
 
-              // ALWAYS save prediction to DB
+              // Resolve fractional stake to absolute dollar amount
+              const absoluteStake = prediction.stake * bankroll;
+
+              // ALWAYS save prediction to DB (with resolved absolute amount)
               try {
                 await predictionsRepo.create({
                   marketId: prediction.marketId,
@@ -299,7 +316,7 @@ export function createPredictionPipeline(deps: PredictionPipelineDeps) {
                   competitorId,
                   side: prediction.side,
                   confidence: prediction.confidence,
-                  stake: prediction.stake,
+                  stake: absoluteStake,
                   reasoning: prediction.reasoning,
                 });
                 result.predictionsGenerated++;
@@ -308,11 +325,31 @@ export function createPredictionPipeline(deps: PredictionPipelineDeps) {
                 result.errors.push(`Prediction save failed: ${msg}`);
               }
 
-              // Attempt bet (may skip — that's fine)
+              // Validate stake against bankroll constraints before placing bet
+              const validation = validateStake(absoluteStake, bankroll, {
+                maxBetPctOfBankroll: config.betting.maxBetPctOfBankroll,
+                minBetAmount: config.betting.minBetAmount,
+              });
+
+              if (!validation.valid) {
+                logger.warn("Prediction: stake rejected", {
+                  competitorId,
+                  fixtureId: fixture.id,
+                  marketId: prediction.marketId,
+                  reason: validation.reason,
+                  requestedStake: absoluteStake,
+                  bankroll,
+                });
+                result.betsSkipped++;
+                continue;
+              }
+
+              // Attempt bet with resolved absolute amount
               try {
                 const engineEntry = engines.find((e) => e.competitorId === competitorId);
                 const betResult = await bettingService.placeBet({
                   prediction,
+                  resolvedStake: absoluteStake,
                   market,
                   fixtureId: fixture.id,
                   competitorId,

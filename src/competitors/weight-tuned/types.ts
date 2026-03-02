@@ -36,16 +36,14 @@ export const DEFAULT_WEIGHTS: WeightConfig = {
 
 export const stakeConfigSchema = z.object({
   maxBetPct: z.number().min(0).max(1),
-  minBet: z.number().positive(),
-  bankroll: z.number().positive(),
+  minBetPct: z.number().min(0).max(1),
 });
 
 export type StakeConfig = z.infer<typeof stakeConfigSchema>;
 
 export const DEFAULT_STAKE_CONFIG: StakeConfig = {
   maxBetPct: 0.05,
-  minBet: 1,
-  bankroll: 100,
+  minBetPct: 0.005,
 };
 
 export const WEIGHT_JSON_SCHEMA = {

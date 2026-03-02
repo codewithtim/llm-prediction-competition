@@ -1,11 +1,10 @@
 import { describe, expect, it } from "bun:test";
-import { validateStake } from "../../../../src/competitors/weight-tuned/stake-validator";
 import {
   DEFAULT_STAKE_CONFIG,
   DEFAULT_WEIGHTS,
-  type StakeConfig,
 } from "../../../../src/competitors/weight-tuned/types";
 import { validateWeights } from "../../../../src/competitors/weight-tuned/validator";
+import { validateStake } from "../../../../src/domain/services/stake-validator";
 
 describe("validateWeights", () => {
   it("accepts valid DEFAULT_WEIGHTS", () => {
@@ -95,84 +94,65 @@ describe("validateWeights", () => {
 });
 
 describe("validateStake", () => {
-  const stakeConfig: StakeConfig = {
-    maxBetPct: 0.05,
-    minBet: 1,
-    bankroll: 100,
+  const constraints = {
+    maxBetPctOfBankroll: 0.05,
+    minBetAmount: 1,
   };
 
   it("accepts valid stake within bounds", () => {
-    const result = validateStake(
-      { marketId: "m1", side: "YES", confidence: 0.7, stake: 3, reasoning: "test" },
-      100,
-      stakeConfig,
-    );
+    const result = validateStake(3, 100, constraints);
     expect(result.valid).toBe(true);
   });
 
   it("rejects zero stake", () => {
-    const result = validateStake(
-      { marketId: "m1", side: "YES", confidence: 0.7, stake: 0, reasoning: "test" },
-      100,
-      stakeConfig,
-    );
+    const result = validateStake(0, 100, constraints);
     expect(result.valid).toBe(false);
     expect(result.reason).toContain("positive");
   });
 
   it("rejects negative stake", () => {
-    const result = validateStake(
-      { marketId: "m1", side: "YES", confidence: 0.7, stake: -5, reasoning: "test" },
-      100,
-      stakeConfig,
-    );
+    const result = validateStake(-5, 100, constraints);
     expect(result.valid).toBe(false);
   });
 
-  it("rejects stake below minimum", () => {
-    const result = validateStake(
-      { marketId: "m1", side: "YES", confidence: 0.7, stake: 0.5, reasoning: "test" },
-      100,
-      stakeConfig,
-    );
+  it("rejects stake below minimum amount", () => {
+    const result = validateStake(0.5, 100, constraints);
     expect(result.valid).toBe(false);
     expect(result.reason).toContain("minimum");
   });
 
-  it("rejects stake exceeding max bet percentage", () => {
-    const result = validateStake(
-      { marketId: "m1", side: "YES", confidence: 0.7, stake: 10, reasoning: "test" },
-      100,
-      stakeConfig,
-    );
+  it("rejects stake exceeding max bet percentage of bankroll", () => {
+    const result = validateStake(10, 100, constraints);
     expect(result.valid).toBe(false);
-    expect(result.reason).toContain("max bet");
+    expect(result.reason).toContain("5%");
   });
 
   it("rejects stake exceeding bankroll", () => {
-    const result = validateStake(
-      { marketId: "m1", side: "YES", confidence: 0.7, stake: 150, reasoning: "test" },
-      100,
-      stakeConfig,
-    );
+    // maxBetPctOfBankroll > 1 so percentage check doesn't catch it first
+    const result = validateStake(150, 100, { maxBetPctOfBankroll: 2, minBetAmount: 1 });
     expect(result.valid).toBe(false);
+    expect(result.reason).toContain("exceeds bankroll");
   });
 
   it("accepts stake at exact maximum", () => {
-    const result = validateStake(
-      { marketId: "m1", side: "YES", confidence: 0.7, stake: 5, reasoning: "test" },
-      100,
-      stakeConfig,
-    );
+    const result = validateStake(5, 100, constraints);
     expect(result.valid).toBe(true);
   });
 
   it("accepts stake at exact minimum", () => {
-    const result = validateStake(
-      { marketId: "m1", side: "YES", confidence: 0.7, stake: 1, reasoning: "test" },
-      100,
-      stakeConfig,
-    );
+    const result = validateStake(1, 100, constraints);
     expect(result.valid).toBe(true);
+  });
+
+  it("rejects all bets when bankroll is below minimum bet threshold", () => {
+    const result = validateStake(0.5, 0.5, constraints);
+    expect(result.valid).toBe(false);
+    expect(result.reason).toContain("below minimum bet threshold");
+  });
+
+  it("rejects all bets when bankroll is zero", () => {
+    const result = validateStake(1, 0, constraints);
+    expect(result.valid).toBe(false);
+    expect(result.reason).toContain("below minimum bet threshold");
   });
 });

@@ -71,7 +71,7 @@ function makeRegisteredEngine(overrides?: Partial<RegisteredEngine>): Registered
         marketId: "market-1",
         side: "YES" as const,
         confidence: 0.8,
-        stake: 10,
+        stake: 0.05,
         reasoning: "Test reasoning for prediction",
       },
     ],
@@ -94,7 +94,7 @@ describe("runEngine", () => {
     const engine = makeRegisteredEngine({
       engine: () =>
         [
-          { marketId: "m1", side: "MAYBE", confidence: 0.5, stake: 5, reasoning: "Bad" },
+          { marketId: "m1", side: "MAYBE", confidence: 0.5, stake: 0.05, reasoning: "Bad" },
         ] as unknown as PredictionOutput[],
     });
     const result = await runEngine(engine, makeStatistics());
@@ -135,7 +135,7 @@ describe("runEngine", () => {
           marketId: "market-1",
           side: "NO" as const,
           confidence: 0.6,
-          stake: 3,
+          stake: 0.03,
           reasoning: "Async prediction reasoning",
         },
       ],

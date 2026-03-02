@@ -41,7 +41,7 @@ function makePrediction(overrides?: Partial<PredictionOutput>): PredictionOutput
     marketId: "market-1",
     side: "YES",
     confidence: 0.75,
-    stake: 5,
+    stake: 0.05,
     reasoning: "Strong home form",
     ...overrides,
   };
@@ -50,7 +50,10 @@ function makePrediction(overrides?: Partial<PredictionOutput>): PredictionOutput
 function makeConfig(overrides?: Partial<BettingConfig>): BettingConfig {
   return {
     maxStakePerBet: 10,
+    maxBetPctOfBankroll: 0.1,
     maxTotalExposure: 100,
+    initialBankroll: 100,
+    minBetAmount: 0.01,
     dryRun: false,
     ...overrides,
   };
@@ -125,6 +128,7 @@ function mockBetsRepo(existingBets: BetRow[] = []): BetsRepo {
 function makeInput(overrides?: Partial<PlaceBetInput>): PlaceBetInput {
   return {
     prediction: makePrediction(),
+    resolvedStake: 5,
     market: makeMarket(),
     fixtureId: 1001,
     competitorId: "baseline",
@@ -447,7 +451,7 @@ describe("createBettingService", () => {
         config: makeConfig({ maxStakePerBet: 3 }),
       });
 
-      await service.placeBet(makeInput({ prediction: makePrediction({ stake: 10 }) }));
+      await service.placeBet(makeInput({ resolvedStake: 10 }));
 
       const callArg = (client.placeOrder as ReturnType<typeof mock>).mock.calls[0]?.[0] as {
         amount: number;

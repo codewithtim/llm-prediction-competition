@@ -6,12 +6,16 @@ import type { WalletConfig } from "../types/competitor";
 
 export type BettingConfig = {
   maxStakePerBet: number;
+  maxBetPctOfBankroll: number;
   maxTotalExposure: number;
+  initialBankroll: number;
+  minBetAmount: number;
   dryRun: boolean;
 };
 
 export type PlaceBetInput = {
   prediction: PredictionOutput;
+  resolvedStake: number;
   market: Market;
   fixtureId: number;
   competitorId: string;
@@ -52,7 +56,7 @@ export function createBettingService(deps: {
 
   return {
     async placeBet(input: PlaceBetInput): Promise<PlaceBetResult> {
-      const { prediction, market, fixtureId, competitorId, walletConfig } = input;
+      const { prediction, resolvedStake, market, fixtureId, competitorId, walletConfig } = input;
 
       if (!market.acceptingOrders) {
         return { status: "skipped", reason: "Market is not accepting orders" };
@@ -66,7 +70,7 @@ export function createBettingService(deps: {
         return { status: "skipped", reason: "Bet already exists for this market and competitor" };
       }
 
-      const amount = clampStake(prediction.stake, config.maxStakePerBet);
+      const amount = clampStake(resolvedStake, config.maxStakePerBet);
 
       const pendingExposure = existingBets
         .filter((b) => b.status === "pending" || b.status === "filled")

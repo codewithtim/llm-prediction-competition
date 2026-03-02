@@ -3,6 +3,7 @@ import { serveStatic } from "hono/bun";
 import { createApi } from "./api/index.ts";
 import { loadCompetitors } from "./competitors/loader.ts";
 import { createRegistry } from "./competitors/registry.ts";
+import { createBankrollProvider } from "./domain/services/bankroll.ts";
 import { createBettingService } from "./domain/services/betting.ts";
 import { createSettlementService } from "./domain/services/settlement.ts";
 import { createDb } from "./infrastructure/database/client.ts";
@@ -66,6 +67,10 @@ const bettingService = createBettingService({
   betsRepo: bets,
   config: DEFAULT_CONFIG.betting,
 });
+const bankrollProvider = createBankrollProvider({
+  betsRepo: bets,
+  initialBankroll: DEFAULT_CONFIG.betting.initialBankroll,
+});
 const settlementService = createSettlementService({
   gammaClient,
   betsRepo: bets,
@@ -99,6 +104,7 @@ const predictionPipeline = createPredictionPipeline({
   footballClient,
   registry,
   bettingService,
+  bankrollProvider,
   marketsRepo: markets,
   fixturesRepo: fixtures,
   predictionsRepo: preds,
