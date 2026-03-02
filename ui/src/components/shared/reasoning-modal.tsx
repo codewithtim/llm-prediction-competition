@@ -44,9 +44,8 @@ export function ReasoningCell({
                   {i > 0 && <Separator className="bg-zinc-800" />}
                   <div>
                     <h4 className="text-sm font-medium text-zinc-200 mb-1">{section.label}</h4>
-                    <p className="text-sm text-zinc-400 leading-relaxed">{section.content}</p>
-                    {section.data && Object.keys(section.data).length > 0 && (
-                      <div className="mt-2 grid grid-cols-2 gap-x-6 gap-y-1 text-xs font-mono">
+                    {section.data && Object.keys(section.data).length > 0 ? (
+                      <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-xs font-mono">
                         {Object.entries(section.data).map(([k, v]) => (
                           <Fragment key={k}>
                             <span className="text-zinc-500">{k}</span>
@@ -56,6 +55,8 @@ export function ReasoningCell({
                           </Fragment>
                         ))}
                       </div>
+                    ) : (
+                      <p className="text-sm text-zinc-400 leading-relaxed">{section.content}</p>
                     )}
                   </div>
                 </Fragment>
