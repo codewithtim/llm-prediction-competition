@@ -26,7 +26,7 @@ export type PerformanceStats = {
 };
 
 type FeedbackPromptInput = {
-  currentCode: string;
+  currentConfig: string;
   performance: PerformanceStats;
   recentOutcomes: PredictionOutcome[];
   leaderboard: LeaderboardEntry[];
@@ -128,7 +128,7 @@ function analyzePatterns(outcomes: PredictionOutcome[]): string[] {
 }
 
 function buildFeedbackPrompt(input: FeedbackPromptInput): string {
-  const { currentCode, performance, recentOutcomes, leaderboard } = input;
+  const { currentConfig, performance, recentOutcomes, leaderboard } = input;
 
   const truncatedOutcomes = recentOutcomes.slice(-MAX_OUTCOMES);
 
@@ -143,7 +143,7 @@ function buildFeedbackPrompt(input: FeedbackPromptInput): string {
 ## Your Current Engine Code
 
 \`\`\`typescript
-${currentCode}
+${currentConfig}
 \`\`\`
 
 ## Your Performance Summary
@@ -210,7 +210,7 @@ ${signalRows}
 
 export function buildWeightFeedbackPrompt(input: WeightFeedbackInput): string {
   const base = buildFeedbackPrompt({
-    currentCode: JSON.stringify(input.currentWeights, null, 2),
+    currentConfig: JSON.stringify(input.currentWeights, null, 2),
     performance: input.performance,
     recentOutcomes: input.recentOutcomes,
     leaderboard: input.leaderboard,

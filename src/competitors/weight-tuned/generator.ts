@@ -1,10 +1,9 @@
 import type { OpenRouterClient } from "../../infrastructure/openrouter/client";
-import type { WeightConfig } from "./types";
 import { WEIGHT_JSON_SCHEMA } from "./types";
 
 export type GeneratedWeights = {
   competitorId: string;
-  weights: WeightConfig;
+  weights: unknown;
   model: string;
   rawResponse: string;
 };
@@ -74,7 +73,7 @@ export function createWeightGenerator(deps: { client: OpenRouterClient }) {
         temperature: 0.8,
       });
 
-      const weights = JSON.parse(stripMarkdownFences(response)) as WeightConfig;
+      const weights: unknown = JSON.parse(stripMarkdownFences(response));
 
       return {
         competitorId: params.competitorId,
@@ -97,7 +96,7 @@ export function createWeightGenerator(deps: { client: OpenRouterClient }) {
         temperature: 0.8,
       });
 
-      const weights = JSON.parse(stripMarkdownFences(response)) as WeightConfig;
+      const weights: unknown = JSON.parse(stripMarkdownFences(response));
 
       return {
         competitorId: params.competitorId,

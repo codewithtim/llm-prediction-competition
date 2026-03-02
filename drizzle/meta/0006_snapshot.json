@@ -184,6 +184,13 @@
           "notNull": true,
           "autoincrement": false
         },
+        "raw_llm_output": {
+          "name": "raw_llm_output",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
         "engine_path": {
           "name": "engine_path",
           "type": "text",
