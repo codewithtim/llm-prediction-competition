@@ -18,7 +18,9 @@ export function dashboardRoutes(deps: ApiDeps) {
 
     const activeCompetitors = allCompetitors.filter((c) => c.status === "active");
     const activeMarkets = allMarkets.filter((m) => m.active);
-    const pendingBets = allBets.filter((b) => b.status === "pending" || b.status === "filled");
+    const pendingBets = allBets.filter(
+      (b) => b.status === "submitting" || b.status === "pending" || b.status === "filled",
+    );
 
     // Build leaderboard
     const leaderboard = await Promise.all(
@@ -39,6 +41,8 @@ export function dashboardRoutes(deps: ApiDeps) {
               wins: stats.wins,
               losses: stats.losses,
               pending: stats.pending,
+              failed: stats.failed,
+              lockedAmount: stats.lockedAmount,
               totalStaked: stats.totalStaked,
               totalReturned: stats.totalReturned,
               profitLoss: stats.profitLoss,
@@ -84,6 +88,8 @@ export function dashboardRoutes(deps: ApiDeps) {
       (sum, e) => sum + e.competitor.stats.wins + e.competitor.stats.losses,
       0,
     );
+    const failedBets = allBets.filter((b) => b.status === "failed").length;
+    const lockedAmount = leaderboard.reduce((sum, e) => sum + e.competitor.stats.lockedAmount, 0);
 
     return c.json({
       totalCompetitors: allCompetitors.length,
@@ -93,6 +99,8 @@ export function dashboardRoutes(deps: ApiDeps) {
       activeMarkets: activeMarkets.length,
       totalBets: allBets.length,
       pendingBets: pendingBets.length,
+      failedBets,
+      lockedAmount,
       totalProfitLoss: totalProfitLoss,
       overallAccuracy: totalSettled > 0 ? totalWins / totalSettled : 0,
       leaderboard,

@@ -23,10 +23,14 @@ type BetRow = {
   amount: number;
   price: number;
   shares: number;
-  status: "pending" | "filled" | "settled_won" | "settled_lost" | "cancelled";
+  status: "submitting" | "pending" | "filled" | "settled_won" | "settled_lost" | "cancelled" | "failed";
   placedAt: Date;
   settledAt: Date | null;
   profit: number | null;
+  errorMessage: string | null;
+  errorCategory: string | null;
+  attempts: number;
+  lastAttemptAt: Date | null;
 };
 
 type MarketRow = {
@@ -65,6 +69,10 @@ function makeBetRow(overrides?: Partial<BetRow>): BetRow {
     placedAt: new Date(),
     settledAt: null,
     profit: null,
+    errorMessage: null,
+    errorCategory: null,
+    attempts: 0,
+    lastAttemptAt: null,
     ...overrides,
   };
 }
@@ -493,6 +501,51 @@ describe("createSettlementService", () => {
 
       expect(result.settled).toHaveLength(2);
       expect(bets.updateStatus).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  describe("guard rails: excluded statuses", () => {
+    it("does not settle submitting bets", async () => {
+      const gamma = mockGammaClient();
+      // findByStatus("pending") returns empty, findByStatus("filled") returns empty
+      // submitting bets are never queried
+      const bets = mockBetsRepo([], []);
+      const markets = mockMarketsRepo();
+
+      const service = createSettlementService({
+        gammaClient: gamma,
+        betsRepo: bets,
+        marketsRepo: markets,
+      });
+
+      const result = await service.settleBets();
+
+      expect(result.settled).toHaveLength(0);
+      // Verify only pending and filled statuses were queried
+      const statusCalls = (bets.findByStatus as ReturnType<typeof mock>).mock.calls;
+      const queriedStatuses = statusCalls.map((c: unknown[]) => c[0]);
+      expect(queriedStatuses).toContain("pending");
+      expect(queriedStatuses).toContain("filled");
+      expect(queriedStatuses).not.toContain("submitting");
+      expect(queriedStatuses).not.toContain("failed");
+    });
+
+    it("does not settle failed bets", async () => {
+      const gamma = mockGammaClient();
+      const bets = mockBetsRepo([], []);
+      const markets = mockMarketsRepo();
+
+      const service = createSettlementService({
+        gammaClient: gamma,
+        betsRepo: bets,
+        marketsRepo: markets,
+      });
+
+      const result = await service.settleBets();
+
+      const statusCalls = (bets.findByStatus as ReturnType<typeof mock>).mock.calls;
+      const queriedStatuses = statusCalls.map((c: unknown[]) => c[0]);
+      expect(queriedStatuses).not.toContain("failed");
     });
   });
 });

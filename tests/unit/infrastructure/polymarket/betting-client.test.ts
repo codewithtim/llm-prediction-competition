@@ -107,6 +107,44 @@ describe("createBettingClient", () => {
     expect(result.orderId).toBe("order-123");
   });
 
+  it("placeOrder throws on CLOB error response (e.g. insufficient balance)", async () => {
+    // CLOB client returns { error: string, status: number } on HTTP errors
+    (mockClobInstance.createAndPostOrder as ReturnType<typeof mock>).mockImplementationOnce(() =>
+      Promise.resolve({ error: "not enough balance / allowance", status: 400 }),
+    );
+
+    const client = createBettingClient(testConfig);
+
+    await expect(
+      client.placeOrder({ tokenId: "token_yes_123", price: 0.65, amount: 5, side: "BUY" }),
+    ).rejects.toThrow("not enough balance / allowance");
+  });
+
+  it("placeOrder throws when response has no orderID", async () => {
+    // Edge case: response has no error field but also no orderID
+    (mockClobInstance.createAndPostOrder as ReturnType<typeof mock>).mockImplementationOnce(() =>
+      Promise.resolve({ status: 200 }),
+    );
+
+    const client = createBettingClient(testConfig);
+
+    await expect(
+      client.placeOrder({ tokenId: "token_yes_123", price: 0.65, amount: 5, side: "BUY" }),
+    ).rejects.toThrow("no orderID in response");
+  });
+
+  it("placeOrder throws when response is undefined", async () => {
+    (mockClobInstance.createAndPostOrder as ReturnType<typeof mock>).mockImplementationOnce(() =>
+      Promise.resolve(undefined),
+    );
+
+    const client = createBettingClient(testConfig);
+
+    await expect(
+      client.placeOrder({ tokenId: "token_yes_123", price: 0.65, amount: 5, side: "BUY" }),
+    ).rejects.toThrow("no orderID in response");
+  });
+
   it("cancelOrder delegates to CLOB", async () => {
     const client = createBettingClient(testConfig);
 

@@ -1,8 +1,8 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "8baf423a-63e2-48b7-ac49-7d6a31440d41",
-  "prevId": "c7a3e2d1-4f8b-4a1c-9e5d-2b6f8c0d3a7e",
+  "id": "63667680-bbaa-4594-b75b-98015021a41e",
+  "prevId": "8baf423a-63e2-48b7-ac49-7d6a31440d41",
   "tables": {
     "bets": {
       "name": "bets",

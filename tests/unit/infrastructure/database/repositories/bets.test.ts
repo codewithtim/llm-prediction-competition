@@ -123,6 +123,35 @@ describe("betsRepo", () => {
       expect(stats.accuracy).toBe(0);
       expect(stats.roi).toBe(0);
     });
+
+    it("excludes failed bets from P&L and staked totals", async () => {
+      const repo = betsRepo(db);
+      // Create 3 bets: 1 settled, 2 failed
+      await repo.create({ ...sampleBet, id: "bet-s", orderId: "o-s", amount: 10 });
+      await repo.create({ ...sampleBet, id: "bet-f1", orderId: "o-f1", amount: 5, status: "failed" });
+      await repo.create({ ...sampleBet, id: "bet-f2", orderId: "o-f2", amount: 5, status: "failed" });
+
+      await repo.updateStatus("bet-s", "settled_won", new Date(), 5);
+
+      const stats = await repo.getPerformanceStats("claude-1");
+      expect(stats.totalBets).toBe(3);
+      expect(stats.failed).toBe(2);
+      // P&L should only reflect the settled bet, not the failed ones
+      expect(stats.totalStaked).toBe(10);
+      expect(stats.totalReturned).toBe(15); // 10 + 5 profit
+      expect(stats.profitLoss).toBe(5);
+    });
+
+    it("tracks lockedAmount from pending and filled bets", async () => {
+      const repo = betsRepo(db);
+      await repo.create({ ...sampleBet, id: "bet-p", orderId: "o-p", amount: 8, status: "pending" });
+      await repo.create({ ...sampleBet, id: "bet-f", orderId: "o-f", amount: 12, status: "filled" });
+      await repo.create({ ...sampleBet, id: "bet-x", orderId: "o-x", amount: 5, status: "failed" });
+
+      const stats = await repo.getPerformanceStats("claude-1");
+      expect(stats.lockedAmount).toBe(20); // 8 + 12, excludes failed
+      expect(stats.pending).toBe(2);
+    });
   });
 
   it("finds all bets", async () => {
@@ -140,4 +169,156 @@ describe("betsRepo", () => {
     const recent = await repo.findRecent(1);
     expect(recent).toHaveLength(1);
   });
+
+  describe("new statuses and columns", () => {
+    it("creates and retrieves a bet with submitting status", async () => {
+      const repo = betsRepo(db);
+      await repo.create({
+        ...sampleBet,
+        status: "submitting",
+        orderId: null,
+      });
+      const found = await repo.findById("bet-1");
+      expect(found?.status).toBe("submitting");
+    });
+
+    it("creates and retrieves a bet with failed status", async () => {
+      const repo = betsRepo(db);
+      await repo.create({
+        ...sampleBet,
+        status: "failed",
+        errorMessage: "Connection refused",
+        errorCategory: "network_error",
+        attempts: 1,
+        lastAttemptAt: new Date(),
+      });
+      const found = await repo.findById("bet-1");
+      expect(found?.status).toBe("failed");
+      expect(found?.errorMessage).toBe("Connection refused");
+      expect(found?.errorCategory).toBe("network_error");
+      expect(found?.attempts).toBe(1);
+      expect(found?.lastAttemptAt).toBeTruthy();
+    });
+
+    it("defaults attempts to 0 and error fields to null", async () => {
+      const repo = betsRepo(db);
+      await repo.create(sampleBet);
+      const found = await repo.findById("bet-1");
+      expect(found?.attempts).toBe(0);
+      expect(found?.errorMessage).toBeNull();
+      expect(found?.errorCategory).toBeNull();
+      expect(found?.lastAttemptAt).toBeNull();
+    });
+
+    it("finds submitting bets by status", async () => {
+      const repo = betsRepo(db);
+      await repo.create({ ...sampleBet, status: "submitting", orderId: null });
+      const results = await repo.findByStatus("submitting");
+      expect(results).toHaveLength(1);
+    });
+
+    it("finds failed bets by status", async () => {
+      const repo = betsRepo(db);
+      await repo.create({ ...sampleBet, status: "failed" });
+      const results = await repo.findByStatus("failed");
+      expect(results).toHaveLength(1);
+    });
+  });
+
+  describe("updateBetAfterSubmission", () => {
+    it("updates submitting bet to pending with orderId", async () => {
+      const repo = betsRepo(db);
+      await repo.create({ ...sampleBet, status: "submitting", orderId: null });
+      await repo.updateBetAfterSubmission("bet-1", {
+        status: "pending",
+        orderId: "real-order-123",
+      });
+      const found = await repo.findById("bet-1");
+      expect(found?.status).toBe("pending");
+      expect(found?.orderId).toBe("real-order-123");
+    });
+
+    it("updates submitting bet to failed with error details", async () => {
+      const repo = betsRepo(db);
+      await repo.create({ ...sampleBet, status: "submitting", orderId: null });
+      const now = new Date();
+      await repo.updateBetAfterSubmission("bet-1", {
+        status: "failed",
+        errorMessage: "Connection refused",
+        errorCategory: "network_error",
+        attempts: 1,
+        lastAttemptAt: now,
+      });
+      const found = await repo.findById("bet-1");
+      expect(found?.status).toBe("failed");
+      expect(found?.errorMessage).toBe("Connection refused");
+      expect(found?.errorCategory).toBe("network_error");
+      expect(found?.attempts).toBe(1);
+      expect(found?.lastAttemptAt).toBeTruthy();
+    });
+  });
+
+  describe("findRetryableBets", () => {
+    it("returns failed bets with retryable category under max attempts", async () => {
+      const repo = betsRepo(db);
+      await repo.create({
+        ...sampleBet,
+        status: "failed",
+        errorCategory: "network_error",
+        attempts: 1,
+      });
+      const retryable = await repo.findRetryableBets(3);
+      expect(retryable).toHaveLength(1);
+    });
+
+    it("excludes terminal category bets", async () => {
+      const repo = betsRepo(db);
+      await repo.create({
+        ...sampleBet,
+        id: "bet-terminal",
+        orderId: "order-t",
+        status: "failed",
+        errorCategory: "insufficient_funds",
+        attempts: 1,
+      });
+      const retryable = await repo.findRetryableBets(3);
+      expect(retryable).toHaveLength(0);
+    });
+
+    it("excludes bets at or over max attempts", async () => {
+      const repo = betsRepo(db);
+      await repo.create({
+        ...sampleBet,
+        status: "failed",
+        errorCategory: "network_error",
+        attempts: 3,
+      });
+      const retryable = await repo.findRetryableBets(3);
+      expect(retryable).toHaveLength(0);
+    });
+
+    it("includes rate_limited and excludes wallet_error", async () => {
+      const repo = betsRepo(db);
+      await repo.create({
+        ...sampleBet,
+        id: "bet-rate",
+        orderId: "order-r",
+        status: "failed",
+        errorCategory: "rate_limited",
+        attempts: 1,
+      });
+      await repo.create({
+        ...sampleBet,
+        id: "bet-wallet",
+        orderId: "order-w",
+        status: "failed",
+        errorCategory: "wallet_error",
+        attempts: 1,
+      });
+      const retryable = await repo.findRetryableBets(3);
+      expect(retryable).toHaveLength(1);
+      expect(retryable[0]?.id).toBe("bet-rate");
+    });
+  });
+
 });

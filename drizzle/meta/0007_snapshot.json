@@ -1,8 +1,8 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "4e1b2606-535d-4085-a99d-5f418c0e6fc7",
-  "prevId": "63667680-bbaa-4594-b75b-98015021a41e",
+  "id": "a681a10c-cc9c-4165-b708-9afe6a005b81",
+  "prevId": "4e1b2606-535d-4085-a99d-5f418c0e6fc7",
   "tables": {
     "bets": {
       "name": "bets",
@@ -102,6 +102,35 @@
         "profit": {
           "name": "profit",
           "type": "real",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "error_message": {
+          "name": "error_message",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "error_category": {
+          "name": "error_category",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "attempts": {
+          "name": "attempts",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
+        },
+        "last_attempt_at": {
+          "name": "last_attempt_at",
+          "type": "integer",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false

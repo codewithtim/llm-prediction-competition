@@ -46,6 +46,8 @@ export function createSettlementService(deps: {
       const errors: string[] = [];
       let skipped = 0;
 
+      // Only settle pending and filled bets.
+      // submitting and failed bets are excluded — they haven't been confirmed on-chain.
       const pendingBets = await betsRepo.findByStatus("pending");
       const filledBets = await betsRepo.findByStatus("filled");
       const unsettledBets = [...pendingBets, ...filledBets];

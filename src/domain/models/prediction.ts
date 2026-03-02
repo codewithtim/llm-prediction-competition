@@ -11,6 +11,14 @@ export type Prediction = {
   createdAt: string;
 };
 
+export type BetErrorCategory =
+  | "insufficient_funds"
+  | "network_error"
+  | "rate_limited"
+  | "wallet_error"
+  | "invalid_market"
+  | "unknown";
+
 export type Bet = {
   id: string;
   orderId: string;
@@ -26,6 +34,17 @@ export type Bet = {
   placedAt: string;
   settledAt: string | null;
   profit: number | null;
+  errorMessage: string | null;
+  errorCategory: BetErrorCategory | null;
+  attempts: number;
+  lastAttemptAt: string | null;
 };
 
-export type BetStatus = "pending" | "filled" | "settled_won" | "settled_lost" | "cancelled";
+export type BetStatus =
+  | "submitting"
+  | "pending"
+  | "filled"
+  | "settled_won"
+  | "settled_lost"
+  | "cancelled"
+  | "failed";

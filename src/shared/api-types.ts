@@ -3,6 +3,8 @@ export type PerformanceStatsDTO = {
   wins: number;
   losses: number;
   pending: number;
+  failed: number;
+  lockedAmount: number;
   totalStaked: number;
   totalReturned: number;
   profitLoss: number;
@@ -154,6 +156,8 @@ export type DashboardResponse = {
   activeMarkets: number;
   totalBets: number;
   pendingBets: number;
+  failedBets: number;
+  lockedAmount: number;
   totalProfitLoss: number;
   overallAccuracy: number;
   leaderboard: LeaderboardEntry[];

@@ -2,7 +2,9 @@ import type { betsRepo as betsRepoFactory } from "../../infrastructure/database/
 import type { BettingClientFactory } from "../../infrastructure/polymarket/betting-client-factory";
 import type { PredictionOutput } from "../contracts/prediction";
 import type { Market } from "../models/market";
+import type { BetErrorCategory } from "../models/prediction";
 import type { WalletConfig } from "../types/competitor";
+import { classifyBetError } from "./bet-errors";
 
 export type BettingConfig = {
   maxStakePerBet: number;
@@ -23,7 +25,7 @@ export type PlaceBetInput = {
 };
 
 export type PlaceBetResult = {
-  status: "placed" | "dry_run" | "skipped";
+  status: "placed" | "dry_run" | "skipped" | "failed";
   bet?: {
     id: string;
     orderId: string;
@@ -37,7 +39,11 @@ export type PlaceBetResult = {
     shares: number;
   };
   reason?: string;
+  error?: string;
+  errorCategory?: BetErrorCategory;
 };
+
+const BLOCKING_STATUSES = new Set(["submitting", "pending", "filled"]);
 
 export function resolveTokenId(market: Market, side: "YES" | "NO"): string {
   return side === "YES" ? market.tokenIds[0] : market.tokenIds[1];
@@ -62,9 +68,10 @@ export function createBettingService(deps: {
         return { status: "skipped", reason: "Market is not accepting orders" };
       }
 
+      // Anti-double-bet: check for existing active bets on this market+competitor
       const existingBets = await betsRepo.findByCompetitor(competitorId);
       const duplicate = existingBets.find(
-        (b) => b.marketId === market.id && (b.status === "pending" || b.status === "filled"),
+        (b) => b.marketId === market.id && BLOCKING_STATUSES.has(b.status),
       );
       if (duplicate) {
         return { status: "skipped", reason: "Bet already exists for this market and competitor" };
@@ -72,8 +79,9 @@ export function createBettingService(deps: {
 
       const amount = clampStake(resolvedStake, config.maxStakePerBet);
 
+      // Exposure includes submitting bets (locked capital)
       const pendingExposure = existingBets
-        .filter((b) => b.status === "pending" || b.status === "filled")
+        .filter((b) => b.status === "submitting" || b.status === "pending" || b.status === "filled")
         .reduce((sum, b) => sum + b.amount, 0);
 
       if (pendingExposure + amount > config.maxTotalExposure) {
@@ -93,21 +101,11 @@ export function createBettingService(deps: {
         return { status: "skipped", reason: "No wallet configured for competitor" };
       }
 
-      const bettingClient = bettingClientFactory.getClient(competitorId, walletConfig);
-
-      const { orderId } = await bettingClient.placeOrder({
-        tokenId,
-        price,
-        amount,
-        side: "BUY",
-      });
-
       const shares = amount / price;
       const betId = crypto.randomUUID();
 
       const bet = {
         id: betId,
-        orderId,
         marketId: market.id,
         fixtureId,
         competitorId,
@@ -118,12 +116,45 @@ export function createBettingService(deps: {
         shares,
       };
 
+      // Write-ahead: create row with submitting status BEFORE API call
       await betsRepo.create({
         ...bet,
-        status: "pending" as const,
+        orderId: null,
+        status: "submitting" as const,
       });
 
-      return { status: "placed", bet };
+      const bettingClient = bettingClientFactory.getClient(competitorId, walletConfig);
+
+      try {
+        const { orderId } = await bettingClient.placeOrder({
+          tokenId,
+          price,
+          amount,
+          side: "BUY",
+        });
+
+        // Success: update to pending with real orderId
+        await betsRepo.updateBetAfterSubmission(betId, {
+          status: "pending",
+          orderId,
+        });
+
+        return { status: "placed", bet: { ...bet, orderId } };
+      } catch (err) {
+        // Failure: update to failed with error details
+        const errorMessage = err instanceof Error ? err.message : String(err);
+        const errorCategory = classifyBetError(err);
+
+        await betsRepo.updateBetAfterSubmission(betId, {
+          status: "failed",
+          errorMessage,
+          errorCategory,
+          attempts: 1,
+          lastAttemptAt: new Date(),
+        });
+
+        return { status: "failed", error: errorMessage, errorCategory };
+      }
     },
   };
 }

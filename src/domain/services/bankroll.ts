@@ -20,7 +20,11 @@ export function createBankrollProvider(deps: {
       for (const bet of allBets) {
         if (bet.status === "settled_won" || bet.status === "settled_lost") {
           settledPnL += bet.profit ?? 0;
-        } else if (bet.status === "pending" || bet.status === "filled") {
+        } else if (
+          bet.status === "submitting" ||
+          bet.status === "pending" ||
+          bet.status === "filled"
+        ) {
           pendingExposure += bet.amount;
         }
       }

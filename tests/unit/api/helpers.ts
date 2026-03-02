@@ -32,6 +32,8 @@ export function createMockDeps(overrides: Partial<ApiDeps> = {}): ApiDeps {
         wins: 0,
         losses: 0,
         pending: 0,
+        failed: 0,
+        lockedAmount: 0,
         totalStaked: 0,
         totalReturned: 0,
         profitLoss: 0,

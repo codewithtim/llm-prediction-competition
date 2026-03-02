@@ -15,10 +15,14 @@ type BetRow = {
   amount: number;
   price: number;
   shares: number;
-  status: "pending" | "filled" | "settled_won" | "settled_lost" | "cancelled";
+  status: "submitting" | "pending" | "filled" | "settled_won" | "settled_lost" | "cancelled" | "failed";
   placedAt: Date;
   settledAt: Date | null;
   profit: number | null;
+  errorMessage: string | null;
+  errorCategory: string | null;
+  attempts: number;
+  lastAttemptAt: Date | null;
 };
 
 function makeBet(overrides: Partial<BetRow> = {}): BetRow {
@@ -37,6 +41,10 @@ function makeBet(overrides: Partial<BetRow> = {}): BetRow {
     placedAt: new Date(),
     settledAt: null,
     profit: null,
+    errorMessage: null,
+    errorCategory: null,
+    attempts: 0,
+    lastAttemptAt: null,
     ...overrides,
   };
 }
@@ -122,6 +130,26 @@ describe("createBankrollProvider", () => {
   it("ignores cancelled bets", async () => {
     const provider = createBankrollProvider({
       betsRepo: mockBetsRepo([makeBet({ amount: 50, status: "cancelled" })]),
+      initialBankroll: 100,
+    });
+
+    const bankroll = await provider.getBankroll("comp-1");
+    expect(bankroll).toBe(100);
+  });
+
+  it("submitting bet deducts from bankroll (locked capital)", async () => {
+    const provider = createBankrollProvider({
+      betsRepo: mockBetsRepo([makeBet({ amount: 10, status: "submitting" })]),
+      initialBankroll: 100,
+    });
+
+    const bankroll = await provider.getBankroll("comp-1");
+    expect(bankroll).toBe(90); // 100 - 10
+  });
+
+  it("failed bet does NOT deduct from bankroll (capital released)", async () => {
+    const provider = createBankrollProvider({
+      betsRepo: mockBetsRepo([makeBet({ amount: 10, status: "failed" })]),
       initialBankroll: 100,
     });
 

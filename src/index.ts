@@ -4,7 +4,9 @@ import { createApi } from "./api/index.ts";
 import { loadCompetitors } from "./competitors/loader.ts";
 import { createRegistry } from "./competitors/registry.ts";
 import { createBankrollProvider } from "./domain/services/bankroll.ts";
+import { createBetRetryService } from "./domain/services/bet-retry.ts";
 import { createBettingService } from "./domain/services/betting.ts";
+import { createOrderConfirmationService } from "./domain/services/order-confirmation.ts";
 import { createSettlementService } from "./domain/services/settlement.ts";
 import { createDb } from "./infrastructure/database/client.ts";
 import { betsRepo } from "./infrastructure/database/repositories/bets.ts";
@@ -90,6 +92,32 @@ for (const entry of engines) {
   registry.register(entry.competitorId, entry.name, entry.engine, entry.walletConfig);
 }
 
+// ── Order confirmation & retry services ──────────────────────────────
+const walletConfigs = new Map<
+  string,
+  { polyPrivateKey: string; polyApiKey: string; polyApiSecret: string; polyApiPassphrase: string }
+>();
+for (const entry of engines) {
+  if (entry.walletConfig) {
+    walletConfigs.set(entry.competitorId, entry.walletConfig);
+  }
+}
+
+const orderConfirmationService = createOrderConfirmationService({
+  betsRepo: bets,
+  bettingClientFactory,
+  walletConfigs,
+  maxOrderAgeMs: DEFAULT_CONFIG.orderConfirmation.maxOrderAgeMs,
+});
+
+const betRetryService = createBetRetryService({
+  betsRepo: bets,
+  bettingClientFactory,
+  walletConfigs,
+  maxRetryAttempts: DEFAULT_CONFIG.retry.maxRetryAttempts,
+  retryDelayMs: DEFAULT_CONFIG.retry.retryDelayMs,
+});
+
 // ── Pipelines & scheduler ────────────────────────────────────────────
 const discoveryPipeline = createDiscoveryPipeline({
   discovery,
@@ -115,6 +143,8 @@ const scheduler = createScheduler({
   discoveryPipeline,
   predictionPipeline,
   settlementService,
+  orderConfirmationService,
+  betRetryService,
   config: DEFAULT_CONFIG,
 });
 

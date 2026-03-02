@@ -1,10 +1,11 @@
 ## UI CHANGES
 
-- [ ] Date sorting on markets and fixtures
-- [ ] Leaderboard + recents full width 
-- [ ] Competitors: add logos for mdoels etc
-- [ ] Make the left menu minimizable 
-- [ ] Reasoning in model predictions needs to wrap/be visible
+- [X] Date sorting on markets and fixtures
+- [X] Leaderboard + recents full width 
+- [X] Competitors: add logos for mdoels etc
+- [X] Make the left menu minimizable 
+- [X] Reasoning in model predictions needs to wrap/be visible
+- [ ] Add confidence to bet UI rows
 
 
 ## General Changes

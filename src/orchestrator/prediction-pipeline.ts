@@ -360,6 +360,15 @@ export function createPredictionPipeline(deps: PredictionPipelineDeps) {
                   result.betsPlaced++;
                 } else if (betResult.status === "dry_run") {
                   result.betsDryRun++;
+                } else if (betResult.status === "failed") {
+                  result.betsSkipped++;
+                  logger.warn("Prediction: bet failed", {
+                    competitorId,
+                    fixtureId: fixture.id,
+                    marketId: market.id,
+                    error: betResult.error,
+                    errorCategory: betResult.errorCategory,
+                  });
                 } else {
                   result.betsSkipped++;
                   logger.info("Prediction: bet skipped", {

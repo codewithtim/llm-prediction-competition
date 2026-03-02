@@ -8,6 +8,17 @@ export type LeagueConfig = {
   polymarketSeriesSlug: string;
 };
 
+export type OrderConfirmationConfig = {
+  intervalMs: number;
+  maxOrderAgeMs: number;
+};
+
+export type RetryConfig = {
+  intervalMs: number;
+  maxRetryAttempts: number;
+  retryDelayMs: number;
+};
+
 export type PipelineConfig = {
   leagues: LeagueConfig[];
   season: number;
@@ -19,6 +30,8 @@ export type PipelineConfig = {
   predictionDelayMs?: number;
   settlementDelayMs?: number;
   betting: BettingConfig;
+  orderConfirmation: OrderConfirmationConfig;
+  retry: RetryConfig;
 };
 
 export const DEFAULT_LEAGUES: LeagueConfig[] = [
@@ -46,5 +59,14 @@ export const DEFAULT_CONFIG: PipelineConfig = {
     initialBankroll: 100,
     minBetAmount: 0.01,
     dryRun: false,
+  },
+  orderConfirmation: {
+    intervalMs: 5 * 60 * 1000, // 5 minutes
+    maxOrderAgeMs: 60 * 60 * 1000, // 1 hour
+  },
+  retry: {
+    intervalMs: 10 * 60 * 1000, // 10 minutes
+    maxRetryAttempts: 3,
+    retryDelayMs: 60_000, // minimum 1 minute between retry attempts
   },
 };

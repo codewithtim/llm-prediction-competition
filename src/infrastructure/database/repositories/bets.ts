@@ -1,6 +1,13 @@
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq, lt, notInArray } from "drizzle-orm";
+import type { BetErrorCategory, BetStatus } from "../../../domain/models/prediction.ts";
 import type { Database } from "../client";
 import { bets } from "../schema";
+
+const TERMINAL_CATEGORIES: BetErrorCategory[] = [
+  "insufficient_funds",
+  "wallet_error",
+  "invalid_market",
+];
 
 export function betsRepo(db: Database) {
   return {
@@ -24,18 +31,11 @@ export function betsRepo(db: Database) {
       return db.select().from(bets).where(eq(bets.competitorId, competitorId)).all();
     },
 
-    async findByStatus(
-      status: "pending" | "filled" | "settled_won" | "settled_lost" | "cancelled",
-    ) {
+    async findByStatus(status: BetStatus) {
       return db.select().from(bets).where(eq(bets.status, status)).all();
     },
 
-    async updateStatus(
-      id: string,
-      status: "pending" | "filled" | "settled_won" | "settled_lost" | "cancelled",
-      settledAt?: Date,
-      profit?: number,
-    ) {
+    async updateStatus(id: string, status: BetStatus, settledAt?: Date, profit?: number) {
       return db
         .update(bets)
         .set({ status, settledAt: settledAt ?? null, profit: profit ?? null })
@@ -43,16 +43,73 @@ export function betsRepo(db: Database) {
         .run();
     },
 
+    async updateBetAfterSubmission(
+      id: string,
+      update:
+        | { status: "pending"; orderId: string }
+        | {
+            status: "failed";
+            errorMessage: string;
+            errorCategory: BetErrorCategory;
+            attempts: number;
+            lastAttemptAt: Date;
+          },
+    ) {
+      if (update.status === "pending") {
+        return db
+          .update(bets)
+          .set({ status: "pending", orderId: update.orderId })
+          .where(eq(bets.id, id))
+          .run();
+      }
+      return db
+        .update(bets)
+        .set({
+          status: "failed",
+          errorMessage: update.errorMessage,
+          errorCategory: update.errorCategory,
+          attempts: update.attempts,
+          lastAttemptAt: update.lastAttemptAt,
+        })
+        .where(eq(bets.id, id))
+        .run();
+    },
+
+    async findRetryableBets(maxAttempts: number, minRetryDelayMs?: number) {
+      const conditions = [
+        eq(bets.status, "failed"),
+        lt(bets.attempts, maxAttempts),
+        notInArray(bets.errorCategory, TERMINAL_CATEGORIES),
+      ];
+
+      if (minRetryDelayMs) {
+        const threshold = new Date(Date.now() - minRetryDelayMs);
+        conditions.push(lt(bets.lastAttemptAt, threshold));
+      }
+
+      return db
+        .select()
+        .from(bets)
+        .where(and(...conditions))
+        .all();
+    },
+
     async getPerformanceStats(competitorId: string) {
       const rows = await db.select().from(bets).where(eq(bets.competitorId, competitorId)).all();
 
+      const settled = rows.filter((r) => r.status === "settled_won" || r.status === "settled_lost");
       const wins = rows.filter((r) => r.status === "settled_won").length;
       const losses = rows.filter((r) => r.status === "settled_lost").length;
-      const pending = rows.filter((r) => r.status === "pending" || r.status === "filled").length;
-      const totalStaked = rows.reduce((sum, r) => sum + r.amount, 0);
-      const totalReturned = rows
-        .filter((r) => r.profit !== null)
-        .reduce((sum, r) => sum + r.amount + (r.profit ?? 0), 0);
+      const pending = rows.filter(
+        (r) => r.status === "submitting" || r.status === "pending" || r.status === "filled",
+      ).length;
+      const failed = rows.filter((r) => r.status === "failed").length;
+      const activeBets = rows.filter((r) => r.status === "pending" || r.status === "filled");
+      const lockedAmount = activeBets.reduce((sum, r) => sum + r.amount, 0);
+
+      // P&L only from settled bets — failed/cancelled bets never used real money
+      const totalStaked = settled.reduce((sum, r) => sum + r.amount, 0);
+      const totalReturned = settled.reduce((sum, r) => sum + r.amount + (r.profit ?? 0), 0);
 
       return {
         competitorId,
@@ -60,6 +117,8 @@ export function betsRepo(db: Database) {
         wins,
         losses,
         pending,
+        failed,
+        lockedAmount,
         totalStaked,
         totalReturned,
         profitLoss: totalReturned - totalStaked,

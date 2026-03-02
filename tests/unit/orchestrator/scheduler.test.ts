@@ -20,6 +20,15 @@ function makeConfig(overrides: Partial<PipelineConfig> = {}): PipelineConfig {
       minBetAmount: 0.01,
       dryRun: true,
     },
+    orderConfirmation: {
+      intervalMs: 100,
+      maxOrderAgeMs: 60 * 60 * 1000,
+    },
+    retry: {
+      intervalMs: 100,
+      maxRetryAttempts: 3,
+      retryDelayMs: 60_000,
+    },
     ...overrides,
   };
 }
@@ -226,5 +235,106 @@ describe("createScheduler", () => {
 
     resolveFirst();
     await new Promise((r) => setTimeout(r, 10));
+  });
+
+  test("starts without optional services (orderConfirmation, betRetry)", async () => {
+    const deps = buildDeps();
+    // buildDeps omits optional services by default
+    scheduler = createScheduler(deps);
+    scheduler.start();
+
+    await new Promise((r) => setTimeout(r, 20));
+
+    // Core pipelines should still run
+    expect(deps.discoveryPipeline.run).toHaveBeenCalled();
+    expect(deps.predictionPipeline.run).toHaveBeenCalled();
+    expect(deps.settlementService.settleBets).toHaveBeenCalled();
+  });
+
+  test("runs order confirmation immediately when provided", async () => {
+    const confirmOrders = mock(() =>
+      Promise.resolve({ confirmed: 0, cancelled: 0, failed: 0, stillPending: 0, errors: [] }),
+    );
+    const deps = buildDeps({
+      orderConfirmationService: { confirmOrders },
+    });
+    scheduler = createScheduler(deps);
+    scheduler.start();
+
+    await new Promise((r) => setTimeout(r, 20));
+
+    expect(confirmOrders).toHaveBeenCalled();
+  });
+
+  test("runs bet retry immediately when provided", async () => {
+    const retryFailedBets = mock(() =>
+      Promise.resolve({ retried: 0, succeeded: 0, failedAgain: 0, errors: [] }),
+    );
+    const deps = buildDeps({
+      betRetryService: { retryFailedBets },
+    });
+    scheduler = createScheduler(deps);
+    scheduler.start();
+
+    await new Promise((r) => setTimeout(r, 20));
+
+    expect(retryFailedBets).toHaveBeenCalled();
+  });
+
+  test("overlap guard prevents concurrent order confirmation runs", async () => {
+    let resolveFirst: () => void = () => {};
+    const slowConfirm = mock(
+      () =>
+        new Promise<{ confirmed: number; cancelled: number; failed: number; stillPending: number; errors: string[] }>((resolve) => {
+          resolveFirst = () =>
+            resolve({ confirmed: 0, cancelled: 0, failed: 0, stillPending: 0, errors: [] });
+        }),
+    );
+
+    const deps = buildDeps({
+      orderConfirmationService: { confirmOrders: slowConfirm },
+      config: makeConfig({
+        orderConfirmation: { intervalMs: 30, maxOrderAgeMs: 60 * 60 * 1000 },
+      }),
+    });
+    scheduler = createScheduler(deps);
+    scheduler.start();
+
+    await new Promise((r) => setTimeout(r, 60));
+
+    expect(slowConfirm.mock.calls.length).toBe(1);
+
+    resolveFirst();
+    await new Promise((r) => setTimeout(r, 10));
+  });
+
+  test("stop() clears order confirmation and bet retry timers", async () => {
+    const confirmOrders = mock(() =>
+      Promise.resolve({ confirmed: 0, cancelled: 0, failed: 0, stillPending: 0, errors: [] }),
+    );
+    const retryFailedBets = mock(() =>
+      Promise.resolve({ retried: 0, succeeded: 0, failedAgain: 0, errors: [] }),
+    );
+    const deps = buildDeps({
+      orderConfirmationService: { confirmOrders },
+      betRetryService: { retryFailedBets },
+      config: makeConfig({
+        orderConfirmation: { intervalMs: 50, maxOrderAgeMs: 60 * 60 * 1000 },
+        retry: { intervalMs: 50, maxRetryAttempts: 3, retryDelayMs: 60_000 },
+      }),
+    });
+    scheduler = createScheduler(deps);
+    scheduler.start();
+
+    await new Promise((r) => setTimeout(r, 20));
+    scheduler.stop();
+
+    const confirmCalls = (confirmOrders as ReturnType<typeof mock>).mock.calls.length;
+    const retryCalls = (retryFailedBets as ReturnType<typeof mock>).mock.calls.length;
+
+    await new Promise((r) => setTimeout(r, 100));
+
+    expect((confirmOrders as ReturnType<typeof mock>).mock.calls.length).toBe(confirmCalls);
+    expect((retryFailedBets as ReturnType<typeof mock>).mock.calls.length).toBe(retryCalls);
   });
 });

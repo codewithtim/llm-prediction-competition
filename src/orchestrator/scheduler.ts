@@ -1,3 +1,5 @@
+import type { BetRetryService } from "../domain/services/bet-retry.ts";
+import type { OrderConfirmationService } from "../domain/services/order-confirmation.ts";
 import type { SettlementService } from "../domain/services/settlement.ts";
 import { logger } from "../shared/logger.ts";
 import type { PipelineConfig } from "./config.ts";
@@ -8,21 +10,34 @@ export type SchedulerDeps = {
   discoveryPipeline: DiscoveryPipeline;
   predictionPipeline: PredictionPipeline;
   settlementService: SettlementService;
+  orderConfirmationService?: OrderConfirmationService;
+  betRetryService?: BetRetryService;
   config: PipelineConfig;
 };
 
 export function createScheduler(deps: SchedulerDeps) {
-  const { discoveryPipeline, predictionPipeline, settlementService, config } = deps;
+  const {
+    discoveryPipeline,
+    predictionPipeline,
+    settlementService,
+    orderConfirmationService,
+    betRetryService,
+    config,
+  } = deps;
 
   let discoveryTimer: ReturnType<typeof setInterval> | null = null;
   let predictionTimer: ReturnType<typeof setInterval> | null = null;
   let settlementTimer: ReturnType<typeof setInterval> | null = null;
+  let orderConfirmationTimer: ReturnType<typeof setInterval> | null = null;
+  let betRetryTimer: ReturnType<typeof setInterval> | null = null;
   let discoveryDelayTimer: ReturnType<typeof setTimeout> | null = null;
   let predictionDelayTimer: ReturnType<typeof setTimeout> | null = null;
   let settlementDelayTimer: ReturnType<typeof setTimeout> | null = null;
   let discoveryRunning = false;
   let predictionRunning = false;
   let settlementRunning = false;
+  let orderConfirmationRunning = false;
+  let betRetryRunning = false;
 
   async function runDiscovery() {
     if (discoveryRunning) {
@@ -110,12 +125,75 @@ export function createScheduler(deps: SchedulerDeps) {
     }
   }
 
+  async function runOrderConfirmation() {
+    if (!orderConfirmationService) return;
+    if (orderConfirmationRunning) {
+      logger.warn("Scheduler: order confirmation skipped (previous run still in progress)");
+      return;
+    }
+    orderConfirmationRunning = true;
+    const start = Date.now();
+    try {
+      logger.info("Scheduler: starting order confirmation run");
+      const result = await orderConfirmationService.confirmOrders();
+      const durationMs = Date.now() - start;
+      logger.info("Scheduler: order confirmation run complete", {
+        durationMs,
+        confirmed: result.confirmed,
+        cancelled: result.cancelled,
+        failed: result.failed,
+        stillPending: result.stillPending,
+        errors: result.errors.length,
+      });
+      for (const error of result.errors) {
+        logger.error("Scheduler: order confirmation error", { message: error });
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      logger.error("Scheduler: order confirmation run failed", { error: msg });
+    } finally {
+      orderConfirmationRunning = false;
+    }
+  }
+
+  async function runBetRetry() {
+    if (!betRetryService) return;
+    if (betRetryRunning) {
+      logger.warn("Scheduler: bet retry skipped (previous run still in progress)");
+      return;
+    }
+    betRetryRunning = true;
+    const start = Date.now();
+    try {
+      logger.info("Scheduler: starting bet retry run");
+      const result = await betRetryService.retryFailedBets();
+      const durationMs = Date.now() - start;
+      logger.info("Scheduler: bet retry run complete", {
+        durationMs,
+        retried: result.retried,
+        succeeded: result.succeeded,
+        failedAgain: result.failedAgain,
+        errors: result.errors.length,
+      });
+      for (const error of result.errors) {
+        logger.error("Scheduler: bet retry error", { message: error });
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      logger.error("Scheduler: bet retry run failed", { error: msg });
+    } finally {
+      betRetryRunning = false;
+    }
+  }
+
   return {
     start() {
       logger.info("Scheduler: starting", {
         discoveryIntervalMs: config.discoveryIntervalMs,
         predictionIntervalMs: config.predictionIntervalMs,
         settlementIntervalMs: config.settlementIntervalMs,
+        orderConfirmationIntervalMs: config.orderConfirmation.intervalMs,
+        retryIntervalMs: config.retry.intervalMs,
       });
 
       // Run immediately (or after delay), then on interval
@@ -151,6 +229,20 @@ export function createScheduler(deps: SchedulerDeps) {
         runSettlement();
         settlementTimer = setInterval(runSettlement, config.settlementIntervalMs);
       }
+
+      // Order confirmation and bet retry run immediately on interval
+      if (orderConfirmationService) {
+        runOrderConfirmation();
+        orderConfirmationTimer = setInterval(
+          runOrderConfirmation,
+          config.orderConfirmation.intervalMs,
+        );
+      }
+
+      if (betRetryService) {
+        runBetRetry();
+        betRetryTimer = setInterval(runBetRetry, config.retry.intervalMs);
+      }
     },
 
     stop() {
@@ -178,6 +270,14 @@ export function createScheduler(deps: SchedulerDeps) {
       if (settlementTimer) {
         clearInterval(settlementTimer);
         settlementTimer = null;
+      }
+      if (orderConfirmationTimer) {
+        clearInterval(orderConfirmationTimer);
+        orderConfirmationTimer = null;
+      }
+      if (betRetryTimer) {
+        clearInterval(betRetryTimer);
+        betRetryTimer = null;
       }
     },
   };

@@ -48,7 +48,20 @@ export function createBettingClient(config: BettingClientConfig) {
         OrderType.GTC,
       );
 
-      return { orderId: response?.orderID ?? response?.id ?? String(response) };
+      // CLOB client defaults throwOnError: false — on HTTP errors it returns
+      // { error: "not enough balance / allowance", status: 400 } instead of throwing
+      if (response && typeof response === "object" && "error" in response) {
+        const errObj = response as { error?: string; status?: number };
+        throw new Error(errObj.error ?? `Order rejected (HTTP ${errObj.status ?? "unknown"})`);
+      }
+
+      // Validate we got a real order ID back
+      const orderId = response?.orderID ?? response?.id;
+      if (!orderId || typeof orderId !== "string") {
+        throw new Error(`Order rejected (no orderID in response: ${String(response)})`);
+      }
+
+      return { orderId };
     },
 
     async cancelOrder(orderId: string): Promise<void> {

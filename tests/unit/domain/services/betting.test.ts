@@ -1,6 +1,7 @@
 import { describe, expect, it, mock } from "bun:test";
 import type { PredictionOutput } from "../../../../src/domain/contracts/prediction";
 import type { Market } from "../../../../src/domain/models/market";
+import type { BetErrorCategory } from "../../../../src/domain/models/prediction";
 import {
   type BettingConfig,
   clampStake,
@@ -89,7 +90,7 @@ function mockBettingClientFactory(client: BettingClient): BettingClientFactory {
 
 type BetRow = {
   id: string;
-  orderId: string;
+  orderId: string | null;
   marketId: string;
   fixtureId: number;
   competitorId: string;
@@ -98,10 +99,14 @@ type BetRow = {
   amount: number;
   price: number;
   shares: number;
-  status: "pending" | "filled" | "settled_won" | "settled_lost" | "cancelled";
+  status: "submitting" | "pending" | "filled" | "settled_won" | "settled_lost" | "cancelled" | "failed";
   placedAt: Date;
   settledAt: Date | null;
   profit: number | null;
+  errorMessage: string | null;
+  errorCategory: BetErrorCategory | null;
+  attempts: number;
+  lastAttemptAt: Date | null;
 };
 
 function mockBetsRepo(existingBets: BetRow[] = []): BetsRepo {
@@ -111,6 +116,8 @@ function mockBetsRepo(existingBets: BetRow[] = []): BetsRepo {
     findByCompetitor: mock(() => Promise.resolve(existingBets)),
     findByStatus: mock(() => Promise.resolve([])),
     updateStatus: mock(() => Promise.resolve()),
+    updateBetAfterSubmission: mock(() => Promise.resolve()),
+    findRetryableBets: mock(() => Promise.resolve([])),
     getPerformanceStats: mock(() =>
       Promise.resolve({
         competitorId: "",
@@ -118,6 +125,8 @@ function mockBetsRepo(existingBets: BetRow[] = []): BetsRepo {
         wins: 0,
         losses: 0,
         pending: 0,
+        failed: 0,
+        lockedAmount: 0,
         totalStaked: 0,
         totalReturned: 0,
         profitLoss: 0,
@@ -125,7 +134,33 @@ function mockBetsRepo(existingBets: BetRow[] = []): BetsRepo {
         roi: 0,
       }),
     ),
+    findAll: mock(() => Promise.resolve([])),
+    findRecent: mock(() => Promise.resolve([])),
   } as unknown as BetsRepo;
+}
+
+function makeBetRow(overrides: Partial<BetRow> = {}): BetRow {
+  return {
+    id: "existing-bet",
+    orderId: "order-old",
+    marketId: "market-1",
+    fixtureId: 1001,
+    competitorId: "baseline",
+    tokenId: "token_yes_123",
+    side: "YES",
+    amount: 5,
+    price: 0.65,
+    shares: 7.69,
+    status: "pending",
+    placedAt: new Date(),
+    settledAt: null,
+    profit: null,
+    errorMessage: null,
+    errorCategory: null,
+    attempts: 0,
+    lastAttemptAt: null,
+    ...overrides,
+  };
 }
 
 function makeInput(overrides?: Partial<PlaceBetInput>): PlaceBetInput {
@@ -171,8 +206,53 @@ describe("clampStake", () => {
 });
 
 describe("createBettingService", () => {
-  describe("happy path", () => {
-    it("places bet and returns placed status with bet details", async () => {
+  describe("write-ahead pattern", () => {
+    it("creates bet row with submitting status BEFORE API call", async () => {
+      const callOrder: string[] = [];
+      const client = mockBettingClient({
+        placeOrder: mock(() => {
+          callOrder.push("placeOrder");
+          return Promise.resolve({ orderId: "order-abc" });
+        }),
+      } as unknown as BettingClient);
+      const repo = mockBetsRepo();
+      (repo.create as ReturnType<typeof mock>).mockImplementation(() => {
+        callOrder.push("create");
+        return Promise.resolve();
+      });
+
+      const service = createBettingService({
+        bettingClientFactory: mockBettingClientFactory(client),
+        betsRepo: repo,
+        config: makeConfig(),
+      });
+
+      await service.placeBet(makeInput());
+
+      expect(callOrder).toEqual(["create", "placeOrder"]);
+      const createArg = (repo.create as ReturnType<typeof mock>).mock.calls[0]?.[0] as Record<string, unknown>;
+      expect(createArg.status).toBe("submitting");
+    });
+
+    it("updates row to pending with orderId on API success", async () => {
+      const client = mockBettingClient();
+      const repo = mockBetsRepo();
+      const service = createBettingService({
+        bettingClientFactory: mockBettingClientFactory(client),
+        betsRepo: repo,
+        config: makeConfig(),
+      });
+
+      const result = await service.placeBet(makeInput());
+
+      expect(result.status).toBe("placed");
+      expect(repo.updateBetAfterSubmission).toHaveBeenCalledTimes(1);
+      const [, update] = (repo.updateBetAfterSubmission as ReturnType<typeof mock>).mock.calls[0] as [string, { status: string; orderId: string }];
+      expect(update.status).toBe("pending");
+      expect(update.orderId).toBe("order-abc");
+    });
+
+    it("returns placed with correct bet details", async () => {
       const client = mockBettingClient();
       const repo = mockBetsRepo();
       const service = createBettingService({
@@ -213,24 +293,6 @@ describe("createBettingService", () => {
       });
     });
 
-    it("records bet in betsRepo", async () => {
-      const client = mockBettingClient();
-      const repo = mockBetsRepo();
-      const service = createBettingService({
-        bettingClientFactory: mockBettingClientFactory(client),
-        betsRepo: repo,
-        config: makeConfig(),
-      });
-
-      await service.placeBet(makeInput());
-
-      expect(repo.create).toHaveBeenCalledTimes(1);
-      const createArg = (repo.create as ReturnType<typeof mock>).mock.calls[0]?.[0] as BetRow;
-      expect(createArg.marketId).toBe("market-1");
-      expect(createArg.status).toBe("pending");
-      expect(createArg.amount).toBe(5);
-    });
-
     it("uses NO token and price for NO-side prediction", async () => {
       const client = mockBettingClient();
       const repo = mockBetsRepo();
@@ -248,6 +310,50 @@ describe("createBettingService", () => {
         amount: 5,
         side: "BUY",
       });
+    });
+  });
+
+  describe("error handling", () => {
+    it("updates row to failed on API error instead of throwing", async () => {
+      const client = mockBettingClient({
+        placeOrder: mock(() => Promise.reject(new Error("CLOB API error"))),
+      } as unknown as BettingClient);
+      const repo = mockBetsRepo();
+      const service = createBettingService({
+        bettingClientFactory: mockBettingClientFactory(client),
+        betsRepo: repo,
+        config: makeConfig(),
+      });
+
+      const result = await service.placeBet(makeInput());
+
+      expect(result.status).toBe("failed");
+      expect(result.error).toContain("CLOB API error");
+      expect(result.errorCategory).toBe("unknown");
+    });
+
+    it("records error details via updateBetAfterSubmission on failure", async () => {
+      const client = mockBettingClient({
+        placeOrder: mock(() => Promise.reject(new Error("connect ECONNREFUSED"))),
+      } as unknown as BettingClient);
+      const repo = mockBetsRepo();
+      const service = createBettingService({
+        bettingClientFactory: mockBettingClientFactory(client),
+        betsRepo: repo,
+        config: makeConfig(),
+      });
+
+      await service.placeBet(makeInput());
+
+      expect(repo.updateBetAfterSubmission).toHaveBeenCalledTimes(1);
+      const [, update] = (repo.updateBetAfterSubmission as ReturnType<typeof mock>).mock.calls[0] as [
+        string,
+        { status: string; errorMessage: string; errorCategory: string; attempts: number },
+      ];
+      expect(update.status).toBe("failed");
+      expect(update.errorMessage).toContain("ECONNREFUSED");
+      expect(update.errorCategory).toBe("network_error");
+      expect(update.attempts).toBe(1);
     });
   });
 
@@ -316,24 +422,7 @@ describe("createBettingService", () => {
 
     it("skips when duplicate pending bet exists", async () => {
       const client = mockBettingClient();
-      const repo = mockBetsRepo([
-        {
-          id: "existing-bet",
-          orderId: "order-old",
-          marketId: "market-1",
-          fixtureId: 1001,
-          competitorId: "baseline",
-          tokenId: "token_yes_123",
-          side: "YES",
-          amount: 5,
-          price: 0.65,
-          shares: 7.69,
-          status: "pending",
-          placedAt: new Date(),
-          settledAt: null,
-          profit: null,
-        },
-      ]);
+      const repo = mockBetsRepo([makeBetRow({ status: "pending" })]);
       const service = createBettingService({
         bettingClientFactory: mockBettingClientFactory(client),
         betsRepo: repo,
@@ -349,24 +438,7 @@ describe("createBettingService", () => {
 
     it("skips when duplicate filled bet exists", async () => {
       const client = mockBettingClient();
-      const repo = mockBetsRepo([
-        {
-          id: "existing-bet",
-          orderId: "order-old",
-          marketId: "market-1",
-          fixtureId: 1001,
-          competitorId: "baseline",
-          tokenId: "token_yes_123",
-          side: "YES",
-          amount: 5,
-          price: 0.65,
-          shares: 7.69,
-          status: "filled",
-          placedAt: new Date(),
-          settledAt: null,
-          profit: null,
-        },
-      ]);
+      const repo = mockBetsRepo([makeBetRow({ status: "filled" })]);
       const service = createBettingService({
         bettingClientFactory: mockBettingClientFactory(client),
         betsRepo: repo,
@@ -379,26 +451,56 @@ describe("createBettingService", () => {
       expect(result.reason).toContain("already exists");
     });
 
+    it("skips when duplicate submitting bet exists (anti-double-bet)", async () => {
+      const client = mockBettingClient();
+      const repo = mockBetsRepo([makeBetRow({ status: "submitting", orderId: null })]);
+      const service = createBettingService({
+        bettingClientFactory: mockBettingClientFactory(client),
+        betsRepo: repo,
+        config: makeConfig(),
+      });
+
+      const result = await service.placeBet(makeInput());
+
+      expect(result.status).toBe("skipped");
+      expect(result.reason).toContain("already exists");
+      expect(repo.create).not.toHaveBeenCalled();
+      expect(client.placeOrder).not.toHaveBeenCalled();
+    });
+
     it("does not skip for settled bets on same market", async () => {
       const client = mockBettingClient();
+      const repo = mockBetsRepo([makeBetRow({ status: "settled_won", profit: 2.5 })]);
+      const service = createBettingService({
+        bettingClientFactory: mockBettingClientFactory(client),
+        betsRepo: repo,
+        config: makeConfig(),
+      });
+
+      const result = await service.placeBet(makeInput());
+
+      expect(result.status).toBe("placed");
+    });
+
+    it("does not skip for failed bet on same market (allows re-bet)", async () => {
+      const client = mockBettingClient();
       const repo = mockBetsRepo([
-        {
-          id: "old-bet",
-          orderId: "order-old",
-          marketId: "market-1",
-          fixtureId: 1001,
-          competitorId: "baseline",
-          tokenId: "token_yes_123",
-          side: "YES",
-          amount: 5,
-          price: 0.65,
-          shares: 7.69,
-          status: "settled_won",
-          placedAt: new Date(),
-          settledAt: new Date(),
-          profit: 2.5,
-        },
+        makeBetRow({ status: "failed", errorMessage: "timeout", errorCategory: "network_error" }),
       ]);
+      const service = createBettingService({
+        bettingClientFactory: mockBettingClientFactory(client),
+        betsRepo: repo,
+        config: makeConfig(),
+      });
+
+      const result = await service.placeBet(makeInput());
+
+      expect(result.status).toBe("placed");
+    });
+
+    it("does not skip for cancelled bet on same market", async () => {
+      const client = mockBettingClient();
+      const repo = mockBetsRepo([makeBetRow({ status: "cancelled" })]);
       const service = createBettingService({
         bettingClientFactory: mockBettingClientFactory(client),
         betsRepo: repo,
@@ -412,24 +514,7 @@ describe("createBettingService", () => {
 
     it("skips when budget would be exceeded", async () => {
       const client = mockBettingClient();
-      const repo = mockBetsRepo([
-        {
-          id: "big-bet",
-          orderId: "order-big",
-          marketId: "market-other",
-          fixtureId: 999,
-          competitorId: "baseline",
-          tokenId: "token_x",
-          side: "YES",
-          amount: 98,
-          price: 0.5,
-          shares: 196,
-          status: "pending",
-          placedAt: new Date(),
-          settledAt: null,
-          profit: null,
-        },
-      ]);
+      const repo = mockBetsRepo([makeBetRow({ marketId: "market-other", amount: 98, status: "pending" })]);
       const service = createBettingService({
         bettingClientFactory: mockBettingClientFactory(client),
         betsRepo: repo,
@@ -441,6 +526,25 @@ describe("createBettingService", () => {
       expect(result.status).toBe("skipped");
       expect(result.reason).toContain("exposure");
       expect(client.placeOrder).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("exposure calculation", () => {
+    it("submitting bets count toward exposure", async () => {
+      const client = mockBettingClient();
+      const repo = mockBetsRepo([
+        makeBetRow({ marketId: "market-other", amount: 98, status: "submitting", orderId: null }),
+      ]);
+      const service = createBettingService({
+        bettingClientFactory: mockBettingClientFactory(client),
+        betsRepo: repo,
+        config: makeConfig({ maxTotalExposure: 100 }),
+      });
+
+      const result = await service.placeBet(makeInput());
+
+      expect(result.status).toBe("skipped");
+      expect(result.reason).toContain("exposure");
     });
   });
 
@@ -460,22 +564,6 @@ describe("createBettingService", () => {
         amount: number;
       };
       expect(callArg.amount).toBe(3);
-    });
-  });
-
-  describe("error handling", () => {
-    it("propagates errors from bettingClient.placeOrder", async () => {
-      const client = mockBettingClient({
-        placeOrder: mock(() => Promise.reject(new Error("CLOB API error"))),
-      } as unknown as BettingClient);
-      const repo = mockBetsRepo();
-      const service = createBettingService({
-        bettingClientFactory: mockBettingClientFactory(client),
-        betsRepo: repo,
-        config: makeConfig(),
-      });
-
-      await expect(service.placeBet(makeInput())).rejects.toThrow("CLOB API error");
     });
   });
 });

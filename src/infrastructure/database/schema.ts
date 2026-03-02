@@ -132,7 +132,7 @@ export const predictions = sqliteTable("predictions", {
 
 export const bets = sqliteTable("bets", {
   id: text("id").primaryKey(),
-  orderId: text("order_id").notNull(),
+  orderId: text("order_id"),
   marketId: text("market_id")
     .notNull()
     .references(() => markets.id),
@@ -148,7 +148,7 @@ export const bets = sqliteTable("bets", {
   price: real("price").notNull(),
   shares: real("shares").notNull(),
   status: text("status", {
-    enum: ["pending", "filled", "settled_won", "settled_lost", "cancelled"],
+    enum: ["submitting", "pending", "filled", "settled_won", "settled_lost", "cancelled", "failed"],
   })
     .notNull()
     .default("pending"),
@@ -157,4 +157,8 @@ export const bets = sqliteTable("bets", {
     .$defaultFn(() => new Date()),
   settledAt: integer("settled_at", { mode: "timestamp" }),
   profit: real("profit"),
+  errorMessage: text("error_message"),
+  errorCategory: text("error_category"),
+  attempts: integer("attempts").notNull().default(0),
+  lastAttemptAt: integer("last_attempt_at", { mode: "timestamp" }),
 });
