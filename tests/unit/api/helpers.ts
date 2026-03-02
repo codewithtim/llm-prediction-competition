@@ -3,29 +3,29 @@ import type { ApiDeps } from "../../../src/api/index";
 export function createMockDeps(overrides: Partial<ApiDeps> = {}): ApiDeps {
   return {
     competitorsRepo: {
-      create: async () => ({} as any),
+      create: async () => ({}) as any,
       findById: async () => undefined,
       findAll: async () => [],
       findByStatus: async () => [],
-      setStatus: async () => ({} as any),
-      updateEnginePath: async () => ({} as any),
+      setStatus: async () => ({}) as any,
+      updateEnginePath: async () => ({}) as any,
       ...overrides.competitorsRepo,
     } as any,
     competitorVersionsRepo: {
-      create: async () => ({} as any),
+      create: async () => ({}) as any,
       findByCompetitor: async () => [],
       findLatest: async () => undefined,
       findByVersion: async () => undefined,
       ...overrides.competitorVersionsRepo,
     } as any,
     betsRepo: {
-      create: async () => ({} as any),
+      create: async () => ({}) as any,
       findById: async () => undefined,
       findAll: async () => [],
       findRecent: async () => [],
       findByCompetitor: async () => [],
       findByStatus: async () => [],
-      updateStatus: async () => ({} as any),
+      updateStatus: async () => ({}) as any,
       getPerformanceStats: async () => ({
         competitorId: "",
         totalBets: 0,
@@ -41,7 +41,7 @@ export function createMockDeps(overrides: Partial<ApiDeps> = {}): ApiDeps {
       ...overrides.betsRepo,
     } as any,
     predictionsRepo: {
-      create: async () => ({} as any),
+      create: async () => ({}) as any,
       findAll: async () => [],
       findRecent: async () => [],
       findByCompetitor: async () => [],
@@ -50,8 +50,8 @@ export function createMockDeps(overrides: Partial<ApiDeps> = {}): ApiDeps {
       ...overrides.predictionsRepo,
     } as any,
     marketsRepo: {
-      upsert: async () => ({} as any),
-      bulkUpsert: async () => ({} as any),
+      upsert: async () => ({}) as any,
+      bulkUpsert: async () => ({}) as any,
       findAll: async () => [],
       findById: async () => undefined,
       findActive: async () => [],
@@ -61,8 +61,8 @@ export function createMockDeps(overrides: Partial<ApiDeps> = {}): ApiDeps {
       ...overrides.marketsRepo,
     } as any,
     fixturesRepo: {
-      upsert: async () => ({} as any),
-      bulkUpsert: async () => ({} as any),
+      upsert: async () => ({}) as any,
+      bulkUpsert: async () => ({}) as any,
       findAll: async () => [],
       findById: async () => undefined,
       findByStatus: async () => [],
@@ -71,8 +71,8 @@ export function createMockDeps(overrides: Partial<ApiDeps> = {}): ApiDeps {
     } as any,
     walletsRepo: {
       findByCompetitorId: async () => null,
-      create: async () => ({} as any),
-      delete: async () => ({} as any),
+      create: async () => ({}) as any,
+      delete: async () => ({}) as any,
       listAll: async () => [],
       ...overrides.walletsRepo,
     } as any,

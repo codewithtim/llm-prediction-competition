@@ -8,7 +8,14 @@ describe("GET /api/dashboard", () => {
     const deps = createMockDeps({
       competitorsRepo: {
         findAll: async () => [
-          { id: "c1", name: "Claude", model: "claude-4", status: "active", type: "weight-tuned", createdAt: new Date() },
+          {
+            id: "c1",
+            name: "Claude",
+            model: "claude-4",
+            status: "active",
+            type: "weight-tuned",
+            createdAt: new Date(),
+          },
         ],
       } as any,
       fixturesRepo: {

@@ -1,5 +1,7 @@
-import { StatusBadge } from "@/components/shared/status-badge";
+import type { LeaderboardEntry } from "@shared/api-types";
+import { Link } from "@tanstack/react-router";
 import { Money } from "@/components/shared/money";
+import { StatusBadge } from "@/components/shared/status-badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Table,
@@ -10,8 +12,6 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { formatPct } from "@/lib/format";
-import type { LeaderboardEntry } from "@shared/api-types";
-import { Link } from "@tanstack/react-router";
 
 export function Leaderboard({ entries }: { entries: LeaderboardEntry[] }) {
   return (

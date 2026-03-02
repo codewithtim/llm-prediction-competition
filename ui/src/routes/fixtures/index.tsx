@@ -1,3 +1,4 @@
+import { Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { PageShell } from "@/components/layout/page-shell";
 import { EmptyState } from "@/components/shared/empty-state";
@@ -14,7 +15,6 @@ import {
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useFixtures } from "@/lib/api";
 import { formatDate } from "@/lib/format";
-import { Link } from "@tanstack/react-router";
 
 const STATUS_TABS = [
   { value: "", label: "All" },

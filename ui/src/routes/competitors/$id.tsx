@@ -1,3 +1,4 @@
+import { useParams } from "@tanstack/react-router";
 import { PageShell } from "@/components/layout/page-shell";
 import { EmptyState } from "@/components/shared/empty-state";
 import { LoadingSkeleton } from "@/components/shared/loading-skeleton";
@@ -15,7 +16,6 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useCompetitor } from "@/lib/api";
 import { formatCurrency, formatDateTime, formatPct } from "@/lib/format";
-import { useParams } from "@tanstack/react-router";
 
 export function CompetitorDetailPage() {
   const { id } = useParams({ from: "/competitors/$id" });
@@ -46,7 +46,9 @@ export function CompetitorDetailPage() {
       <Tabs defaultValue="bets" className="w-full">
         <TabsList className="bg-zinc-900 border border-zinc-800">
           <TabsTrigger value="bets">Bets ({data.recentBets.length})</TabsTrigger>
-          <TabsTrigger value="predictions">Predictions ({data.recentPredictions.length})</TabsTrigger>
+          <TabsTrigger value="predictions">
+            Predictions ({data.recentPredictions.length})
+          </TabsTrigger>
           <TabsTrigger value="versions">Versions ({data.versions.length})</TabsTrigger>
         </TabsList>
 
@@ -70,13 +72,25 @@ export function CompetitorDetailPage() {
                 <TableBody>
                   {data.recentBets.map((b) => (
                     <TableRow key={b.id} className="border-zinc-800 hover:bg-zinc-800/50">
-                      <TableCell className="text-zinc-200 max-w-64 truncate">{b.marketQuestion}</TableCell>
+                      <TableCell className="text-zinc-200 max-w-64 truncate">
+                        {b.marketQuestion}
+                      </TableCell>
                       <TableCell className="font-mono text-zinc-300">{b.side}</TableCell>
-                      <TableCell className="text-right font-mono text-zinc-300">${b.amount.toFixed(2)}</TableCell>
-                      <TableCell className="text-right font-mono text-zinc-300">{b.price.toFixed(2)}</TableCell>
-                      <TableCell><StatusBadge status={b.status} /></TableCell>
-                      <TableCell className="text-zinc-400 text-sm">{formatDateTime(b.placedAt)}</TableCell>
-                      <TableCell className="text-right"><Money value={b.profit} /></TableCell>
+                      <TableCell className="text-right font-mono text-zinc-300">
+                        ${b.amount.toFixed(2)}
+                      </TableCell>
+                      <TableCell className="text-right font-mono text-zinc-300">
+                        {b.price.toFixed(2)}
+                      </TableCell>
+                      <TableCell>
+                        <StatusBadge status={b.status} />
+                      </TableCell>
+                      <TableCell className="text-zinc-400 text-sm">
+                        {formatDateTime(b.placedAt)}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Money value={b.profit} />
+                      </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -104,12 +118,22 @@ export function CompetitorDetailPage() {
                 <TableBody>
                   {data.recentPredictions.map((p) => (
                     <TableRow key={p.id} className="border-zinc-800 hover:bg-zinc-800/50">
-                      <TableCell className="text-zinc-200 max-w-48 truncate">{p.marketQuestion}</TableCell>
+                      <TableCell className="text-zinc-200 max-w-48 truncate">
+                        {p.marketQuestion}
+                      </TableCell>
                       <TableCell className="font-mono text-zinc-300">{p.side}</TableCell>
-                      <TableCell className="text-right font-mono text-zinc-300">{formatPct(p.confidence)}</TableCell>
-                      <TableCell className="text-right font-mono text-zinc-300">${p.stake.toFixed(2)}</TableCell>
-                      <TableCell className="text-zinc-400 text-sm max-w-64 truncate">{p.reasoning}</TableCell>
-                      <TableCell className="text-zinc-400 text-sm">{formatDateTime(p.createdAt)}</TableCell>
+                      <TableCell className="text-right font-mono text-zinc-300">
+                        {formatPct(p.confidence)}
+                      </TableCell>
+                      <TableCell className="text-right font-mono text-zinc-300">
+                        ${p.stake.toFixed(2)}
+                      </TableCell>
+                      <TableCell className="text-zinc-400 text-sm max-w-64 truncate">
+                        {p.reasoning}
+                      </TableCell>
+                      <TableCell className="text-zinc-400 text-sm">
+                        {formatDateTime(p.createdAt)}
+                      </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -137,8 +161,12 @@ export function CompetitorDetailPage() {
                     <TableRow key={v.id} className="border-zinc-800 hover:bg-zinc-800/50">
                       <TableCell className="font-mono text-zinc-300">v{v.version}</TableCell>
                       <TableCell className="text-zinc-400">{v.model}</TableCell>
-                      <TableCell className="text-zinc-400 text-sm font-mono">{v.enginePath}</TableCell>
-                      <TableCell className="text-zinc-400 text-sm">{formatDateTime(v.generatedAt)}</TableCell>
+                      <TableCell className="text-zinc-400 text-sm font-mono">
+                        {v.enginePath}
+                      </TableCell>
+                      <TableCell className="text-zinc-400 text-sm">
+                        {formatDateTime(v.generatedAt)}
+                      </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>

@@ -1,3 +1,4 @@
+import { Link } from "@tanstack/react-router";
 import { PageShell } from "@/components/layout/page-shell";
 import { EmptyState } from "@/components/shared/empty-state";
 import { TableSkeleton } from "@/components/shared/loading-skeleton";
@@ -13,7 +14,6 @@ import {
 } from "@/components/ui/table";
 import { useCompetitors } from "@/lib/api";
 import { formatPct } from "@/lib/format";
-import { Link } from "@tanstack/react-router";
 
 export function CompetitorsPage() {
   const { data, isLoading } = useCompetitors();

@@ -9,9 +9,18 @@ describe("GET /api/bets", () => {
       betsRepo: {
         findAll: async () => [
           {
-            id: "b1", competitorId: "c1", marketId: "m1", fixtureId: 1001,
-            side: "YES", amount: 10, price: 0.65, shares: 15.38,
-            status: "pending", placedAt: new Date("2026-01-01"), settledAt: null, profit: null,
+            id: "b1",
+            competitorId: "c1",
+            marketId: "m1",
+            fixtureId: 1001,
+            side: "YES",
+            amount: 10,
+            price: 0.65,
+            shares: 15.38,
+            status: "pending",
+            placedAt: new Date("2026-01-01"),
+            settledAt: null,
+            profit: null,
           },
         ],
       } as any,

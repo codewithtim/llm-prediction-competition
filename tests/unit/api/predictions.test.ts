@@ -9,8 +9,14 @@ describe("GET /api/predictions", () => {
       predictionsRepo: {
         findAll: async () => [
           {
-            id: 1, competitorId: "c1", marketId: "m1", fixtureId: 1001,
-            side: "YES", confidence: 0.75, stake: 5, reasoning: "Strong form",
+            id: 1,
+            competitorId: "c1",
+            marketId: "m1",
+            fixtureId: 1001,
+            side: "YES",
+            confidence: 0.75,
+            stake: 5,
+            reasoning: "Strong form",
             createdAt: new Date("2026-01-01"),
           },
         ],

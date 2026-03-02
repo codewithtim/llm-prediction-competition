@@ -78,10 +78,7 @@ export function dashboardRoutes(deps: ApiDeps) {
     }));
 
     // Aggregate totals
-    const totalProfitLoss = leaderboard.reduce(
-      (sum, e) => sum + e.competitor.stats.profitLoss,
-      0,
-    );
+    const totalProfitLoss = leaderboard.reduce((sum, e) => sum + e.competitor.stats.profitLoss, 0);
     const totalWins = leaderboard.reduce((sum, e) => sum + e.competitor.stats.wins, 0);
     const totalSettled = leaderboard.reduce(
       (sum, e) => sum + e.competitor.stats.wins + e.competitor.stats.losses,

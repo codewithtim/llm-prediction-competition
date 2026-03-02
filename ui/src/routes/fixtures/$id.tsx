@@ -1,3 +1,4 @@
+import { useParams } from "@tanstack/react-router";
 import { PageShell } from "@/components/layout/page-shell";
 import { EmptyState } from "@/components/shared/empty-state";
 import { LoadingSkeleton } from "@/components/shared/loading-skeleton";
@@ -12,7 +13,6 @@ import {
 } from "@/components/ui/table";
 import { useFixture } from "@/lib/api";
 import { formatDate, formatPct } from "@/lib/format";
-import { useParams } from "@tanstack/react-router";
 
 export function FixtureDetailPage() {
   const { id } = useParams({ from: "/fixtures/$id" });
@@ -30,7 +30,9 @@ export function FixtureDetailPage() {
       </div>
 
       <div>
-        <h2 className="text-lg font-semibold text-zinc-200 mb-3">Markets ({data.markets.length})</h2>
+        <h2 className="text-lg font-semibold text-zinc-200 mb-3">
+          Markets ({data.markets.length})
+        </h2>
         {data.markets.length === 0 ? (
           <EmptyState message="No markets for this fixture" />
         ) : (
@@ -74,7 +76,9 @@ export function FixtureDetailPage() {
       </div>
 
       <div>
-        <h2 className="text-lg font-semibold text-zinc-200 mb-3">Predictions ({data.predictions.length})</h2>
+        <h2 className="text-lg font-semibold text-zinc-200 mb-3">
+          Predictions ({data.predictions.length})
+        </h2>
         {data.predictions.length === 0 ? (
           <EmptyState message="No predictions for this fixture" />
         ) : (
@@ -93,10 +97,16 @@ export function FixtureDetailPage() {
                 {data.predictions.map((p) => (
                   <TableRow key={p.id} className="border-zinc-800 hover:bg-zinc-800/50">
                     <TableCell className="text-zinc-200">{p.competitorName}</TableCell>
-                    <TableCell className="text-zinc-400 text-sm max-w-48 truncate">{p.marketQuestion}</TableCell>
+                    <TableCell className="text-zinc-400 text-sm max-w-48 truncate">
+                      {p.marketQuestion}
+                    </TableCell>
                     <TableCell className="font-mono text-zinc-300">{p.side}</TableCell>
-                    <TableCell className="text-right font-mono text-zinc-300">{formatPct(p.confidence)}</TableCell>
-                    <TableCell className="text-right font-mono text-zinc-300">${p.stake.toFixed(2)}</TableCell>
+                    <TableCell className="text-right font-mono text-zinc-300">
+                      {formatPct(p.confidence)}
+                    </TableCell>
+                    <TableCell className="text-right font-mono text-zinc-300">
+                      ${p.stake.toFixed(2)}
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>

@@ -9,17 +9,21 @@ describe("GET /api/markets", () => {
       marketsRepo: {
         findAll: async () => [
           {
-            id: "m1", question: "Will Arsenal win?", outcomes: ["Yes", "No"],
-            outcomePrices: ["0.65", "0.35"], active: true, closed: false,
-            liquidity: 50000, volume: 120000, fixtureId: 1001,
+            id: "m1",
+            question: "Will Arsenal win?",
+            outcomes: ["Yes", "No"],
+            outcomePrices: ["0.65", "0.35"],
+            active: true,
+            closed: false,
+            liquidity: 50000,
+            volume: 120000,
+            fixtureId: 1001,
             sportsMarketType: "moneyline",
           },
         ],
       } as any,
       fixturesRepo: {
-        findAll: async () => [
-          { id: 1001, homeTeamName: "Arsenal", awayTeamName: "Chelsea" },
-        ],
+        findAll: async () => [{ id: 1001, homeTeamName: "Arsenal", awayTeamName: "Chelsea" }],
       } as any,
     });
 

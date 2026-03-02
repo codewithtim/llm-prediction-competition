@@ -56,14 +56,21 @@ describe("GET /api/competitors", () => {
   test("filters by status", async () => {
     const deps = createMockDeps({
       competitorsRepo: {
-        findByStatus: async (status: string) =>
-          status === "active" ? [sampleCompetitor] : [],
+        findByStatus: async (status: string) => (status === "active" ? [sampleCompetitor] : []),
       } as any,
       walletsRepo: { listAll: async () => [] } as any,
       betsRepo: {
         getPerformanceStats: async () => ({
-          competitorId: "c1", totalBets: 0, wins: 0, losses: 0, pending: 0,
-          totalStaked: 0, totalReturned: 0, profitLoss: 0, accuracy: 0, roi: 0,
+          competitorId: "c1",
+          totalBets: 0,
+          wins: 0,
+          losses: 0,
+          pending: 0,
+          totalStaked: 0,
+          totalReturned: 0,
+          profitLoss: 0,
+          accuracy: 0,
+          roi: 0,
         }),
       } as any,
     });
@@ -87,8 +94,16 @@ describe("GET /api/competitors/:id", () => {
       walletsRepo: { listAll: async () => [] } as any,
       betsRepo: {
         getPerformanceStats: async () => ({
-          competitorId: "c1", totalBets: 0, wins: 0, losses: 0, pending: 0,
-          totalStaked: 0, totalReturned: 0, profitLoss: 0, accuracy: 0, roi: 0,
+          competitorId: "c1",
+          totalBets: 0,
+          wins: 0,
+          losses: 0,
+          pending: 0,
+          totalStaked: 0,
+          totalReturned: 0,
+          profitLoss: 0,
+          accuracy: 0,
+          roi: 0,
         }),
         findByCompetitor: async () => [],
       } as any,

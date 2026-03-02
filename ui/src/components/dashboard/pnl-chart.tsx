@@ -1,14 +1,6 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { LeaderboardEntry } from "@shared/api-types";
-import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  Tooltip,
-  ResponsiveContainer,
-  Cell,
-} from "recharts";
+import { Bar, BarChart, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 export function PnlChart({ entries }: { entries: LeaderboardEntry[] }) {
   const data = entries.map((e) => ({
@@ -28,7 +20,12 @@ export function PnlChart({ entries }: { entries: LeaderboardEntry[] }) {
           <ResponsiveContainer width="100%" height={250}>
             <BarChart data={data}>
               <XAxis dataKey="name" stroke="#71717a" fontSize={12} tickLine={false} />
-              <YAxis stroke="#71717a" fontSize={12} tickLine={false} tickFormatter={(v: number) => `$${v}`} />
+              <YAxis
+                stroke="#71717a"
+                fontSize={12}
+                tickLine={false}
+                tickFormatter={(v: number) => `$${v}`}
+              />
               <Tooltip
                 contentStyle={{
                   backgroundColor: "#18181b",
@@ -40,10 +37,7 @@ export function PnlChart({ entries }: { entries: LeaderboardEntry[] }) {
               />
               <Bar dataKey="pnl" radius={[4, 4, 0, 0]}>
                 {data.map((entry, index) => (
-                  <Cell
-                    key={index}
-                    fill={entry.pnl >= 0 ? "#10b981" : "#ef4444"}
-                  />
+                  <Cell key={index} fill={entry.pnl >= 0 ? "#10b981" : "#ef4444"} />
                 ))}
               </Bar>
             </BarChart>

@@ -23,11 +23,7 @@ const FILTER_TABS = [
 export function MarketsPage() {
   const [filter, setFilter] = useState("all");
   const filters =
-    filter === "active"
-      ? { active: "true" }
-      : filter === "closed"
-        ? { closed: "true" }
-        : undefined;
+    filter === "active" ? { active: "true" } : filter === "closed" ? { closed: "true" } : undefined;
   const { data, isLoading } = useMarkets(filters);
 
   return (

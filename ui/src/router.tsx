@@ -1,12 +1,12 @@
-import { createRouter, createRoute, createRootRoute, Outlet } from "@tanstack/react-router";
+import { createRootRoute, createRoute, createRouter, Outlet } from "@tanstack/react-router";
 import { Sidebar } from "@/components/layout/sidebar";
-import { DashboardPage } from "@/routes/index";
-import { CompetitorsPage } from "@/routes/competitors/index";
-import { CompetitorDetailPage } from "@/routes/competitors/$id";
-import { FixturesPage } from "@/routes/fixtures/index";
-import { FixtureDetailPage } from "@/routes/fixtures/$id";
-import { MarketsPage } from "@/routes/markets/index";
 import { BetsPage } from "@/routes/bets/index";
+import { CompetitorDetailPage } from "@/routes/competitors/$id";
+import { CompetitorsPage } from "@/routes/competitors/index";
+import { FixtureDetailPage } from "@/routes/fixtures/$id";
+import { FixturesPage } from "@/routes/fixtures/index";
+import { DashboardPage } from "@/routes/index";
+import { MarketsPage } from "@/routes/markets/index";
 
 const rootRoute = createRootRoute({
   component: () => (

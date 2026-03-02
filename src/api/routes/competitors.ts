@@ -8,7 +8,9 @@ export function competitorsRoutes(deps: ApiDeps) {
     const status = c.req.query("status");
 
     const allCompetitors = status
-      ? await deps.competitorsRepo.findByStatus(status as "active" | "disabled" | "pending" | "error")
+      ? await deps.competitorsRepo.findByStatus(
+          status as "active" | "disabled" | "pending" | "error",
+        )
       : await deps.competitorsRepo.findAll();
 
     const walletList = await deps.walletsRepo.listAll();
@@ -59,7 +61,9 @@ export function competitorsRoutes(deps: ApiDeps) {
       deps.predictionsRepo.findByCompetitor(id),
     ]);
 
-    const marketIds = [...new Set([...bets.map((b) => b.marketId), ...predictions.map((p) => p.marketId)])];
+    const marketIds = [
+      ...new Set([...bets.map((b) => b.marketId), ...predictions.map((p) => p.marketId)]),
+    ];
     const marketMap = new Map<string, string>();
     for (const mid of marketIds) {
       const m = await deps.marketsRepo.findById(mid);

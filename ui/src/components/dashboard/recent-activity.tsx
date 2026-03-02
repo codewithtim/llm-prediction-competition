@@ -1,8 +1,8 @@
-import { StatusBadge } from "@/components/shared/status-badge";
+import type { BetSummary } from "@shared/api-types";
 import { Money } from "@/components/shared/money";
+import { StatusBadge } from "@/components/shared/status-badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatDateTime } from "@/lib/format";
-import type { BetSummary } from "@shared/api-types";
 
 export function RecentActivity({ bets }: { bets: BetSummary[] }) {
   return (

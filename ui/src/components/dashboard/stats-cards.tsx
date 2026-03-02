@@ -1,6 +1,6 @@
+import type { DashboardResponse } from "@shared/api-types";
 import { StatCard } from "@/components/shared/stat-card";
 import { formatCurrency, formatPct } from "@/lib/format";
-import type { DashboardResponse } from "@shared/api-types";
 
 export function StatsCards({ data }: { data: DashboardResponse }) {
   return (

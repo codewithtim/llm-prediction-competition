@@ -1,4 +1,3 @@
-import { useQuery } from "@tanstack/react-query";
 import type {
   BetSummary,
   CompetitorDetailResponse,
@@ -9,6 +8,7 @@ import type {
   MarketSummary,
   PredictionSummary,
 } from "@shared/api-types";
+import { useQuery } from "@tanstack/react-query";
 
 const BASE = "/api";
 
