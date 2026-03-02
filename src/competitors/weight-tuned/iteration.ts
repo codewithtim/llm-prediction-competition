@@ -122,28 +122,37 @@ export function createWeightIterationService(deps: WeightIterationDeps) {
       const recentOutcomes = await buildRecentOutcomes(competitorId);
       const leaderboard = await buildLeaderboard();
 
-      const feedbackPrompt = buildWeightFeedbackPrompt({
-        currentWeights,
-        performance: {
-          totalBets: stats.totalBets,
-          wins: stats.wins,
-          losses: stats.losses,
-          accuracy: stats.accuracy,
-          roi: stats.roi,
-          profitLoss: stats.profitLoss,
-        },
-        recentOutcomes,
-        leaderboard,
-      });
+      let generated: Awaited<ReturnType<typeof generator.generateWeights>>;
+      if (!latestVersion) {
+        generated = await generator.generateWeights({
+          model: competitor.model,
+          competitorId,
+        });
+      } else {
+        const feedbackPrompt = buildWeightFeedbackPrompt({
+          currentWeights,
+          performance: {
+            totalBets: stats.totalBets,
+            wins: stats.wins,
+            losses: stats.losses,
+            accuracy: stats.accuracy,
+            roi: stats.roi,
+            profitLoss: stats.profitLoss,
+          },
+          recentOutcomes,
+          leaderboard,
+        });
 
-      const generated = await generator.generateWithFeedback({
-        model: competitor.model,
-        competitorId,
-        feedbackPrompt,
-      });
+        generated = await generator.generateWithFeedback({
+          model: competitor.model,
+          competitorId,
+          feedbackPrompt,
+        });
+      }
 
       const validation = validateWeights(generated.weights, stakeConfig);
       if (!validation.valid) {
+        console.error(`[${competitorId}] Raw LLM output:\n${generated.rawResponse}`);
         return { success: false, competitorId, error: `Validation failed: ${validation.error}` };
       }
 
@@ -153,16 +162,20 @@ export function createWeightIterationService(deps: WeightIterationDeps) {
         competitorId,
         version: nextVersion,
         code: JSON.stringify(generated.weights),
+        rawLlmOutput: generated.rawResponse,
         enginePath: "",
         model: competitor.model,
-        performanceSnapshot: {
-          totalBets: stats.totalBets,
-          wins: stats.wins,
-          losses: stats.losses,
-          accuracy: stats.accuracy,
-          roi: stats.roi,
-          profitLoss: stats.profitLoss,
-        },
+        performanceSnapshot:
+          stats.totalBets > 0
+            ? {
+                totalBets: stats.totalBets,
+                wins: stats.wins,
+                losses: stats.losses,
+                accuracy: stats.accuracy,
+                roi: stats.roi,
+                profitLoss: stats.profitLoss,
+              }
+            : null,
       });
 
       // Re-register with new weights — the loader will pick these up
@@ -176,10 +189,12 @@ export function createWeightIterationService(deps: WeightIterationDeps) {
 
       return { success: true, competitorId, version: nextVersion };
     } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : String(err);
+      console.error(`[${competitorId}] Iteration failed: ${errorMsg}`);
       return {
         success: false,
         competitorId,
-        error: err instanceof Error ? err.message : String(err),
+        error: errorMsg,
       };
     }
   }

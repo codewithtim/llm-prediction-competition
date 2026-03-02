@@ -37,7 +37,7 @@ export function createOpenRouterClient(apiKey: string): OpenRouterClient {
                 jsonSchema: {
                   name: params.jsonSchema.name,
                   schema: params.jsonSchema.schema,
-                  strict: true,
+                  strict: false,
                 },
               }
             : undefined,

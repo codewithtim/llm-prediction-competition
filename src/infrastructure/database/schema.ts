@@ -81,6 +81,7 @@ export const competitorVersions = sqliteTable("competitor_versions", {
     .references(() => competitors.id),
   version: integer("version").notNull(),
   code: text("code").notNull(),
+  rawLlmOutput: text("raw_llm_output"),
   enginePath: text("engine_path").notNull(),
   model: text("model").notNull(),
   performanceSnapshot: text("performance_snapshot", { mode: "json" }).$type<PerformanceSnapshot>(),

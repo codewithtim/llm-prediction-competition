@@ -15,6 +15,7 @@
     "db:studio": "drizzle-kit studio",
     "test:pipeline": "bun run src/scripts/test-pipeline.ts",
     "iterate": "bun run src/scripts/iterate.ts",
+    "competitor:add": "bun run src/scripts/add-competitor.ts",
     "discover:tags": "bun run src/scripts/discover-tags.ts",
     "wallets:create": "bun run src/scripts/manage-wallets.ts create",
     "wallets:list": "bun run src/scripts/manage-wallets.ts list",

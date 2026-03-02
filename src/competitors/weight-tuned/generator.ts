@@ -6,7 +6,18 @@ export type GeneratedWeights = {
   competitorId: string;
   weights: WeightConfig;
   model: string;
+  rawResponse: string;
 };
+
+/**
+ * Strip markdown code fences from LLM responses.
+ * Some models wrap JSON in ```json ... ``` despite structured output constraints.
+ */
+export function stripMarkdownFences(text: string): string {
+  const trimmed = text.trim();
+  const match = trimmed.match(/^```(?:\w*)\n?([\s\S]*?)\n?```$/);
+  return match ? (match[1] ?? "").trim() : trimmed;
+}
 
 export const WEIGHT_SYSTEM_PROMPT = `You are a football betting strategist tuning a prediction engine via weight configuration.
 
@@ -24,28 +35,12 @@ The engine computes a home-strength score as a weighted average of feature signa
 - **pointsPerGame**: Points per game comparison. Higher = home accumulates more points.
 - **defensiveStrength**: Defensive comparison (away concedes more vs home concedes less). Higher = home defends better.
 
-## Weight Config Format
+## Required Output JSON Schema
+
+You MUST respond with ONLY a valid JSON object matching this exact schema — no markdown, no code fences, no explanation:
 
 \`\`\`json
-{
-  "signals": {
-    "homeWinRate": 0.0-1.0,    // weight for home win rate signal
-    "awayLossRate": 0.0-1.0,   // weight for away loss rate signal
-    "formDiff": 0.0-1.0,       // weight for form difference signal
-    "h2h": 0.0-1.0,            // weight for head-to-head signal
-    "goalDiff": 0.0-1.0,       // weight for goal difference signal
-    "pointsPerGame": 0.0-1.0,  // weight for points per game signal
-    "defensiveStrength": 0.0-1.0 // weight for defensive strength signal
-  },
-  "drawBaseline": 0.0-0.5,      // base probability of a draw
-  "drawPeak": 0.3-0.7,          // home strength where draw is most likely
-  "drawWidth": 0.05-0.5,        // width of draw probability curve
-  "confidenceThreshold": 0.0-1.0, // min confidence for aggressive staking
-  "minEdge": 0.0-0.5,           // min edge over market price to consider
-  "stakingAggression": 0.0-1.0, // base staking level
-  "edgeMultiplier": 0.0-5.0,    // how much edge amplifies stake
-  "kellyFraction": 0.0-1.0      // fraction of Kelly criterion to use
-}
+${JSON.stringify(WEIGHT_JSON_SCHEMA.schema, null, 2)}
 \`\`\`
 
 ## Strategy Guidance
@@ -79,12 +74,13 @@ export function createWeightGenerator(deps: { client: OpenRouterClient }) {
         temperature: 0.8,
       });
 
-      const weights = JSON.parse(response) as WeightConfig;
+      const weights = JSON.parse(stripMarkdownFences(response)) as WeightConfig;
 
       return {
         competitorId: params.competitorId,
         weights,
         model: params.model,
+        rawResponse: response,
       };
     },
 
@@ -101,12 +97,13 @@ export function createWeightGenerator(deps: { client: OpenRouterClient }) {
         temperature: 0.8,
       });
 
-      const weights = JSON.parse(response) as WeightConfig;
+      const weights = JSON.parse(stripMarkdownFences(response)) as WeightConfig;
 
       return {
         competitorId: params.competitorId,
         weights,
         model: params.model,
+        rawResponse: response,
       };
     },
   };

@@ -35,6 +35,11 @@ function parseArgs(): { competitorId?: string } {
 }
 
 async function main() {
+  if (!env.OPENROUTER_API_KEY) {
+    console.error("OPENROUTER_API_KEY is not set. Cannot generate weights.");
+    process.exit(1);
+  }
+
   const { competitorId } = parseArgs();
 
   const db = createDb(env.TURSO_DATABASE_URL, env.TURSO_AUTH_TOKEN);

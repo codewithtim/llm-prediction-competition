@@ -36,6 +36,20 @@
       "when": 1772350759198,
       "tag": "0004_jazzy_shotgun",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1772611200000,
+      "tag": "0005_update-gemini-model-id",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1772611300000,
+      "tag": "0006_add-raw-llm-output",
+      "breakpoints": true
     }
   ]
 }

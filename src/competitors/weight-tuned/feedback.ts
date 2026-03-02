@@ -138,7 +138,7 @@ function buildFeedbackPrompt(input: FeedbackPromptInput): string {
       ? `## Improvement Suggestions\n\n${patterns.map((p) => `- ${p}`).join("\n")}`
       : "";
 
-  return `You are iterating on your football prediction engine. Review your current code and performance data below, then generate an improved version.
+  return `You are iterating on your football prediction engine. Review your current weight configuration and performance data below, then generate an improved version.
 
 ## Your Current Engine Code
 
@@ -173,7 +173,7 @@ Analyze your performance and generate an improved prediction engine. Focus on:
 4. Strategies used by higher-ranked competitors (if you're not #1)
 5. Edge cases you may be missing
 
-Generate a complete, improved TypeScript engine that addresses these weaknesses.`;
+Generate an improved weight configuration that addresses these weaknesses.`;
 }
 
 export type WeightFeedbackInput = {
