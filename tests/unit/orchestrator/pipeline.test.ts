@@ -438,6 +438,7 @@ function makeMarketRow(fixtureId: number | null = 100) {
     gameId: "100",
     sportsMarketType: "moneyline",
     line: null,
+    polymarketUrl: "https://polymarket.com/sports/premier-league-2025/epl-tea-teb-2026-03-05",
     fixtureId,
     createdAt: new Date(),
     updatedAt: new Date(),
@@ -755,6 +756,31 @@ describe("createPredictionPipeline", () => {
 
     expect(result.oddsRefreshed).toBe(1);
     expect(gc.getMarketById).toHaveBeenCalledWith("market-1");
+  });
+
+  test("preserves polymarketUrl during odds refresh", async () => {
+    const { fr, mr } = withFixtureAndMarkets();
+
+    const gc = mockGammaClient({
+      getMarketById: mock(() =>
+        Promise.resolve(makeGammaMarket({ outcomePrices: JSON.stringify(["0.70", "0.30"]) })),
+      ),
+    });
+
+    const deps = buildPredictionDeps({
+      fixturesRepo: fr as unknown as PredictionPipelineDeps["fixturesRepo"],
+      marketsRepo: mr as unknown as PredictionPipelineDeps["marketsRepo"],
+      gammaClient: gc,
+    });
+    const pipeline = createPredictionPipeline(deps);
+    await pipeline.run();
+
+    // The upsert should preserve the polymarketUrl from the DB row,
+    // not overwrite it with null from mapGammaMarketToMarket
+    const upsertCall = (mr.upsert as ReturnType<typeof mock>).mock.calls[0];
+    expect(upsertCall[0].polymarketUrl).toBe(
+      "https://polymarket.com/sports/premier-league-2025/epl-tea-teb-2026-03-05",
+    );
   });
 
   test("odds refresh failure falls back to cached prices", async () => {

@@ -225,6 +225,9 @@ export function createPredictionPipeline(deps: PredictionPipelineDeps) {
               if (freshGamma) {
                 const freshMarket = mapGammaMarketToMarket(freshGamma);
                 if (freshMarket) {
+                  // Preserve polymarketUrl from DB — Gamma market endpoint
+                  // doesn't include event-level slug data needed for the URL
+                  freshMarket.polymarketUrl = market.polymarketUrl;
                   logger.info("Prediction: odds refreshed", {
                     marketId: market.id,
                     oldPrices: market.outcomePrices,
