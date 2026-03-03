@@ -17,11 +17,15 @@ export function betsRoutes(deps: ApiDeps) {
       allBets = allBets.filter((b) => b.competitorId === competitorFilter);
     }
 
-    const allCompetitors = await deps.competitorsRepo.findAll();
+    const [allCompetitors, allMarkets, allPredictions] = await Promise.all([
+      deps.competitorsRepo.findAll(),
+      deps.marketsRepo.findAll(),
+      competitorFilter
+        ? deps.predictionsRepo.findByCompetitor(competitorFilter)
+        : deps.predictionsRepo.findAll(),
+    ]);
     const competitorMap = new Map(allCompetitors.map((c) => [c.id, c.name]));
-    const allMarkets = await deps.marketsRepo.findAll();
     const marketMap = new Map(allMarkets.map((m) => [m.id, m.question]));
-    const allPredictions = await deps.predictionsRepo.findAll();
     const predictionMap = new Map(
       allPredictions.map((p) => [`${p.competitorId}:${p.marketId}:${p.side}`, p.confidence]),
     );
