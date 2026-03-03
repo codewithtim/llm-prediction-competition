@@ -552,6 +552,7 @@ export function createPredictionPipeline(deps: PredictionPipelineDeps) {
 
   return {
     async run(): Promise<PredictionPipelineResult> {
+      standingsCache.clear();
       const result: PredictionPipelineResult = {
         fixturesProcessed: 0,
         predictionsGenerated: 0,

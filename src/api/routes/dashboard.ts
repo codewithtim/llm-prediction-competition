@@ -1,4 +1,5 @@
 import { Hono } from "hono";
+import { ACTIVE_BET_STATUSES } from "../../domain/models/prediction";
 import type { ApiDeps } from "../index";
 import { toBetSummary } from "../mappers";
 
@@ -21,9 +22,8 @@ export function dashboardRoutes(deps: ApiDeps) {
 
     const activeCompetitors = allCompetitors.filter((c) => c.status === "active");
     const activeMarkets = allMarkets.filter((m) => m.active);
-    const pendingBets = allBets.filter(
-      (b) => b.status === "submitting" || b.status === "pending" || b.status === "filled",
-    );
+    const activeStatuses = new Set<string>(ACTIVE_BET_STATUSES);
+    const pendingBets = allBets.filter((b) => activeStatuses.has(b.status));
 
     // Build leaderboard
     const leaderboard = await Promise.all(
