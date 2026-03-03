@@ -1,5 +1,6 @@
-import { and, desc, eq, lt, notInArray } from "drizzle-orm";
+import { and, desc, eq, inArray, lt, notInArray, sql } from "drizzle-orm";
 import type { BetErrorCategory, BetStatus } from "../../../domain/models/prediction.ts";
+import { ACTIVE_BET_STATUSES } from "../../../domain/models/prediction.ts";
 import type { Database } from "../client";
 import { bets } from "../schema";
 
@@ -13,6 +14,39 @@ export function betsRepo(db: Database) {
   return {
     async create(bet: typeof bets.$inferInsert) {
       return db.insert(bets).values(bet).run();
+    },
+
+    // Atomic insert-if-no-active-bet using raw SQL because Drizzle doesn't support
+    // INSERT...SELECT...WHERE NOT EXISTS. Column list must stay in sync with the bets schema.
+    async createIfNoActiveBet(bet: typeof bets.$inferInsert): Promise<"created" | "duplicate"> {
+      const placedAt = bet.placedAt ?? new Date();
+      const statusList = ACTIVE_BET_STATUSES.map((s) => `'${s}'`).join(", ");
+      const result = await db.run(sql`
+        INSERT INTO bets (id, order_id, market_id, fixture_id, competitor_id, token_id, side, amount, price, shares, status, placed_at, attempts)
+        SELECT ${bet.id}, ${bet.orderId ?? null}, ${bet.marketId}, ${bet.fixtureId}, ${bet.competitorId}, ${bet.tokenId}, ${bet.side}, ${bet.amount}, ${bet.price}, ${bet.shares}, ${bet.status}, ${Math.floor(placedAt.getTime() / 1000)}, ${bet.attempts ?? 0}
+        WHERE NOT EXISTS (
+          SELECT 1 FROM bets
+          WHERE market_id = ${bet.marketId} AND competitor_id = ${bet.competitorId}
+          AND status IN (${sql.raw(statusList)})
+        )
+      `);
+      return result.rowsAffected > 0 ? "created" : "duplicate";
+    },
+
+    async hasActiveBetForMarket(marketId: string, competitorId: string): Promise<boolean> {
+      const row = await db
+        .select({ id: bets.id })
+        .from(bets)
+        .where(
+          and(
+            eq(bets.marketId, marketId),
+            eq(bets.competitorId, competitorId),
+            inArray(bets.status, [...ACTIVE_BET_STATUSES]),
+          ),
+        )
+        .get();
+
+      return row !== undefined;
     },
 
     async findById(id: string) {
@@ -100,9 +134,8 @@ export function betsRepo(db: Database) {
       const settled = rows.filter((r) => r.status === "settled_won" || r.status === "settled_lost");
       const wins = rows.filter((r) => r.status === "settled_won").length;
       const losses = rows.filter((r) => r.status === "settled_lost").length;
-      const pending = rows.filter(
-        (r) => r.status === "submitting" || r.status === "pending" || r.status === "filled",
-      ).length;
+      const activeStatuses = new Set<string>(ACTIVE_BET_STATUSES);
+      const pending = rows.filter((r) => activeStatuses.has(r.status)).length;
       const failed = rows.filter((r) => r.status === "failed").length;
       const activeBets = rows.filter((r) => r.status === "pending" || r.status === "filled");
       const lockedAmount = activeBets.reduce((sum, r) => sum + r.amount, 0);

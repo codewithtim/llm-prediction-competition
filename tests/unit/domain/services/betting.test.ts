@@ -120,6 +120,8 @@ type BetRow = {
 function mockBetsRepo(existingBets: BetRow[] = []): BetsRepo {
   return {
     create: mock(() => Promise.resolve()),
+    createIfNoActiveBet: mock(() => Promise.resolve("created" as const)),
+    hasActiveBetForMarket: mock(() => Promise.resolve(false)),
     findById: mock(() => Promise.resolve(undefined)),
     findByCompetitor: mock(() => Promise.resolve(existingBets)),
     findByStatus: mock(() => Promise.resolve([])),
@@ -224,9 +226,9 @@ describe("createBettingService", () => {
         }),
       } as unknown as BettingClient);
       const repo = mockBetsRepo();
-      (repo.create as ReturnType<typeof mock>).mockImplementation(() => {
-        callOrder.push("create");
-        return Promise.resolve();
+      (repo.createIfNoActiveBet as ReturnType<typeof mock>).mockImplementation((...args: unknown[]) => {
+        callOrder.push("createIfNoActiveBet");
+        return Promise.resolve("created" as const);
       });
 
       const service = createBettingService({
@@ -237,11 +239,9 @@ describe("createBettingService", () => {
 
       await service.placeBet(makeInput());
 
-      expect(callOrder).toEqual(["create", "placeOrder"]);
-      const createArg = (repo.create as ReturnType<typeof mock>).mock.calls[0]?.[0] as Record<
-        string,
-        unknown
-      >;
+      expect(callOrder).toEqual(["createIfNoActiveBet", "placeOrder"]);
+      const createArg = (repo.createIfNoActiveBet as ReturnType<typeof mock>).mock
+        .calls[0]?.[0] as Record<string, unknown>;
       expect(createArg.status).toBe("submitting");
     });
 
@@ -399,7 +399,7 @@ describe("createBettingService", () => {
       expect(client.placeOrder).not.toHaveBeenCalled();
     });
 
-    it("does not call betsRepo.create", async () => {
+    it("does not call betsRepo.createIfNoActiveBet", async () => {
       const client = mockBettingClient();
       const repo = mockBetsRepo();
       const service = createBettingService({
@@ -410,7 +410,7 @@ describe("createBettingService", () => {
 
       await service.placeBet(makeInput());
 
-      expect(repo.create).not.toHaveBeenCalled();
+      expect(repo.createIfNoActiveBet).not.toHaveBeenCalled();
     });
   });
 
@@ -477,7 +477,7 @@ describe("createBettingService", () => {
 
       expect(result.status).toBe("skipped");
       expect(result.reason).toContain("already exists");
-      expect(repo.create).not.toHaveBeenCalled();
+      expect(repo.createIfNoActiveBet).not.toHaveBeenCalled();
       expect(client.placeOrder).not.toHaveBeenCalled();
     });
 
@@ -560,6 +560,65 @@ describe("createBettingService", () => {
 
       expect(result.status).toBe("skipped");
       expect(result.reason).toContain("exposure");
+    });
+  });
+
+  describe("atomic duplicate prevention via createIfNoActiveBet", () => {
+    it("returns skipped when createIfNoActiveBet returns duplicate", async () => {
+      const client = mockBettingClient();
+      const repo = mockBetsRepo();
+      (repo as unknown as Record<string, unknown>).createIfNoActiveBet = mock(() =>
+        Promise.resolve("duplicate" as const),
+      );
+      const service = createBettingService({
+        bettingClientFactory: mockBettingClientFactory(client),
+        betsRepo: repo,
+        config: makeConfig(),
+      });
+
+      const result = await service.placeBet(makeInput());
+
+      expect(result.status).toBe("skipped");
+      expect(result.reason).toContain("already exists");
+      expect(client.placeOrder).not.toHaveBeenCalled();
+    });
+
+    it("proceeds to API call when createIfNoActiveBet returns created", async () => {
+      const client = mockBettingClient();
+      const repo = mockBetsRepo();
+      (repo as unknown as Record<string, unknown>).createIfNoActiveBet = mock(() =>
+        Promise.resolve("created" as const),
+      );
+      const service = createBettingService({
+        bettingClientFactory: mockBettingClientFactory(client),
+        betsRepo: repo,
+        config: makeConfig(),
+      });
+
+      const result = await service.placeBet(makeInput());
+
+      expect(result.status).toBe("placed");
+      expect(client.placeOrder).toHaveBeenCalled();
+    });
+
+    it("calls createIfNoActiveBet instead of create for write-ahead", async () => {
+      const client = mockBettingClient();
+      const repo = mockBetsRepo();
+      const createIfNoActiveBet = mock(() => Promise.resolve("created" as const));
+      (repo as unknown as Record<string, unknown>).createIfNoActiveBet = createIfNoActiveBet;
+      const service = createBettingService({
+        bettingClientFactory: mockBettingClientFactory(client),
+        betsRepo: repo,
+        config: makeConfig(),
+      });
+
+      await service.placeBet(makeInput());
+
+      expect(createIfNoActiveBet).toHaveBeenCalledTimes(1);
+      const arg = (createIfNoActiveBet.mock.calls as unknown[][])[0]?.[0] as Record<string, unknown>;
+      expect(arg.status).toBe("submitting");
+      expect(arg.orderId).toBeNull();
+      expect(repo.create).not.toHaveBeenCalled();
     });
   });
 

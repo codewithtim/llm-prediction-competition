@@ -39,6 +39,19 @@ export function createBetRetryService(deps: {
           continue;
         }
 
+        // Guard: skip if another bet was placed since this one failed.
+        // Not fully atomic (TOCTOU), but the partial unique index on bets(market_id, competitor_id)
+        // WHERE status IN (...) provides the real safety net at the DB level.
+        const alreadyActive = await betsRepo.hasActiveBetForMarket(bet.marketId, bet.competitorId);
+        if (alreadyActive) {
+          logger.info("Bet retry: skipped — active bet already exists for market", {
+            betId: bet.id,
+            marketId: bet.marketId,
+            competitorId: bet.competitorId,
+          });
+          continue;
+        }
+
         result.retried++;
 
         // Write-ahead: set to submitting before retry API call

@@ -3,6 +3,7 @@ import type { BettingClientFactory } from "../../infrastructure/polymarket/betti
 import type { PredictionOutput } from "../contracts/prediction";
 import type { Market } from "../models/market";
 import type { BetErrorCategory } from "../models/prediction";
+import { ACTIVE_BET_STATUSES } from "../models/prediction";
 import type { WalletConfig } from "../types/competitor";
 import { classifyBetError } from "./bet-errors";
 
@@ -43,7 +44,7 @@ export type PlaceBetResult = {
   errorCategory?: BetErrorCategory;
 };
 
-const BLOCKING_STATUSES = new Set(["submitting", "pending", "filled"]);
+const BLOCKING_STATUSES = new Set<string>(ACTIVE_BET_STATUSES);
 
 export function resolveTokenId(market: Market, side: "YES" | "NO"): string {
   return side === "YES" ? market.tokenIds[0] : market.tokenIds[1];
@@ -68,7 +69,8 @@ export function createBettingService(deps: {
         return { status: "skipped", reason: "Market is not accepting orders" };
       }
 
-      // Anti-double-bet: check for existing active bets on this market+competitor
+      // Fast-path duplicate check: avoids a DB write + API call for the common case.
+      // The atomic createIfNoActiveBet() below is the real safety net against races.
       const existingBets = await betsRepo.findByCompetitor(competitorId);
       const duplicate = existingBets.find(
         (b) => b.marketId === market.id && BLOCKING_STATUSES.has(b.status),
@@ -81,7 +83,7 @@ export function createBettingService(deps: {
 
       // Exposure includes submitting bets (locked capital)
       const pendingExposure = existingBets
-        .filter((b) => b.status === "submitting" || b.status === "pending" || b.status === "filled")
+        .filter((b) => BLOCKING_STATUSES.has(b.status))
         .reduce((sum, b) => sum + b.amount, 0);
 
       if (pendingExposure + amount > config.maxTotalExposure) {
@@ -116,12 +118,14 @@ export function createBettingService(deps: {
         shares,
       };
 
-      // Write-ahead: create row with submitting status BEFORE API call
-      await betsRepo.create({
+      const createResult = await betsRepo.createIfNoActiveBet({
         ...bet,
         orderId: null,
         status: "submitting" as const,
       });
+      if (createResult === "duplicate") {
+        return { status: "skipped", reason: "Bet already exists for this market and competitor" };
+      }
 
       const bettingClient = bettingClientFactory.getClient(competitorId, walletConfig);
 

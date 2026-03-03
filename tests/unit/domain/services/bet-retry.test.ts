@@ -54,6 +54,8 @@ function makeFailedBet(overrides: Partial<BetRow> = {}): BetRow {
 function mockBetsRepo(retryableBets: BetRow[] = []): BetsRepo {
   return {
     create: mock(() => Promise.resolve()),
+    createIfNoActiveBet: mock(() => Promise.resolve("created" as const)),
+    hasActiveBetForMarket: mock(() => Promise.resolve(false)),
     findById: mock(() => Promise.resolve(undefined)),
     findByCompetitor: mock(() => Promise.resolve([])),
     findByStatus: mock(() => Promise.resolve([])),
@@ -259,6 +261,54 @@ describe("createBetRetryService", () => {
     expect(result.succeeded).toBe(0);
     expect(result.failedAgain).toBe(0);
     expect(result.errors).toHaveLength(0);
+  });
+
+  it("skips retry when active bet already exists for same market+competitor", async () => {
+    const bet = makeFailedBet({ attempts: 1 });
+    const repo = mockBetsRepo([bet]);
+    (repo as unknown as Record<string, unknown>).hasActiveBetForMarket = mock(() =>
+      Promise.resolve(true),
+    );
+    const client = mockBettingClient();
+    const factory = mockBettingClientFactory(client);
+
+    const service = createBetRetryService({
+      betsRepo: repo,
+      bettingClientFactory: factory,
+      walletConfigs: makeWalletConfigs(),
+      maxRetryAttempts: 3,
+    });
+
+    const result = await service.retryFailedBets();
+
+    expect(result.retried).toBe(0);
+    expect(result.succeeded).toBe(0);
+    expect(repo.updateStatus).not.toHaveBeenCalled();
+    expect(client.placeOrder).not.toHaveBeenCalled();
+  });
+
+  it("proceeds with retry when no active bet exists for market", async () => {
+    const bet = makeFailedBet({ attempts: 1 });
+    const repo = mockBetsRepo([bet]);
+    (repo as unknown as Record<string, unknown>).hasActiveBetForMarket = mock(() =>
+      Promise.resolve(false),
+    );
+    const client = mockBettingClient();
+    const factory = mockBettingClientFactory(client);
+
+    const service = createBetRetryService({
+      betsRepo: repo,
+      bettingClientFactory: factory,
+      walletConfigs: makeWalletConfigs(),
+      maxRetryAttempts: 3,
+    });
+
+    const result = await service.retryFailedBets();
+
+    expect(result.retried).toBe(1);
+    expect(result.succeeded).toBe(1);
+    expect(repo.updateStatus).toHaveBeenCalledWith("bet-1", "submitting");
+    expect(client.placeOrder).toHaveBeenCalled();
   });
 
   it("skips competitor without wallet config", async () => {

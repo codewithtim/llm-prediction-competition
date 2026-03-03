@@ -48,3 +48,10 @@ export type BetStatus =
   | "settled_lost"
   | "cancelled"
   | "failed";
+
+/** Bet statuses that represent capital in flight — used for duplicate prevention and exposure checks. */
+export const ACTIVE_BET_STATUSES = [
+  "submitting",
+  "pending",
+  "filled",
+] as const satisfies BetStatus[];

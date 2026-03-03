@@ -85,6 +85,13 @@
       "when": 1772697700000,
       "tag": "0011_numerous_phil_sheldon",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "6",
+      "when": 1772755200000,
+      "tag": "0012_double-bet-prevention",
+      "breakpoints": true
     }
   ]
 }

@@ -13,15 +13,26 @@ beforeEach(async () => {
   db = drizzle(client, { schema }) as Database;
   await migrate(db, { migrationsFolder: "./drizzle" });
 
-  await db.insert(schema.markets).values({
-    id: "market-1",
-    conditionId: "cond-1",
-    slug: "test",
-    question: "Test?",
-    outcomes: ["Yes", "No"],
-    outcomePrices: ["0.5", "0.5"],
-    tokenIds: ["t1", "t2"],
-  });
+  await db.insert(schema.markets).values([
+    {
+      id: "market-1",
+      conditionId: "cond-1",
+      slug: "test",
+      question: "Test?",
+      outcomes: ["Yes", "No"],
+      outcomePrices: ["0.5", "0.5"],
+      tokenIds: ["t1", "t2"],
+    },
+    {
+      id: "market-2",
+      conditionId: "cond-2",
+      slug: "test-2",
+      question: "Test 2?",
+      outcomes: ["Yes", "No"],
+      outcomePrices: ["0.5", "0.5"],
+      tokenIds: ["t3", "t4"],
+    },
+  ]);
   await db.insert(schema.fixtures).values({
     id: 1001,
     leagueId: 39,
@@ -102,7 +113,7 @@ describe("betsRepo", () => {
     it("computes stats from bets", async () => {
       const repo = betsRepo(db);
       await repo.create(sampleBet);
-      await repo.create({ ...sampleBet, id: "bet-2", orderId: "order-2", amount: 5 });
+      await repo.create({ ...sampleBet, id: "bet-2", orderId: "order-2", marketId: "market-2", amount: 5 });
 
       await repo.updateStatus("bet-1", "settled_won", new Date(), 5.38);
       await repo.updateStatus("bet-2", "settled_lost", new Date(), -5);
@@ -167,6 +178,7 @@ describe("betsRepo", () => {
         ...sampleBet,
         id: "bet-f",
         orderId: "o-f",
+        marketId: "market-2",
         amount: 12,
         status: "filled",
       });
@@ -181,7 +193,7 @@ describe("betsRepo", () => {
   it("finds all bets", async () => {
     const repo = betsRepo(db);
     await repo.create(sampleBet);
-    await repo.create({ ...sampleBet, id: "bet-2", orderId: "order-2" });
+    await repo.create({ ...sampleBet, id: "bet-2", orderId: "order-2", marketId: "market-2" });
     const all = await repo.findAll();
     expect(all).toHaveLength(2);
   });
@@ -189,7 +201,7 @@ describe("betsRepo", () => {
   it("finds recent bets ordered by placedAt", async () => {
     const repo = betsRepo(db);
     await repo.create(sampleBet);
-    await repo.create({ ...sampleBet, id: "bet-2", orderId: "order-2" });
+    await repo.create({ ...sampleBet, id: "bet-2", orderId: "order-2", marketId: "market-2" });
     const recent = await repo.findRecent(1);
     expect(recent).toHaveLength(1);
   });
@@ -342,6 +354,251 @@ describe("betsRepo", () => {
       const retryable = await repo.findRetryableBets(3);
       expect(retryable).toHaveLength(1);
       expect(retryable[0]?.id).toBe("bet-rate");
+    });
+  });
+
+  describe("createIfNoActiveBet", () => {
+    it("creates bet when no active bet exists", async () => {
+      const repo = betsRepo(db);
+      const result = await repo.createIfNoActiveBet({
+        ...sampleBet,
+        id: "new-bet",
+        orderId: null,
+        status: "submitting",
+      });
+      expect(result).toBe("created");
+      const found = await repo.findById("new-bet");
+      expect(found).toBeDefined();
+      expect(found?.status).toBe("submitting");
+    });
+
+    it("returns duplicate when submitting bet exists for same market+competitor", async () => {
+      const repo = betsRepo(db);
+      await repo.create({ ...sampleBet, id: "existing", orderId: null, status: "submitting" });
+
+      const result = await repo.createIfNoActiveBet({
+        ...sampleBet,
+        id: "new-bet",
+        orderId: null,
+        status: "submitting",
+      });
+
+      expect(result).toBe("duplicate");
+      const all = await repo.findAll();
+      expect(all).toHaveLength(1);
+      expect(all[0]?.id).toBe("existing");
+    });
+
+    it("returns duplicate when pending bet exists for same market+competitor", async () => {
+      const repo = betsRepo(db);
+      await repo.create({ ...sampleBet, id: "existing", status: "pending" });
+
+      const result = await repo.createIfNoActiveBet({
+        ...sampleBet,
+        id: "new-bet",
+        orderId: null,
+        status: "submitting",
+      });
+
+      expect(result).toBe("duplicate");
+      const all = await repo.findAll();
+      expect(all).toHaveLength(1);
+    });
+
+    it("returns duplicate when filled bet exists for same market+competitor", async () => {
+      const repo = betsRepo(db);
+      await repo.create({ ...sampleBet, id: "existing", status: "filled" });
+
+      const result = await repo.createIfNoActiveBet({
+        ...sampleBet,
+        id: "new-bet",
+        orderId: null,
+        status: "submitting",
+      });
+
+      expect(result).toBe("duplicate");
+      const all = await repo.findAll();
+      expect(all).toHaveLength(1);
+    });
+
+    it("allows bet when existing bet is failed", async () => {
+      const repo = betsRepo(db);
+      await repo.create({ ...sampleBet, id: "failed-bet", status: "failed" });
+
+      const result = await repo.createIfNoActiveBet({
+        ...sampleBet,
+        id: "new-bet",
+        orderId: null,
+        status: "submitting",
+      });
+
+      expect(result).toBe("created");
+      const all = await repo.findAll();
+      expect(all).toHaveLength(2);
+    });
+
+    it("allows bet when existing bet is settled_won", async () => {
+      const repo = betsRepo(db);
+      await repo.create({ ...sampleBet, id: "settled-bet", status: "settled_won" });
+
+      const result = await repo.createIfNoActiveBet({
+        ...sampleBet,
+        id: "new-bet",
+        orderId: null,
+        status: "submitting",
+      });
+
+      expect(result).toBe("created");
+      const all = await repo.findAll();
+      expect(all).toHaveLength(2);
+    });
+
+    it("allows bet when existing bet is settled_lost", async () => {
+      const repo = betsRepo(db);
+      await repo.create({ ...sampleBet, id: "settled-bet", status: "settled_lost" });
+
+      const result = await repo.createIfNoActiveBet({
+        ...sampleBet,
+        id: "new-bet",
+        orderId: null,
+        status: "submitting",
+      });
+
+      expect(result).toBe("created");
+    });
+
+    it("allows bet when existing bet is cancelled", async () => {
+      const repo = betsRepo(db);
+      await repo.create({ ...sampleBet, id: "cancelled-bet", status: "cancelled" });
+
+      const result = await repo.createIfNoActiveBet({
+        ...sampleBet,
+        id: "new-bet",
+        orderId: null,
+        status: "submitting",
+      });
+
+      expect(result).toBe("created");
+    });
+
+    it("allows bet for different market same competitor", async () => {
+      const repo = betsRepo(db);
+      await repo.create({ ...sampleBet, id: "existing", status: "pending" });
+
+      const result = await repo.createIfNoActiveBet({
+        ...sampleBet,
+        id: "new-bet",
+        marketId: "market-2",
+        orderId: null,
+        status: "submitting",
+      });
+
+      expect(result).toBe("created");
+    });
+
+    it("allows bet for same market different competitor", async () => {
+      const repo = betsRepo(db);
+      await db.insert(schema.competitors).values({
+        id: "gpt-1",
+        name: "GPT",
+        model: "openai/gpt-4",
+        enginePath: "src/competitors/gpt/engine.ts",
+      });
+      await repo.create({ ...sampleBet, id: "existing", status: "pending" });
+
+      const result = await repo.createIfNoActiveBet({
+        ...sampleBet,
+        id: "new-bet",
+        competitorId: "gpt-1",
+        orderId: null,
+        status: "submitting",
+      });
+
+      expect(result).toBe("created");
+    });
+  });
+
+  describe("hasActiveBetForMarket", () => {
+    it("returns true when submitting bet exists", async () => {
+      const repo = betsRepo(db);
+      await repo.create({ ...sampleBet, orderId: null, status: "submitting" });
+      expect(await repo.hasActiveBetForMarket("market-1", "claude-1")).toBe(true);
+    });
+
+    it("returns true when pending bet exists", async () => {
+      const repo = betsRepo(db);
+      await repo.create({ ...sampleBet, status: "pending" });
+      expect(await repo.hasActiveBetForMarket("market-1", "claude-1")).toBe(true);
+    });
+
+    it("returns true when filled bet exists", async () => {
+      const repo = betsRepo(db);
+      await repo.create({ ...sampleBet, status: "filled" });
+      expect(await repo.hasActiveBetForMarket("market-1", "claude-1")).toBe(true);
+    });
+
+    it("returns false when no bet exists", async () => {
+      const repo = betsRepo(db);
+      expect(await repo.hasActiveBetForMarket("market-1", "claude-1")).toBe(false);
+    });
+
+    it("returns false when only failed bets exist", async () => {
+      const repo = betsRepo(db);
+      await repo.create({ ...sampleBet, status: "failed" });
+      expect(await repo.hasActiveBetForMarket("market-1", "claude-1")).toBe(false);
+    });
+
+    it("returns false when only settled bets exist", async () => {
+      const repo = betsRepo(db);
+      await repo.create({ ...sampleBet, status: "settled_won" });
+      expect(await repo.hasActiveBetForMarket("market-1", "claude-1")).toBe(false);
+    });
+
+    it("returns false when only cancelled bets exist", async () => {
+      const repo = betsRepo(db);
+      await repo.create({ ...sampleBet, status: "cancelled" });
+      expect(await repo.hasActiveBetForMarket("market-1", "claude-1")).toBe(false);
+    });
+
+    it("returns false for different market", async () => {
+      const repo = betsRepo(db);
+      await repo.create({ ...sampleBet, status: "pending" });
+      expect(await repo.hasActiveBetForMarket("market-other", "claude-1")).toBe(false);
+    });
+
+    it("returns false for different competitor", async () => {
+      const repo = betsRepo(db);
+      await repo.create({ ...sampleBet, status: "pending" });
+      expect(await repo.hasActiveBetForMarket("market-1", "other-competitor")).toBe(false);
+    });
+  });
+
+  describe("unique index: idx_bets_active_market_competitor", () => {
+    it("rejects duplicate active bet at DB level", async () => {
+      const repo = betsRepo(db);
+      await repo.create({ ...sampleBet, id: "bet-1", status: "pending" });
+
+      await expect(
+        repo.create({ ...sampleBet, id: "bet-2", orderId: "order-2", status: "pending" }),
+      ).rejects.toThrow();
+    });
+
+    it("allows two bets on same market if first is failed", async () => {
+      const repo = betsRepo(db);
+      await repo.create({ ...sampleBet, id: "bet-1", status: "failed" });
+      await repo.create({ ...sampleBet, id: "bet-2", status: "pending" });
+
+      const all = await repo.findAll();
+      expect(all).toHaveLength(2);
+    });
+
+    it("allows two bets on same market if first is settled", async () => {
+      const repo = betsRepo(db);
+      await repo.create({ ...sampleBet, id: "bet-1", status: "settled_won" });
+      await repo.create({ ...sampleBet, id: "bet-2", status: "pending" });
+
+      const all = await repo.findAll();
+      expect(all).toHaveLength(2);
     });
   });
 });
