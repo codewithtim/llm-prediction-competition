@@ -36,8 +36,8 @@ export function PnlChart({ entries }: { entries: LeaderboardEntry[] }) {
                 formatter={(value) => [`$${Number(value).toFixed(2)}`, "P&L"]}
               />
               <Bar dataKey="pnl" radius={[4, 4, 0, 0]}>
-                {data.map((entry, index) => (
-                  <Cell key={index} fill={entry.pnl >= 0 ? "#10b981" : "#ef4444"} />
+                {data.map((entry) => (
+                  <Cell key={entry.name} fill={entry.pnl >= 0 ? "#10b981" : "#ef4444"} />
                 ))}
               </Bar>
             </BarChart>

@@ -57,7 +57,8 @@ export function dashboardRoutes(deps: ApiDeps) {
 
     leaderboard.sort((a, b) => b.competitor.stats.profitLoss - a.competitor.stats.profitLoss);
     for (let i = 0; i < leaderboard.length; i++) {
-      leaderboard[i]!.rank = i + 1;
+      const entry = leaderboard[i];
+      if (entry) entry.rank = i + 1;
     }
 
     // Enrich recent bets

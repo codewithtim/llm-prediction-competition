@@ -52,7 +52,7 @@ const versions = competitorVersionsRepo(db);
 const gammaClient = createGammaClient();
 const footballClient = createFootballClient(env.API_SPORTS_KEY);
 const openrouterConfigured = !!env.OPENROUTER_API_KEY;
-const openrouter = openrouterConfigured ? createOpenRouterClient(env.OPENROUTER_API_KEY) : null;
+const _openrouter = openrouterConfigured ? createOpenRouterClient(env.OPENROUTER_API_KEY) : null;
 const bettingClientFactory = createBettingClientFactory();
 
 if (!openrouterConfigured) {
