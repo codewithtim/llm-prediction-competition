@@ -67,6 +67,7 @@ export function fixturesRoutes(deps: ApiDeps) {
       status: fixture.status,
       markets: fixtureMarkets.map((m) => ({
         id: m.id,
+        polymarketUrl: m.polymarketUrl ?? null,
         question: m.question,
         outcomes: m.outcomes,
         outcomePrices: m.outcomePrices,

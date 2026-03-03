@@ -10,6 +10,7 @@ describe("GET /api/markets", () => {
         findAll: async () => [
           {
             id: "m1",
+            polymarketUrl: "https://polymarket.com/sports/epl/epl-ars-che-2026-03-15",
             question: "Will Arsenal win?",
             outcomes: ["Yes", "No"],
             outcomePrices: ["0.65", "0.35"],
@@ -35,6 +36,7 @@ describe("GET /api/markets", () => {
 
     const data = await res.json();
     expect(data).toHaveLength(1);
+    expect(data[0].polymarketUrl).toBe("https://polymarket.com/sports/epl/epl-ars-che-2026-03-15");
     expect(data[0].fixtureSummary).toBe("Arsenal vs Chelsea");
     expect(data[0].status).toBe("active");
   });

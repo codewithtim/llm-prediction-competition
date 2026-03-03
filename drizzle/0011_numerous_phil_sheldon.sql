@@ -1,0 +1,1 @@
+ALTER TABLE `markets` ADD `polymarket_url` text;

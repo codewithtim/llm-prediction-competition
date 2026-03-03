@@ -55,6 +55,7 @@ describe("GET /api/fixtures/:id", () => {
         findByFixtureId: async () => [
           {
             id: "m1",
+            polymarketUrl: "https://polymarket.com/sports/epl/epl-ars-che-2026-03-15",
             question: "Will Arsenal win?",
             outcomes: ["Yes", "No"],
             outcomePrices: ["0.65", "0.35"],
@@ -80,6 +81,7 @@ describe("GET /api/fixtures/:id", () => {
     const data = await res.json();
     expect(data.homeTeamName).toBe("Arsenal");
     expect(data.markets).toHaveLength(1);
+    expect(data.markets[0].polymarketUrl).toBe("https://polymarket.com/sports/epl/epl-ars-che-2026-03-15");
   });
 
   test("returns 404 for missing fixture", async () => {

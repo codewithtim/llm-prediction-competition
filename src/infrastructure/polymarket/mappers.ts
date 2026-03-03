@@ -23,10 +23,17 @@ export function mapGammaMarketToMarket(raw: GammaMarket): Market | null {
     gameId: raw.gameId ?? null,
     sportsMarketType: raw.sportsMarketType ?? null,
     line: null,
+    polymarketUrl: null,
   };
 }
 
 export function mapGammaEventToEvent(raw: GammaEvent): Event {
+  const polymarketUrl = `https://polymarket.com/sports/${raw.seriesSlug}/${raw.slug}`;
+  const markets = raw.markets
+    .map(mapGammaMarketToMarket)
+    .filter((m): m is Market => m !== null)
+    .map((m) => ({ ...m, polymarketUrl }));
+
   return {
     id: raw.id,
     slug: raw.slug,
@@ -35,6 +42,6 @@ export function mapGammaEventToEvent(raw: GammaEvent): Event {
     endDate: raw.endDate,
     active: raw.active,
     closed: raw.closed,
-    markets: raw.markets.map(mapGammaMarketToMarket).filter((m): m is Market => m !== null),
+    markets,
   };
 }

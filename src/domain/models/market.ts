@@ -25,4 +25,5 @@ export type Market = {
   gameId: string | null;
   sportsMarketType: string | null;
   line: number | null;
+  polymarketUrl: string | null;
 };

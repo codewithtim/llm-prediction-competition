@@ -88,6 +88,7 @@ export type FixtureDetailResponse = {
 
 export type MarketSummary = {
   id: string;
+  polymarketUrl: string | null;
   question: string;
   outcomes: [string, string];
   outcomePrices: [string, string];
@@ -107,6 +108,7 @@ export type BetSummary = {
   competitorName: string;
   marketId: string;
   marketQuestion: string;
+  polymarketUrl: string | null;
   fixtureId: number;
   side: "YES" | "NO";
   amount: number;
@@ -117,6 +119,8 @@ export type BetSummary = {
   settledAt: string | null;
   profit: number | null;
   confidence: number | null;
+  errorMessage: string | null;
+  errorCategory: string | null;
 };
 
 export type ReasoningSectionDTO = {

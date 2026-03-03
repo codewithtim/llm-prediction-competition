@@ -27,6 +27,7 @@ export function marketsRoutes(deps: ApiDeps) {
     return c.json(
       allMarkets.map((m) => ({
         id: m.id,
+        polymarketUrl: m.polymarketUrl ?? null,
         question: m.question,
         outcomes: m.outcomes,
         outcomePrices: m.outcomePrices,

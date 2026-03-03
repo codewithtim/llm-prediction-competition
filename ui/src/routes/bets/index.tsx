@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { PageShell } from "@/components/layout/page-shell";
 import { EmptyState } from "@/components/shared/empty-state";
+import { ExternalLink } from "@/components/shared/external-link";
 import { TableSkeleton } from "@/components/shared/loading-skeleton";
 import { Money } from "@/components/shared/money";
 import { StatusBadge } from "@/components/shared/status-badge";
@@ -22,6 +23,7 @@ const STATUS_TABS = [
   { value: "filled", label: "Filled" },
   { value: "settled_won", label: "Won" },
   { value: "settled_lost", label: "Lost" },
+  { value: "failed", label: "Failed" },
   { value: "cancelled", label: "Cancelled" },
 ];
 
@@ -66,7 +68,7 @@ export function BetsPage() {
                 <TableRow key={b.id} className="border-zinc-800 hover:bg-zinc-800/50">
                   <TableCell className="text-zinc-200 font-medium">{b.competitorName}</TableCell>
                   <TableCell className="text-zinc-400 text-sm max-w-64 truncate">
-                    {b.marketQuestion}
+                    <ExternalLink href={b.polymarketUrl}>{b.marketQuestion}</ExternalLink>
                   </TableCell>
                   <TableCell className="font-mono text-zinc-300">{b.side}</TableCell>
                   <TableCell className="text-right font-mono text-zinc-300">
@@ -79,7 +81,18 @@ export function BetsPage() {
                     {b.price.toFixed(2)}
                   </TableCell>
                   <TableCell>
-                    <StatusBadge status={b.status} />
+                    <div className="flex flex-col gap-1">
+                      <StatusBadge status={b.status} />
+                      {b.status === "failed" && b.errorMessage && (
+                        <span
+                          className="text-xs text-red-400/70 max-w-48 truncate"
+                          title={b.errorMessage}
+                        >
+                          {b.errorCategory ? `${b.errorCategory}: ` : ""}
+                          {b.errorMessage}
+                        </span>
+                      )}
+                    </div>
                   </TableCell>
                   <TableCell className="text-zinc-400 text-sm">
                     {formatDateTime(b.placedAt)}

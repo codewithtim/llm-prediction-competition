@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { PageShell } from "@/components/layout/page-shell";
 import { EmptyState } from "@/components/shared/empty-state";
+import { ExternalLink } from "@/components/shared/external-link";
 import { TableSkeleton } from "@/components/shared/loading-skeleton";
 import { StatusBadge } from "@/components/shared/status-badge";
 import {
@@ -103,7 +104,9 @@ export function MarketsPage() {
             <TableBody>
               {sorted.map((m) => (
                 <TableRow key={m.id} className="border-zinc-800 hover:bg-zinc-800/50">
-                  <TableCell className="text-zinc-200 max-w-72 truncate">{m.question}</TableCell>
+                  <TableCell className="text-zinc-200 max-w-72 truncate">
+                    <ExternalLink href={m.polymarketUrl}>{m.question}</ExternalLink>
+                  </TableCell>
                   <TableCell className="text-right font-mono text-zinc-300">
                     {Number(m.outcomePrices[0]).toFixed(2)}
                   </TableCell>

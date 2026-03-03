@@ -21,6 +21,8 @@ describe("GET /api/bets", () => {
             placedAt: new Date("2026-01-01"),
             settledAt: null,
             profit: null,
+            errorMessage: null,
+            errorCategory: null,
           },
         ],
       } as any,
@@ -28,7 +30,13 @@ describe("GET /api/bets", () => {
         findAll: async () => [{ id: "c1", name: "Claude" }],
       } as any,
       marketsRepo: {
-        findAll: async () => [{ id: "m1", question: "Will Arsenal win?" }],
+        findAll: async () => [
+          {
+            id: "m1",
+            polymarketUrl: "https://polymarket.com/sports/epl/epl-ars-che-2026-03-15",
+            question: "Will Arsenal win?",
+          },
+        ],
       } as any,
     });
 
@@ -42,6 +50,54 @@ describe("GET /api/bets", () => {
     expect(data).toHaveLength(1);
     expect(data[0].competitorName).toBe("Claude");
     expect(data[0].marketQuestion).toBe("Will Arsenal win?");
+    expect(data[0].polymarketUrl).toBe("https://polymarket.com/sports/epl/epl-ars-che-2026-03-15");
+    expect(data[0].errorMessage).toBeNull();
+    expect(data[0].errorCategory).toBeNull();
+  });
+
+  test("returns error fields for failed bets", async () => {
+    const deps = createMockDeps({
+      betsRepo: {
+        findAll: async () => [
+          {
+            id: "b1",
+            competitorId: "c1",
+            marketId: "m1",
+            fixtureId: 1001,
+            side: "YES",
+            amount: 10,
+            price: 0.65,
+            shares: 0,
+            status: "failed",
+            placedAt: new Date("2026-01-01"),
+            settledAt: null,
+            profit: null,
+            errorMessage: "insufficient balance",
+            errorCategory: "insufficient_funds",
+          },
+        ],
+      } as any,
+      competitorsRepo: {
+        findAll: async () => [{ id: "c1", name: "Claude" }],
+      } as any,
+      marketsRepo: {
+        findAll: async () => [
+          {
+            id: "m1",
+            polymarketUrl: "https://polymarket.com/sports/epl/epl-ars-che-2026-03-15",
+            question: "Will Arsenal win?",
+          },
+        ],
+      } as any,
+    });
+
+    const app = new Hono();
+    app.route("/api", betsRoutes(deps));
+
+    const res = await app.request("/api/bets");
+    const data = await res.json();
+    expect(data[0].errorMessage).toBe("insufficient balance");
+    expect(data[0].errorCategory).toBe("insufficient_funds");
   });
 
   test("returns confidence from matching prediction", async () => {

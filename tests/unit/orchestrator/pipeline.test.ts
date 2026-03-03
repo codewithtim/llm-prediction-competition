@@ -46,6 +46,7 @@ function makeMarket(overrides: Partial<Market> = {}): Market {
     gameId: "100",
     sportsMarketType: "moneyline",
     line: null,
+    polymarketUrl: null,
     ...overrides,
   };
 }

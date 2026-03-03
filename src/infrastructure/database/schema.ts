@@ -18,6 +18,7 @@ export const markets = sqliteTable("markets", {
   gameId: text("game_id"),
   sportsMarketType: text("sports_market_type"),
   line: real("line"),
+  polymarketUrl: text("polymarket_url"),
   fixtureId: integer("fixture_id").references(() => fixtures.id),
   createdAt: integer("created_at", { mode: "timestamp" })
     .notNull()

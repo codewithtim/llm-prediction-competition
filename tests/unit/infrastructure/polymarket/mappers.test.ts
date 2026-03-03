@@ -78,6 +78,7 @@ describe("mapGammaMarketToMarket", () => {
     expect(result?.gameId).toBe("90091280");
     expect(result?.sportsMarketType).toBe("moneyline");
     expect(result?.line).toBeNull();
+    expect(result?.polymarketUrl).toBeNull();
   });
 
   test("handles null gameId and sportsMarketType", () => {
@@ -137,6 +138,9 @@ describe("mapGammaEventToEvent", () => {
     expect(result.endDate).toBe("2026-03-06T00:00:00Z");
     expect(result.markets).toHaveLength(1);
     expect(result.markets[0]?.id).toBe("1400768");
+    expect(result.markets[0]?.polymarketUrl).toBe(
+      "https://polymarket.com/sports/premier-league-2025/epl-tot-cry-2026-03-05",
+    );
   });
 
   test("prefers startTime over startDate", () => {

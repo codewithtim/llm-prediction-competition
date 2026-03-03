@@ -1,6 +1,7 @@
 import { useParams } from "@tanstack/react-router";
 import { PageShell } from "@/components/layout/page-shell";
 import { EmptyState } from "@/components/shared/empty-state";
+import { ExternalLink } from "@/components/shared/external-link";
 import { LoadingSkeleton } from "@/components/shared/loading-skeleton";
 import { ReasoningCell } from "@/components/shared/reasoning-modal";
 import { StatusBadge } from "@/components/shared/status-badge";
@@ -52,7 +53,9 @@ export function FixtureDetailPage() {
               <TableBody>
                 {data.markets.map((m) => (
                   <TableRow key={m.id} className="border-zinc-800 hover:bg-zinc-800/50">
-                    <TableCell className="text-zinc-200">{m.question}</TableCell>
+                    <TableCell className="text-zinc-200">
+                      <ExternalLink href={m.polymarketUrl}>{m.question}</ExternalLink>
+                    </TableCell>
                     <TableCell className="text-right font-mono text-zinc-300">
                       {Number(m.outcomePrices[0]).toFixed(2)}
                     </TableCell>

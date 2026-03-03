@@ -78,6 +78,7 @@ function dbRowToMarket(row: MarketRow): Market {
     gameId: row.gameId,
     sportsMarketType: row.sportsMarketType,
     line: row.line,
+    polymarketUrl: row.polymarketUrl ?? null,
   };
 }
 
@@ -153,6 +154,7 @@ function marketToDbRow(market: Market) {
     gameId: market.gameId,
     sportsMarketType: market.sportsMarketType,
     line: market.line,
+    polymarketUrl: market.polymarketUrl,
   };
 }
 

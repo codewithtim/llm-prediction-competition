@@ -62,6 +62,7 @@ function marketToDbRow(market: Market, fixtureId: number | null) {
     gameId: market.gameId,
     sportsMarketType: market.sportsMarketType,
     line: market.line,
+    polymarketUrl: market.polymarketUrl,
     fixtureId,
   };
 }
