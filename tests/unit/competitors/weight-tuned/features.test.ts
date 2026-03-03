@@ -319,6 +319,11 @@ describe("feature extractors", () => {
   });
 
   describe("scoringConsistency", () => {
+    it("returns 0.5 when no season stats", () => {
+      const stats = makeStatistics();
+      expect(getFeature("scoringConsistency")(stats)).toBe(0.5);
+    });
+
     it("returns >0.5 when away team fails to score more often", () => {
       const stats = makeStatistics({
         homeTeamSeasonStats: makeSeasonStats({ failedToScore: { home: 1, away: 1, total: 2 } }),

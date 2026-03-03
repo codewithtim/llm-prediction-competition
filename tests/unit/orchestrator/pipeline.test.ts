@@ -12,7 +12,9 @@ import type {
   ApiFixture,
   ApiResponse,
   ApiStandingsResponse,
+  ApiTeamStatisticsResponse,
 } from "../../../src/infrastructure/sports-data/types.ts";
+import type { TeamSeasonStats } from "../../../src/domain/contracts/statistics.ts";
 import { DEFAULT_CONFIG } from "../../../src/orchestrator/config.ts";
 import {
   createDiscoveryPipeline,
@@ -147,6 +149,108 @@ function makePrediction(overrides: Partial<PredictionOutput> = {}): PredictionOu
   };
 }
 
+function makeMinuteStats(): Record<string, { total: number | null; percentage: string | null }> {
+  return {
+    "0-15": { total: 3, percentage: "10%" },
+    "16-30": { total: 4, percentage: "13.33%" },
+    "31-45": { total: 5, percentage: "16.67%" },
+    "46-60": { total: 4, percentage: "13.33%" },
+    "61-75": { total: 5, percentage: "16.67%" },
+    "76-90": { total: 6, percentage: "20%" },
+    "91-105": { total: 2, percentage: "6.67%" },
+    "106-120": { total: 1, percentage: "3.33%" },
+  };
+}
+
+function makeUnderOver(): Record<string, { over: number; under: number }> {
+  return {
+    "0.5": { over: 18, under: 2 },
+    "1.5": { over: 14, under: 6 },
+    "2.5": { over: 10, under: 10 },
+    "3.5": { over: 5, under: 15 },
+    "4.5": { over: 2, under: 18 },
+  };
+}
+
+function makeApiTeamStatistics(): ApiTeamStatisticsResponse {
+  return {
+    league: { id: 39, name: "Premier League", country: "England", season: 2024 },
+    team: { id: 10, name: "Team A", logo: "" },
+    form: "WWDLW",
+    fixtures: {
+      played: { home: 10, away: 10, total: 20 },
+      wins: { home: 7, away: 5, total: 12 },
+      draws: { home: 2, away: 3, total: 5 },
+      loses: { home: 1, away: 2, total: 3 },
+    },
+    goals: {
+      for: {
+        total: { home: 22, away: 15, total: 37 },
+        average: { home: "2.2", away: "1.5", total: "1.85" },
+        minute: makeMinuteStats(),
+        under_over: makeUnderOver(),
+      },
+      against: {
+        total: { home: 8, away: 12, total: 20 },
+        average: { home: "0.8", away: "1.2", total: "1.0" },
+        minute: makeMinuteStats(),
+        under_over: makeUnderOver(),
+      },
+    },
+    biggest: {
+      streak: { wins: 5, draws: 2, loses: 1 },
+      wins: { home: "4-0", away: "3-0" },
+      loses: { home: "0-2", away: "0-3" },
+      goals: { for: { home: 4, away: 3 }, against: { home: 2, away: 3 } },
+    },
+    clean_sheet: { home: 6, away: 3, total: 9 },
+    failed_to_score: { home: 1, away: 3, total: 4 },
+    penalty: {
+      scored: { total: 4, percentage: "80%" },
+      missed: { total: 1, percentage: "20%" },
+      total: 5,
+    },
+    lineups: [{ formation: "4-3-3", played: 15 }],
+    cards: {
+      yellow: makeMinuteStats(),
+      red: makeMinuteStats(),
+    },
+  };
+}
+
+function makeTeamSeasonStats(): TeamSeasonStats {
+  const minuteStats = {
+    "0-15": { total: 3 as number | null, percentage: "10%" as string | null },
+    "16-30": { total: 4 as number | null, percentage: "13.33%" as string | null },
+    "31-45": { total: 5 as number | null, percentage: "16.67%" as string | null },
+    "46-60": { total: 4 as number | null, percentage: "13.33%" as string | null },
+    "61-75": { total: 5 as number | null, percentage: "16.67%" as string | null },
+    "76-90": { total: 6 as number | null, percentage: "20%" as string | null },
+    "91-105": { total: 2 as number | null, percentage: "6.67%" as string | null },
+    "106-120": { total: 1 as number | null, percentage: "3.33%" as string | null },
+  };
+  const underOver = {
+    "0.5": { over: 18, under: 2 },
+    "1.5": { over: 14, under: 6 },
+    "2.5": { over: 10, under: 10 },
+    "3.5": { over: 5, under: 15 },
+    "4.5": { over: 2, under: 18 },
+  };
+  return {
+    form: "WWDLW",
+    fixtures: { played: { home: 10, away: 10, total: 20 } },
+    cleanSheets: { home: 6, away: 3, total: 9 },
+    failedToScore: { home: 1, away: 3, total: 4 },
+    biggestStreak: { wins: 5, draws: 2, loses: 1 },
+    penaltyRecord: { scored: 4, missed: 1, total: 5 },
+    preferredFormations: [{ formation: "4-3-3", played: 15 }],
+    goalsForByMinute: minuteStats,
+    goalsAgainstByMinute: minuteStats,
+    goalsForUnderOver: underOver,
+    goalsAgainstUnderOver: underOver,
+  };
+}
+
 // ─── Mock builders ───────────────────────────────────────────────────
 
 function mockDiscovery(events = [makeEvent()]): MarketDiscovery {
@@ -173,7 +277,7 @@ function mockFootballClient(overrides: Partial<FootballClient> = {}): FootballCl
     getStandings: mock(() => Promise.resolve(apiResponse(makeStandingsResponse()))),
     getHeadToHead: mock(() => Promise.resolve(apiResponse(makeH2hFixtures()))),
     getInjuries: mock(() => Promise.resolve(apiResponse([]))),
-    getTeamStatistics: mock(() => Promise.resolve(apiResponse({} as never))),
+    getTeamStatistics: mock(() => Promise.resolve(apiResponse(makeApiTeamStatistics()))),
     getPlayers: mock(() => Promise.resolve(apiResponse([]))),
     getAllPlayers: mock(() => Promise.resolve([])),
     ...overrides,
@@ -838,24 +942,57 @@ describe("createPredictionPipeline", () => {
     expect(result.predictionsGenerated).toBe(1);
   });
 
+  test("enriched statistics include injuries and season stats when available", async () => {
+    const { fr, mr } = withFixtureAndMarkets();
+    const engineFn = mock(() => [makePrediction()]);
+    const registry = {
+      register: mock(() => {}),
+      getAll: mock(() => [
+        { competitorId: "baseline", name: "Baseline", engine: engineFn },
+      ]),
+      get: mock(() => undefined),
+    } as unknown as CompetitorRegistry;
+
+    const injuryData = [
+      {
+        player: { id: 99, name: "Injured Player", photo: "", type: "Missing Fixture", reason: "Knee" },
+        team: { id: 10, name: "Team A", logo: "" },
+        fixture: { id: 100, timezone: "UTC", date: "2026-03-05T20:00:00Z", timestamp: 0 },
+        league: { id: 39, season: 2024, name: "Premier League", country: "England" },
+      },
+    ];
+    const fc = mockFootballClient({
+      getInjuries: mock(() => Promise.resolve(apiResponse(injuryData))),
+    });
+    const sc = mockStatsCache({
+      getTeamStats: mock(() => Promise.resolve(makeTeamSeasonStats())),
+    });
+
+    const deps = buildPredictionDeps({
+      fixturesRepo: fr as unknown as PredictionPipelineDeps["fixturesRepo"],
+      marketsRepo: mr as unknown as PredictionPipelineDeps["marketsRepo"],
+      footballClient: fc,
+      registry,
+      statsCache: sc as unknown as PredictionPipelineDeps["statsCache"],
+    });
+    const pipeline = createPredictionPipeline(deps);
+    const result = await pipeline.run();
+
+    expect(result.fixturesProcessed).toBe(1);
+    expect(engineFn).toHaveBeenCalledTimes(1);
+
+    const call = engineFn.mock.calls[0] as unknown[];
+    const statsArg = call[0] as Record<string, unknown>;
+    expect(Array.isArray(statsArg.injuries)).toBe(true);
+    expect((statsArg.injuries as unknown[]).length).toBe(1);
+    expect(statsArg.homeTeamSeasonStats).toBeDefined();
+    expect(statsArg.awayTeamSeasonStats).toBeDefined();
+  });
+
   test("uses cached team stats when available", async () => {
     const { fr, mr } = withFixtureAndMarkets();
     const sc = mockStatsCache({
-      getTeamStats: mock(() =>
-        Promise.resolve({
-          form: "WWWWW",
-          fixtures: { played: { home: 10, away: 10, total: 20 } },
-          cleanSheets: { home: 6, away: 3, total: 9 },
-          failedToScore: { home: 1, away: 3, total: 4 },
-          biggestStreak: { wins: 5, draws: 2, loses: 1 },
-          penaltyRecord: { scored: 4, missed: 1, total: 5 },
-          preferredFormations: [],
-          goalsForByMinute: {},
-          goalsAgainstByMinute: {},
-          goalsForUnderOver: {},
-          goalsAgainstUnderOver: {},
-        }),
-      ),
+      getTeamStats: mock(() => Promise.resolve(makeTeamSeasonStats())),
     });
     const fc = mockFootballClient();
 

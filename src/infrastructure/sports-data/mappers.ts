@@ -1,11 +1,14 @@
 import type {
+  goalsByMinuteSchema,
   H2H,
   Injury,
   PlayerSeasonStats,
   TeamSeasonStats,
   TeamStats,
+  underOverSchema,
 } from "@domain/contracts/statistics.ts";
 import type { Fixture, FixtureStatus } from "@domain/models/fixture.ts";
+import type { z } from "zod";
 import type {
   ApiFixture,
   ApiInjury,
@@ -147,18 +150,20 @@ const MINUTE_INTERVALS = [
 
 function mapMinuteStats(
   raw: Record<string, { total: number | null; percentage: string | null }>,
-): Record<string, { total: number | null; percentage: string | null }> {
+): z.infer<typeof goalsByMinuteSchema> {
   return Object.fromEntries(
     MINUTE_INTERVALS.map((k) => [k, raw[k] ?? { total: null, percentage: null }]),
-  );
+  ) as z.infer<typeof goalsByMinuteSchema>;
 }
 
 const UNDER_OVER_LINES = ["0.5", "1.5", "2.5", "3.5", "4.5"] as const;
 
 function mapUnderOver(
   raw: Record<string, { over: number; under: number }>,
-): Record<string, { over: number; under: number }> {
-  return Object.fromEntries(UNDER_OVER_LINES.map((k) => [k, raw[k] ?? { over: 0, under: 0 }]));
+): z.infer<typeof underOverSchema> {
+  return Object.fromEntries(
+    UNDER_OVER_LINES.map((k) => [k, raw[k] ?? { over: 0, under: 0 }]),
+  ) as z.infer<typeof underOverSchema>;
 }
 
 export function mapApiTeamStatistics(raw: ApiTeamStatisticsResponse): TeamSeasonStats {
@@ -178,7 +183,7 @@ export function mapApiTeamStatistics(raw: ApiTeamStatisticsResponse): TeamSeason
     goalsAgainstByMinute: mapMinuteStats(raw.goals.against.minute),
     goalsForUnderOver: mapUnderOver(raw.goals.for.under_over),
     goalsAgainstUnderOver: mapUnderOver(raw.goals.against.under_over),
-  } as TeamSeasonStats;
+  };
 }
 
 export function mapApiPlayerToPlayerStats(

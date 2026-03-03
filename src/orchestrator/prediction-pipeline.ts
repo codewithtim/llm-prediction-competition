@@ -121,7 +121,7 @@ function buildMarketContext(market: Market): MarketContext {
 
 const STATS_CACHE_TTL = 24 * 60 * 60 * 1000;
 
-function summarisePlayerStats(
+export function summarisePlayerStats(
   allPlayers: PlayerSeasonStats[],
   injuries: Injury[],
 ): PlayerSeasonStats[] {
@@ -289,138 +289,115 @@ export function createPredictionPipeline(deps: PredictionPipelineDeps) {
             });
           }
 
-          // Step 2d-3: Fetch team season statistics (with cache)
-          let homeTeamSeasonStats: TeamSeasonStats | undefined;
-          let awayTeamSeasonStats: TeamSeasonStats | undefined;
-
-          try {
+          // Step 2d-3/4: Fetch team & player stats in parallel (with cache)
+          async function fetchTeamSeasonStats(
+            teamId: number,
+          ): Promise<TeamSeasonStats | undefined> {
             const cached = await statsCache.getTeamStats(
-              fixture.homeTeam.id,
+              teamId,
               fixture.league.id,
               fixture.league.season,
               STATS_CACHE_TTL,
             );
+            if (cached) return cached;
+            // Pass fixture.date to prevent data leakage
+            const resp = await footballClient.getTeamStatistics(
+              teamId,
+              fixture.league.id,
+              fixture.league.season,
+              fixture.date,
+            );
+            const mapped = mapApiTeamStatistics(resp.response);
+            await statsCache.setTeamStats(teamId, fixture.league.id, fixture.league.season, mapped);
+            return mapped;
+          }
+
+          async function fetchPlayerStats(
+            teamId: number,
+          ): Promise<PlayerSeasonStats[] | undefined> {
+            const cached = await statsCache.getPlayerStats(
+              teamId,
+              fixture.league.id,
+              fixture.league.season,
+              STATS_CACHE_TTL,
+            );
+            let players: PlayerSeasonStats[];
             if (cached) {
-              homeTeamSeasonStats = cached;
+              players = cached;
             } else {
-              const resp = await footballClient.getTeamStatistics(
-                fixture.homeTeam.id,
+              const raw = await footballClient.getAllPlayers(teamId, fixture.league.season);
+              players = raw
+                .map((p) => mapApiPlayerToPlayerStats(p, fixture.league.id))
+                .filter((p): p is PlayerSeasonStats => p !== null && p.appearances > 0);
+              await statsCache.setPlayerStats(
+                teamId,
                 fixture.league.id,
                 fixture.league.season,
-                fixture.date,
-              );
-              homeTeamSeasonStats = mapApiTeamStatistics(resp.response);
-              await statsCache.setTeamStats(
-                fixture.homeTeam.id,
-                fixture.league.id,
-                fixture.league.season,
-                homeTeamSeasonStats,
+                players,
               );
             }
-          } catch (err) {
-            const msg = err instanceof Error ? err.message : String(err);
+            return summarisePlayerStats(players, injuries);
+          }
+
+          const [homeStatsResult, awayStatsResult, homePlayersResult, awayPlayersResult] =
+            await Promise.allSettled([
+              fetchTeamSeasonStats(fixture.homeTeam.id),
+              fetchTeamSeasonStats(fixture.awayTeam.id),
+              fetchPlayerStats(fixture.homeTeam.id),
+              fetchPlayerStats(fixture.awayTeam.id),
+            ]);
+
+          let homeTeamSeasonStats: TeamSeasonStats | undefined;
+          let awayTeamSeasonStats: TeamSeasonStats | undefined;
+          let homeTeamPlayers: PlayerSeasonStats[] | undefined;
+          let awayTeamPlayers: PlayerSeasonStats[] | undefined;
+
+          if (homeStatsResult.status === "fulfilled") {
+            homeTeamSeasonStats = homeStatsResult.value;
+          } else {
+            const msg =
+              homeStatsResult.reason instanceof Error
+                ? homeStatsResult.reason.message
+                : String(homeStatsResult.reason);
             logger.warn("Prediction: home team stats fetch failed", {
               fixtureId: fixture.id,
               error: msg,
             });
           }
 
-          try {
-            const cached = await statsCache.getTeamStats(
-              fixture.awayTeam.id,
-              fixture.league.id,
-              fixture.league.season,
-              STATS_CACHE_TTL,
-            );
-            if (cached) {
-              awayTeamSeasonStats = cached;
-            } else {
-              const resp = await footballClient.getTeamStatistics(
-                fixture.awayTeam.id,
-                fixture.league.id,
-                fixture.league.season,
-                fixture.date,
-              );
-              awayTeamSeasonStats = mapApiTeamStatistics(resp.response);
-              await statsCache.setTeamStats(
-                fixture.awayTeam.id,
-                fixture.league.id,
-                fixture.league.season,
-                awayTeamSeasonStats,
-              );
-            }
-          } catch (err) {
-            const msg = err instanceof Error ? err.message : String(err);
+          if (awayStatsResult.status === "fulfilled") {
+            awayTeamSeasonStats = awayStatsResult.value;
+          } else {
+            const msg =
+              awayStatsResult.reason instanceof Error
+                ? awayStatsResult.reason.message
+                : String(awayStatsResult.reason);
             logger.warn("Prediction: away team stats fetch failed", {
               fixtureId: fixture.id,
               error: msg,
             });
           }
 
-          // Step 2d-4: Fetch player stats (with cache, paginated)
-          let homeTeamPlayers: PlayerSeasonStats[] | undefined;
-          let awayTeamPlayers: PlayerSeasonStats[] | undefined;
-
-          try {
-            const cached = await statsCache.getPlayerStats(
-              fixture.homeTeam.id,
-              fixture.league.id,
-              fixture.league.season,
-              STATS_CACHE_TTL,
-            );
-            if (cached) {
-              homeTeamPlayers = cached;
-            } else {
-              const raw = await footballClient.getAllPlayers(
-                fixture.homeTeam.id,
-                fixture.league.season,
-              );
-              homeTeamPlayers = raw
-                .map((p) => mapApiPlayerToPlayerStats(p, fixture.league.id))
-                .filter((p): p is PlayerSeasonStats => p !== null && p.appearances > 0);
-              await statsCache.setPlayerStats(
-                fixture.homeTeam.id,
-                fixture.league.id,
-                fixture.league.season,
-                homeTeamPlayers,
-              );
-            }
-            homeTeamPlayers = summarisePlayerStats(homeTeamPlayers, injuries);
-          } catch (err) {
-            const msg = err instanceof Error ? err.message : String(err);
+          if (homePlayersResult.status === "fulfilled") {
+            homeTeamPlayers = homePlayersResult.value;
+          } else {
+            const msg =
+              homePlayersResult.reason instanceof Error
+                ? homePlayersResult.reason.message
+                : String(homePlayersResult.reason);
             logger.warn("Prediction: home player stats fetch failed", {
               fixtureId: fixture.id,
               error: msg,
             });
           }
 
-          try {
-            const cached = await statsCache.getPlayerStats(
-              fixture.awayTeam.id,
-              fixture.league.id,
-              fixture.league.season,
-              STATS_CACHE_TTL,
-            );
-            if (cached) {
-              awayTeamPlayers = cached;
-            } else {
-              const raw = await footballClient.getAllPlayers(
-                fixture.awayTeam.id,
-                fixture.league.season,
-              );
-              awayTeamPlayers = raw
-                .map((p) => mapApiPlayerToPlayerStats(p, fixture.league.id))
-                .filter((p): p is PlayerSeasonStats => p !== null && p.appearances > 0);
-              await statsCache.setPlayerStats(
-                fixture.awayTeam.id,
-                fixture.league.id,
-                fixture.league.season,
-                awayTeamPlayers,
-              );
-            }
-            awayTeamPlayers = summarisePlayerStats(awayTeamPlayers, injuries);
-          } catch (err) {
-            const msg = err instanceof Error ? err.message : String(err);
+          if (awayPlayersResult.status === "fulfilled") {
+            awayTeamPlayers = awayPlayersResult.value;
+          } else {
+            const msg =
+              awayPlayersResult.reason instanceof Error
+                ? awayPlayersResult.reason.message
+                : String(awayPlayersResult.reason);
             logger.warn("Prediction: away player stats fetch failed", {
               fixtureId: fixture.id,
               error: msg,

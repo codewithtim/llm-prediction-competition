@@ -59,6 +59,7 @@ export function createFootballClient(apiKey: string) {
     },
 
     async getAllPlayers(teamId: number, season: number): Promise<ApiPlayerResponse[]> {
+      const MAX_PAGES = 10;
       const all: ApiPlayerResponse[] = [];
       let page = 1;
       let totalPages = 1;
@@ -67,7 +68,7 @@ export function createFootballClient(apiKey: string) {
         totalPages = resp.paging.total;
         all.push(...resp.response);
         page++;
-      } while (page <= totalPages);
+      } while (page <= totalPages && page <= MAX_PAGES);
       return all;
     },
   };
