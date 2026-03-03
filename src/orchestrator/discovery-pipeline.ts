@@ -70,6 +70,29 @@ function formatDateISO(date: Date): string {
   return date.toISOString().split("T")[0] as string;
 }
 
+export async function getCurrentSeason(
+  footballClient: FootballClient,
+  leagueId: number,
+  fallback?: number,
+): Promise<number> {
+  try {
+    const resp = await footballClient.getLeagues({ id: leagueId, current: true });
+    for (const entry of resp.response) {
+      const current = entry.seasons.find((s) => s.current);
+      if (current) return current.year;
+    }
+    logger.warn("Discovery: no current season found in API response", { leagueId });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    logger.warn("Discovery: failed to auto-detect season, using fallback", {
+      leagueId,
+      error: msg,
+    });
+  }
+  if (fallback !== undefined) return fallback;
+  throw new Error(`Cannot determine season for league ${leagueId}`);
+}
+
 export function createDiscoveryPipeline(deps: DiscoveryPipelineDeps) {
   const { discovery, footballClient, marketsRepo, fixturesRepo, config } = deps;
 
@@ -109,9 +132,19 @@ export function createDiscoveryPipeline(deps: DiscoveryPipelineDeps) {
 
       for (const league of config.leagues) {
         try {
+          const season = await getCurrentSeason(footballClient, league.id, config.season);
+          logger.info("Discovery: resolved season", { league: league.name, season });
+
+          logger.debug("Discovery: fixture query params", {
+            league: league.id,
+            season,
+            from,
+            to,
+          });
+
           const resp = await footballClient.getFixtures({
             league: league.id,
-            season: config.season,
+            season,
             from,
             to,
           });

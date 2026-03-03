@@ -347,62 +347,18 @@ export function createPredictionPipeline(deps: PredictionPipelineDeps) {
               fetchPlayerStats(fixture.awayTeam.id),
             ]);
 
-          let homeTeamSeasonStats: TeamSeasonStats | undefined;
-          let awayTeamSeasonStats: TeamSeasonStats | undefined;
-          let homeTeamPlayers: PlayerSeasonStats[] | undefined;
-          let awayTeamPlayers: PlayerSeasonStats[] | undefined;
-
-          if (homeStatsResult.status === "fulfilled") {
-            homeTeamSeasonStats = homeStatsResult.value;
-          } else {
+          const unpack = <T>(result: PromiseSettledResult<T>, label: string): T | undefined => {
+            if (result.status === "fulfilled") return result.value;
             const msg =
-              homeStatsResult.reason instanceof Error
-                ? homeStatsResult.reason.message
-                : String(homeStatsResult.reason);
-            logger.warn("Prediction: home team stats fetch failed", {
-              fixtureId: fixture.id,
-              error: msg,
-            });
-          }
+              result.reason instanceof Error ? result.reason.message : String(result.reason);
+            logger.warn(`Prediction: ${label} fetch failed`, { fixtureId: fixture.id, error: msg });
+            return undefined;
+          };
 
-          if (awayStatsResult.status === "fulfilled") {
-            awayTeamSeasonStats = awayStatsResult.value;
-          } else {
-            const msg =
-              awayStatsResult.reason instanceof Error
-                ? awayStatsResult.reason.message
-                : String(awayStatsResult.reason);
-            logger.warn("Prediction: away team stats fetch failed", {
-              fixtureId: fixture.id,
-              error: msg,
-            });
-          }
-
-          if (homePlayersResult.status === "fulfilled") {
-            homeTeamPlayers = homePlayersResult.value;
-          } else {
-            const msg =
-              homePlayersResult.reason instanceof Error
-                ? homePlayersResult.reason.message
-                : String(homePlayersResult.reason);
-            logger.warn("Prediction: home player stats fetch failed", {
-              fixtureId: fixture.id,
-              error: msg,
-            });
-          }
-
-          if (awayPlayersResult.status === "fulfilled") {
-            awayTeamPlayers = awayPlayersResult.value;
-          } else {
-            const msg =
-              awayPlayersResult.reason instanceof Error
-                ? awayPlayersResult.reason.message
-                : String(awayPlayersResult.reason);
-            logger.warn("Prediction: away player stats fetch failed", {
-              fixtureId: fixture.id,
-              error: msg,
-            });
-          }
+          const homeTeamSeasonStats = unpack(homeStatsResult, "home team stats");
+          const awayTeamSeasonStats = unpack(awayStatsResult, "away team stats");
+          const homeTeamPlayers = unpack(homePlayersResult, "home player stats");
+          const awayTeamPlayers = unpack(awayPlayersResult, "away player stats");
 
           // Step 2e: Build statistics (enriched)
           const statistics: Statistics = {

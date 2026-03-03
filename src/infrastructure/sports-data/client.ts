@@ -1,6 +1,7 @@
 import type {
   ApiFixture,
   ApiInjury,
+  ApiLeagueResponse,
   ApiPlayerResponse,
   ApiResponse,
   ApiStandingsResponse,
@@ -52,6 +53,13 @@ export function createFootballClient(apiKey: string) {
         season,
         ...(date ? { date } : {}),
       });
+    },
+
+    async getLeagues(params: { id?: number; current?: boolean }) {
+      return request<ApiLeagueResponse[]>(
+        "/leagues",
+        params as Record<string, string | number | boolean>,
+      );
     },
 
     async getPlayers(params: PlayerParams) {

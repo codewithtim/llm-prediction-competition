@@ -196,6 +196,17 @@ export type ApiPlayerResponse = {
   }>;
 };
 
+export type ApiLeagueResponse = {
+  league: { id: number; name: string; type: string; logo: string };
+  country: { name: string; code: string | null; flag: string | null };
+  seasons: Array<{
+    year: number;
+    start: string;
+    end: string;
+    current: boolean;
+  }>;
+};
+
 export type PlayerParams = {
   team?: number;
   league?: number;

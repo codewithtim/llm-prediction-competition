@@ -21,7 +21,7 @@ export type RetryConfig = {
 
 export type PipelineConfig = {
   leagues: LeagueConfig[];
-  season: number;
+  season?: number;
   fixtureLookAheadDays: number;
   discoveryIntervalMs: number;
   predictionIntervalMs: number;
@@ -46,7 +46,6 @@ export const DEFAULT_LEAGUES: LeagueConfig[] = [
 
 export const DEFAULT_CONFIG: PipelineConfig = {
   leagues: DEFAULT_LEAGUES,
-  season: 2025,
   fixtureLookAheadDays: 7,
   discoveryIntervalMs: 30 * 60 * 1000, // 30 minutes
   predictionIntervalMs: 6 * 60 * 60 * 1000, // 6 hours

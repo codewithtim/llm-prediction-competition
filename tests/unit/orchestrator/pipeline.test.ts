@@ -10,6 +10,7 @@ import type { GammaMarket } from "../../../src/infrastructure/polymarket/types.t
 import type { FootballClient } from "../../../src/infrastructure/sports-data/client.ts";
 import type {
   ApiFixture,
+  ApiLeagueResponse,
   ApiResponse,
   ApiStandingsResponse,
   ApiTeamStatisticsResponse,
@@ -18,6 +19,7 @@ import type { TeamSeasonStats } from "../../../src/domain/contracts/statistics.t
 import { DEFAULT_CONFIG } from "../../../src/orchestrator/config.ts";
 import {
   createDiscoveryPipeline,
+  getCurrentSeason,
   type DiscoveryPipelineDeps,
 } from "../../../src/orchestrator/discovery-pipeline.ts";
 import {
@@ -93,6 +95,19 @@ function makeApiFixture(id = 100): ApiFixture {
       penalty: { home: null, away: null },
     },
   };
+}
+
+function makeLeagueResponse(currentYear = 2024): ApiLeagueResponse[] {
+  return [
+    {
+      league: { id: 39, name: "Premier League", type: "League", logo: "" },
+      country: { name: "England", code: "GB", flag: null },
+      seasons: [
+        { year: 2023, start: "2023-08-11", end: "2024-05-19", current: false },
+        { year: currentYear, start: "2024-08-16", end: "2025-05-25", current: true },
+      ],
+    },
+  ];
 }
 
 function makeStandingsResponse(homeTeamId = 10, awayTeamId = 20): ApiStandingsResponse[] {
@@ -274,6 +289,7 @@ function apiResponse<T>(data: T): ApiResponse<T> {
 function mockFootballClient(overrides: Partial<FootballClient> = {}): FootballClient {
   return {
     getFixtures: mock(() => Promise.resolve(apiResponse([makeApiFixture()]))),
+    getLeagues: mock(() => Promise.resolve(apiResponse(makeLeagueResponse()))),
     getStandings: mock(() => Promise.resolve(apiResponse(makeStandingsResponse()))),
     getHeadToHead: mock(() => Promise.resolve(apiResponse(makeH2hFixtures()))),
     getInjuries: mock(() => Promise.resolve(apiResponse([]))),
@@ -450,6 +466,48 @@ function buildDiscoveryDeps(overrides: Partial<DiscoveryPipelineDeps> = {}): Dis
     ...overrides,
   };
 }
+
+// ─── getCurrentSeason Tests ──────────────────────────────────────────
+
+describe("getCurrentSeason", () => {
+  test("returns current season year from API", async () => {
+    const client = mockFootballClient();
+    const season = await getCurrentSeason(client, 39);
+    expect(season).toBe(2024);
+  });
+
+  test("returns fallback when API fails", async () => {
+    const client = mockFootballClient({
+      getLeagues: mock(() => Promise.reject(new Error("API down"))),
+    });
+    const season = await getCurrentSeason(client, 39, 2023);
+    expect(season).toBe(2023);
+  });
+
+  test("throws when API fails and no fallback provided", async () => {
+    const client = mockFootballClient({
+      getLeagues: mock(() => Promise.reject(new Error("API down"))),
+    });
+    await expect(getCurrentSeason(client, 39)).rejects.toThrow(
+      "Cannot determine season for league 39",
+    );
+  });
+
+  test("returns fallback when no current season in response", async () => {
+    const noCurrentSeason: ApiLeagueResponse[] = [
+      {
+        league: { id: 39, name: "Premier League", type: "League", logo: "" },
+        country: { name: "England", code: "GB", flag: null },
+        seasons: [{ year: 2023, start: "2023-08-11", end: "2024-05-19", current: false }],
+      },
+    ];
+    const client = mockFootballClient({
+      getLeagues: mock(() => Promise.resolve(apiResponse(noCurrentSeason))),
+    });
+    const season = await getCurrentSeason(client, 39, 2022);
+    expect(season).toBe(2022);
+  });
+});
 
 describe("createDiscoveryPipeline", () => {
   test("discovers events and fetches fixtures", async () => {

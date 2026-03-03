@@ -1,14 +1,11 @@
 import type {
-  goalsByMinuteSchema,
   H2H,
   Injury,
   PlayerSeasonStats,
   TeamSeasonStats,
   TeamStats,
-  underOverSchema,
 } from "@domain/contracts/statistics.ts";
 import type { Fixture, FixtureStatus } from "@domain/models/fixture.ts";
-import type { z } from "zod";
 import type {
   ApiFixture,
   ApiInjury,
@@ -137,33 +134,35 @@ export function mapApiInjuries(injuries: ApiInjury[]): Injury[] {
   }));
 }
 
-const MINUTE_INTERVALS = [
-  "0-15",
-  "16-30",
-  "31-45",
-  "46-60",
-  "61-75",
-  "76-90",
-  "91-105",
-  "106-120",
-] as const;
+const nil = { total: null, percentage: null } as const;
 
 function mapMinuteStats(
   raw: Record<string, { total: number | null; percentage: string | null }>,
-): z.infer<typeof goalsByMinuteSchema> {
-  return Object.fromEntries(
-    MINUTE_INTERVALS.map((k) => [k, raw[k] ?? { total: null, percentage: null }]),
-  ) as z.infer<typeof goalsByMinuteSchema>;
+): TeamSeasonStats["goalsForByMinute"] {
+  return {
+    "0-15": raw["0-15"] ?? nil,
+    "16-30": raw["16-30"] ?? nil,
+    "31-45": raw["31-45"] ?? nil,
+    "46-60": raw["46-60"] ?? nil,
+    "61-75": raw["61-75"] ?? nil,
+    "76-90": raw["76-90"] ?? nil,
+    "91-105": raw["91-105"] ?? nil,
+    "106-120": raw["106-120"] ?? nil,
+  };
 }
 
-const UNDER_OVER_LINES = ["0.5", "1.5", "2.5", "3.5", "4.5"] as const;
+const ZERO_LINE = { over: 0, under: 0 } as const;
 
 function mapUnderOver(
   raw: Record<string, { over: number; under: number }>,
-): z.infer<typeof underOverSchema> {
-  return Object.fromEntries(
-    UNDER_OVER_LINES.map((k) => [k, raw[k] ?? { over: 0, under: 0 }]),
-  ) as z.infer<typeof underOverSchema>;
+): TeamSeasonStats["goalsForUnderOver"] {
+  return {
+    "0.5": raw["0.5"] ?? ZERO_LINE,
+    "1.5": raw["1.5"] ?? ZERO_LINE,
+    "2.5": raw["2.5"] ?? ZERO_LINE,
+    "3.5": raw["3.5"] ?? ZERO_LINE,
+    "4.5": raw["4.5"] ?? ZERO_LINE,
+  };
 }
 
 export function mapApiTeamStatistics(raw: ApiTeamStatisticsResponse): TeamSeasonStats {
