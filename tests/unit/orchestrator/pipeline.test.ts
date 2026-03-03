@@ -991,7 +991,7 @@ describe("createPredictionPipeline", () => {
     expect(result.errors).toHaveLength(0);
   });
 
-  test("pipeline continues gracefully when team stats API fails", async () => {
+  test("skips fixture when team stats API fails", async () => {
     const { fr, mr } = withFixtureAndMarkets();
     const fc = mockFootballClient({
       getTeamStatistics: mock(() => Promise.reject(new Error("Team stats API down"))),
@@ -1005,11 +1005,12 @@ describe("createPredictionPipeline", () => {
     const pipeline = createPredictionPipeline(deps);
     const result = await pipeline.run();
 
-    expect(result.fixturesProcessed).toBe(1);
-    expect(result.predictionsGenerated).toBe(1);
+    expect(result.fixturesProcessed).toBe(0);
+    expect(result.predictionsGenerated).toBe(0);
+    expect(result.errors.some((e: string) => e.includes("Incomplete stats"))).toBe(true);
   });
 
-  test("pipeline continues gracefully when player stats API fails", async () => {
+  test("skips fixture when player stats API fails", async () => {
     const { fr, mr } = withFixtureAndMarkets();
     const fc = mockFootballClient({
       getAllPlayers: mock(() => Promise.reject(new Error("Players API down"))),
@@ -1023,8 +1024,9 @@ describe("createPredictionPipeline", () => {
     const pipeline = createPredictionPipeline(deps);
     const result = await pipeline.run();
 
-    expect(result.fixturesProcessed).toBe(1);
-    expect(result.predictionsGenerated).toBe(1);
+    expect(result.fixturesProcessed).toBe(0);
+    expect(result.predictionsGenerated).toBe(0);
+    expect(result.errors.some((e: string) => e.includes("Incomplete stats"))).toBe(true);
   });
 
   test("enriched statistics include injuries and season stats when available", async () => {
@@ -1092,5 +1094,161 @@ describe("createPredictionPipeline", () => {
 
     expect(result.fixturesProcessed).toBe(1);
     expect(fc.getTeamStatistics).not.toHaveBeenCalled();
+  });
+
+  test("stats pre-fetch failure skips fixture but processes others", async () => {
+    const fr = mockFixturesRepo({
+      findScheduledUpcoming: mock(() =>
+        Promise.resolve([makeFixtureRow(100), makeFixtureRow(200)]),
+      ),
+    });
+
+    // Fixture 100 has no standings for away team → will be skipped
+    const onlyHomeStandings: ApiStandingsResponse[] = [
+      {
+        league: {
+          id: 39,
+          name: "Premier League",
+          country: "England",
+          logo: "",
+          flag: "",
+          season: 2024,
+          standings: [
+            [
+              {
+                rank: 1,
+                team: { id: 10, name: "Team A", logo: "" },
+                points: 50,
+                goalsDiff: 20,
+                form: "WWWWW",
+                all: { played: 20, win: 15, draw: 3, lose: 2, goals: { for: 40, against: 20 } },
+                home: { played: 10, win: 8, draw: 1, lose: 1, goals: { for: 22, against: 8 } },
+                away: { played: 10, win: 7, draw: 2, lose: 1, goals: { for: 18, against: 12 } },
+              },
+            ],
+          ],
+        },
+      },
+    ];
+
+    let standingsCallCount = 0;
+    const fc = mockFootballClient({
+      getStandings: mock(() => {
+        standingsCallCount++;
+        if (standingsCallCount === 1) {
+          return Promise.resolve(apiResponse(onlyHomeStandings));
+        }
+        return Promise.resolve(apiResponse(makeStandingsResponse()));
+      }),
+    });
+
+    const mr = mockMarketsRepo({
+      findByFixtureId: mock(() => Promise.resolve([makeMarketRow()])),
+    });
+
+    const deps = buildPredictionDeps({
+      fixturesRepo: fr as unknown as PredictionPipelineDeps["fixturesRepo"],
+      marketsRepo: mr as unknown as PredictionPipelineDeps["marketsRepo"],
+      footballClient: fc,
+    });
+    const pipeline = createPredictionPipeline(deps);
+    const result = await pipeline.run();
+
+    expect(result.errors.some((e: string) => e.includes("Standings not found"))).toBe(true);
+    expect(result.fixturesProcessed).toBe(1);
+    expect(result.predictionsGenerated).toBe(1);
+  });
+
+  test("odds are refreshed after stats are gathered, not before", async () => {
+    const callOrder: string[] = [];
+
+    const fr = mockFixturesRepo({
+      findScheduledUpcoming: mock(() => Promise.resolve([makeFixtureRow()])),
+    });
+    const mr = mockMarketsRepo({
+      findByFixtureId: mock(() => Promise.resolve([makeMarketRow()])),
+    });
+
+    const fc = mockFootballClient({
+      getStandings: mock(() => {
+        callOrder.push("getStandings");
+        return Promise.resolve(apiResponse(makeStandingsResponse()));
+      }),
+      getHeadToHead: mock(() => {
+        callOrder.push("getHeadToHead");
+        return Promise.resolve(apiResponse(makeH2hFixtures()));
+      }),
+    });
+
+    const gc = mockGammaClient({
+      getMarketById: mock(() => {
+        callOrder.push("getMarketById");
+        return Promise.resolve(makeGammaMarket());
+      }),
+    });
+
+    const deps = buildPredictionDeps({
+      fixturesRepo: fr as unknown as PredictionPipelineDeps["fixturesRepo"],
+      marketsRepo: mr as unknown as PredictionPipelineDeps["marketsRepo"],
+      footballClient: fc,
+      gammaClient: gc,
+    });
+    const pipeline = createPredictionPipeline(deps);
+    await pipeline.run();
+
+    const standingsIdx = callOrder.indexOf("getStandings");
+    const h2hIdx = callOrder.indexOf("getHeadToHead");
+    const oddsIdx = callOrder.indexOf("getMarketById");
+
+    expect(standingsIdx).toBeLessThan(oddsIdx);
+    expect(h2hIdx).toBeLessThan(oddsIdx);
+  });
+
+  test("multiple fixtures each get independently refreshed odds", async () => {
+    const fr = mockFixturesRepo({
+      findScheduledUpcoming: mock(() =>
+        Promise.resolve([makeFixtureRow(100), makeFixtureRow(200)]),
+      ),
+    });
+
+    const mr = mockMarketsRepo({
+      findByFixtureId: mock((fixtureId: number) =>
+        Promise.resolve([makeMarketRow(fixtureId)]),
+      ),
+    });
+
+    const oddsCallMarketIds: string[] = [];
+    const gc = mockGammaClient({
+      getMarketById: mock((marketId: string) => {
+        oddsCallMarketIds.push(marketId);
+        return Promise.resolve(makeGammaMarket({ id: marketId }));
+      }),
+    });
+
+    const engineCalls: Record<string, unknown>[] = [];
+    const engineFn = mock((stats: Record<string, unknown>) => {
+      engineCalls.push(stats);
+      return [makePrediction()];
+    });
+    const registry = {
+      register: mock(() => {}),
+      getAll: mock(() => [
+        { competitorId: "baseline", name: "Baseline", engine: engineFn },
+      ]),
+      get: mock(() => undefined),
+    } as unknown as CompetitorRegistry;
+
+    const deps = buildPredictionDeps({
+      fixturesRepo: fr as unknown as PredictionPipelineDeps["fixturesRepo"],
+      marketsRepo: mr as unknown as PredictionPipelineDeps["marketsRepo"],
+      gammaClient: gc,
+      registry,
+    });
+    const pipeline = createPredictionPipeline(deps);
+    const result = await pipeline.run();
+
+    expect(result.fixturesProcessed).toBe(2);
+    expect(oddsCallMarketIds).toHaveLength(2);
+    expect(gc.getMarketById).toHaveBeenCalledTimes(2);
   });
 });

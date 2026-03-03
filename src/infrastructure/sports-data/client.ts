@@ -51,7 +51,7 @@ export function createFootballClient(apiKey: string) {
         team: teamId,
         league: leagueId,
         season,
-        ...(date ? { date } : {}),
+        ...(date ? { date: date.split("T")[0] } : {}),
       });
     },
 

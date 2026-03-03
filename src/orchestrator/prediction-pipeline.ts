@@ -1,10 +1,12 @@
 import type { CompetitorRegistry } from "../competitors/registry.ts";
 import type {
+  H2H,
   Injury,
   MarketContext,
   PlayerSeasonStats,
   Statistics,
   TeamSeasonStats,
+  TeamStats,
 } from "../domain/contracts/statistics.ts";
 import type { Fixture } from "../domain/models/fixture.ts";
 import type { Market } from "../domain/models/market.ts";
@@ -60,6 +62,20 @@ export type PredictionPipelineResult = {
 
 type MarketRow = typeof marketsTable.$inferSelect;
 type FixtureRow = typeof fixturesTable.$inferSelect;
+
+type PreFetchedFixtureData = {
+  fixture: Fixture;
+  fixtureLabel: string;
+  marketRows: MarketRow[];
+  homeStats: TeamStats;
+  awayStats: TeamStats;
+  h2h: H2H;
+  injuries: Injury[];
+  homeTeamSeasonStats: TeamSeasonStats;
+  awayTeamSeasonStats: TeamSeasonStats;
+  homeTeamPlayers: PlayerSeasonStats[];
+  awayTeamPlayers: PlayerSeasonStats[];
+};
 
 function dbRowToMarket(row: MarketRow): Market {
   return {
@@ -158,6 +174,56 @@ function marketToDbRow(market: Market) {
   };
 }
 
+async function fetchTeamSeasonStats(
+  teamId: number,
+  fixture: Fixture,
+  footballClient: FootballClient,
+  statsCache: ReturnType<typeof statsCacheRepoFactory>,
+): Promise<TeamSeasonStats | undefined> {
+  const cached = await statsCache.getTeamStats(
+    teamId,
+    fixture.league.id,
+    fixture.league.season,
+    STATS_CACHE_TTL,
+  );
+  if (cached) return cached;
+  const resp = await footballClient.getTeamStatistics(
+    teamId,
+    fixture.league.id,
+    fixture.league.season,
+    fixture.date,
+  );
+  const mapped = mapApiTeamStatistics(resp.response);
+  await statsCache.setTeamStats(teamId, fixture.league.id, fixture.league.season, mapped);
+  return mapped;
+}
+
+async function fetchPlayerStats(
+  teamId: number,
+  fixture: Fixture,
+  injuries: Injury[],
+  footballClient: FootballClient,
+  statsCache: ReturnType<typeof statsCacheRepoFactory>,
+): Promise<PlayerSeasonStats[] | undefined> {
+  const cached = await statsCache.getPlayerStats(
+    teamId,
+    fixture.league.id,
+    fixture.league.season,
+    STATS_CACHE_TTL,
+  );
+  let players: PlayerSeasonStats[];
+  if (cached) {
+    players = cached;
+  } else {
+    const raw = await footballClient.getAllPlayers(teamId, fixture.league.season);
+    players = raw
+      .map((p) => mapApiPlayerToPlayerStats(p, fixture.league.id))
+      .filter((p): p is PlayerSeasonStats => p !== null && p.appearances > 0);
+    await statsCache.setPlayerStats(teamId, fixture.league.id, fixture.league.season, players);
+  }
+  return summarisePlayerStats(players, injuries);
+}
+
 export function createPredictionPipeline(deps: PredictionPipelineDeps) {
   const {
     gammaClient,
@@ -172,6 +238,284 @@ export function createPredictionPipeline(deps: PredictionPipelineDeps) {
     config,
   } = deps;
 
+  async function gatherFixtureStats(
+    fixtureRow: FixtureRow,
+    result: PredictionPipelineResult,
+  ): Promise<PreFetchedFixtureData | null> {
+    const fixture = dbRowToFixture(fixtureRow);
+    const fixtureLabel = `${fixture.homeTeam.name} vs ${fixture.awayTeam.name}`;
+
+    const marketRows = await marketsRepo.findByFixtureId(fixture.id);
+    if (marketRows.length === 0) {
+      logger.info("Prediction: no markets for fixture, skipping", {
+        fixtureId: fixture.id,
+        fixture: fixtureLabel,
+      });
+      return null;
+    }
+
+    const standingsResp = await footballClient.getStandings(
+      fixture.league.id,
+      fixture.league.season,
+    );
+    const allStandings = standingsResp.response.flatMap((r) => r.league.standings.flat());
+
+    const homeStanding = allStandings.find((s) => s.team.id === fixture.homeTeam.id);
+    const awayStanding = allStandings.find((s) => s.team.id === fixture.awayTeam.id);
+
+    if (!homeStanding || !awayStanding) {
+      result.errors.push(`Standings not found for fixture ${fixture.id} (${fixtureLabel})`);
+      return null;
+    }
+
+    const homeStats = mapStandingToTeamStats(homeStanding);
+    const awayStats = mapStandingToTeamStats(awayStanding);
+
+    const h2hResp = await footballClient.getHeadToHead(fixture.homeTeam.id, fixture.awayTeam.id);
+    const h2h = mapH2hFixturesToH2H(h2hResp.response, fixture.homeTeam.id);
+
+    let injuries: Injury[] = [];
+    try {
+      const injResp = await footballClient.getInjuries(fixture.id);
+      injuries = mapApiInjuries(injResp.response);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      logger.warn("Prediction: injuries fetch failed, continuing without", {
+        fixtureId: fixture.id,
+        error: msg,
+      });
+    }
+
+    const [homeStatsResult, awayStatsResult, homePlayersResult, awayPlayersResult] =
+      await Promise.allSettled([
+        fetchTeamSeasonStats(fixture.homeTeam.id, fixture, footballClient, statsCache),
+        fetchTeamSeasonStats(fixture.awayTeam.id, fixture, footballClient, statsCache),
+        fetchPlayerStats(fixture.homeTeam.id, fixture, injuries, footballClient, statsCache),
+        fetchPlayerStats(fixture.awayTeam.id, fixture, injuries, footballClient, statsCache),
+      ]);
+
+    const unpack = <T>(settled: PromiseSettledResult<T>, label: string): T | undefined => {
+      if (settled.status === "fulfilled") return settled.value;
+      const msg = settled.reason instanceof Error ? settled.reason.message : String(settled.reason);
+      logger.warn(`Prediction: ${label} fetch failed`, { fixtureId: fixture.id, error: msg });
+      return undefined;
+    };
+
+    const homeTeamSeasonStats = unpack(homeStatsResult, "home team stats");
+    const awayTeamSeasonStats = unpack(awayStatsResult, "away team stats");
+    const homeTeamPlayers = unpack(homePlayersResult, "home player stats");
+    const awayTeamPlayers = unpack(awayPlayersResult, "away player stats");
+
+    if (!homeTeamSeasonStats || !awayTeamSeasonStats || !homeTeamPlayers || !awayTeamPlayers) {
+      result.errors.push(
+        `Incomplete stats for fixture ${fixture.id} (${fixtureLabel}): missing ${[
+          !homeTeamSeasonStats && "home team stats",
+          !awayTeamSeasonStats && "away team stats",
+          !homeTeamPlayers && "home player stats",
+          !awayTeamPlayers && "away player stats",
+        ]
+          .filter(Boolean)
+          .join(", ")}`,
+      );
+      return null;
+    }
+
+    return {
+      fixture,
+      fixtureLabel,
+      marketRows,
+      homeStats,
+      awayStats,
+      h2h,
+      injuries,
+      homeTeamSeasonStats,
+      awayTeamSeasonStats,
+      homeTeamPlayers,
+      awayTeamPlayers,
+    };
+  }
+
+  async function processFixture(
+    data: PreFetchedFixtureData,
+    engines: ReturnType<typeof registry.getAll>,
+    result: PredictionPipelineResult,
+  ): Promise<void> {
+    const { fixture, marketRows } = data;
+
+    // Refresh odds from Gamma and update DB
+    const marketMap = new Map<string, Market>();
+    for (const row of marketRows) {
+      let market = dbRowToMarket(row);
+      try {
+        const freshGamma = await gammaClient.getMarketById(market.id);
+        if (freshGamma) {
+          const freshMarket = mapGammaMarketToMarket(freshGamma);
+          if (freshMarket) {
+            freshMarket.polymarketUrl = market.polymarketUrl;
+            logger.info("Prediction: odds refreshed", {
+              marketId: market.id,
+              oldPrices: market.outcomePrices,
+              newPrices: freshMarket.outcomePrices,
+            });
+            await marketsRepo.upsert(marketToDbRow(freshMarket));
+            market = freshMarket;
+            result.oddsRefreshed++;
+          }
+        }
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        logger.warn("Prediction: odds refresh failed, using cached prices", {
+          marketId: market.id,
+          error: msg,
+        });
+        result.oddsRefreshFailed++;
+      }
+      marketMap.set(market.id, market);
+    }
+
+    const marketContexts: MarketContext[] = [];
+    for (const market of marketMap.values()) {
+      marketContexts.push(buildMarketContext(market));
+    }
+
+    if (marketContexts.length === 0) return;
+
+    const statistics: Statistics = {
+      fixtureId: fixture.id,
+      league: fixture.league,
+      homeTeam: data.homeStats,
+      awayTeam: data.awayStats,
+      h2h: data.h2h,
+      markets: marketContexts,
+      injuries: data.injuries,
+      homeTeamSeasonStats: data.homeTeamSeasonStats,
+      awayTeamSeasonStats: data.awayTeamSeasonStats,
+      homeTeamPlayers: data.homeTeamPlayers,
+      awayTeamPlayers: data.awayTeamPlayers,
+    };
+
+    result.fixturesProcessed++;
+
+    const engineResults = await runAllEngines(engines, statistics);
+
+    for (const engineResult of engineResults) {
+      if ("error" in engineResult) {
+        result.errors.push(
+          `Engine ${engineResult.competitorId} failed on fixture ${fixture.id}: ${engineResult.error}`,
+        );
+        continue;
+      }
+
+      const { competitorId, predictions } = engineResult as EngineResult;
+
+      const existingPredictions = await predictionsRepo.findByFixtureAndCompetitor(
+        fixture.id,
+        competitorId,
+      );
+      if (existingPredictions.length > 0) {
+        logger.info("Prediction: competitor already predicted for fixture, skipping", {
+          competitorId,
+          fixtureId: fixture.id,
+        });
+        continue;
+      }
+
+      let bankroll: number;
+      try {
+        bankroll = await bankrollProvider.getBankroll(competitorId);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        result.errors.push(`Bankroll fetch failed for ${competitorId}: ${msg}`);
+        continue;
+      }
+
+      for (const prediction of predictions) {
+        const market = marketMap.get(prediction.marketId);
+        if (!market) {
+          result.errors.push(
+            `Engine ${competitorId} returned prediction for unknown market ${prediction.marketId}`,
+          );
+          continue;
+        }
+
+        const absoluteStake = prediction.stake * bankroll;
+
+        try {
+          await predictionsRepo.create({
+            marketId: prediction.marketId,
+            fixtureId: fixture.id,
+            competitorId,
+            side: prediction.side,
+            confidence: prediction.confidence,
+            stake: absoluteStake,
+            reasoning: prediction.reasoning,
+          });
+          result.predictionsGenerated++;
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          result.errors.push(`Prediction save failed: ${msg}`);
+        }
+
+        const validation = validateStake(absoluteStake, bankroll, {
+          maxBetPctOfBankroll: config.betting.maxBetPctOfBankroll,
+          minBetAmount: config.betting.minBetAmount,
+        });
+
+        if (!validation.valid) {
+          logger.warn("Prediction: stake rejected", {
+            competitorId,
+            fixtureId: fixture.id,
+            marketId: prediction.marketId,
+            reason: validation.reason,
+            requestedStake: absoluteStake,
+            bankroll,
+          });
+          result.betsSkipped++;
+          continue;
+        }
+
+        try {
+          const engineEntry = engines.find((e) => e.competitorId === competitorId);
+          const betResult = await bettingService.placeBet({
+            prediction,
+            resolvedStake: absoluteStake,
+            market,
+            fixtureId: fixture.id,
+            competitorId,
+            walletConfig: engineEntry?.walletConfig,
+          });
+
+          if (betResult.status === "placed") {
+            result.betsPlaced++;
+          } else if (betResult.status === "dry_run") {
+            result.betsDryRun++;
+          } else if (betResult.status === "failed") {
+            result.betsSkipped++;
+            logger.warn("Prediction: bet failed", {
+              competitorId,
+              fixtureId: fixture.id,
+              marketId: market.id,
+              error: betResult.error,
+              errorCategory: betResult.errorCategory,
+            });
+          } else {
+            result.betsSkipped++;
+            logger.info("Prediction: bet skipped", {
+              competitorId,
+              fixtureId: fixture.id,
+              marketId: market.id,
+              reason: betResult.reason,
+            });
+          }
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          result.errors.push(`Bet placement failed: ${msg}`);
+          result.betsSkipped++;
+        }
+      }
+    }
+  }
+
   return {
     async run(): Promise<PredictionPipelineResult> {
       const result: PredictionPipelineResult = {
@@ -185,7 +529,6 @@ export function createPredictionPipeline(deps: PredictionPipelineDeps) {
         errors: [],
       };
 
-      // Step 1: Read scheduled fixtures from DB
       const fixtureRows = await fixturesRepo.findScheduledUpcoming();
       logger.info("Prediction: found scheduled fixtures", { count: fixtureRows.length });
 
@@ -200,319 +543,33 @@ export function createPredictionPipeline(deps: PredictionPipelineDeps) {
         return result;
       }
 
-      // Step 2: Process each fixture
+      // Phase 1: Pre-fetch all stable data
+      const preFetched: PreFetchedFixtureData[] = [];
       for (const fixtureRow of fixtureRows) {
-        const fixture = dbRowToFixture(fixtureRow);
-        const fixtureLabel = `${fixture.homeTeam.name} vs ${fixture.awayTeam.name}`;
-
         try {
-          // Step 2a: Get markets linked to this fixture
-          const marketRows = await marketsRepo.findByFixtureId(fixture.id);
-          if (marketRows.length === 0) {
-            logger.info("Prediction: no markets for fixture, skipping", {
-              fixtureId: fixture.id,
-              fixture: fixtureLabel,
-            });
-            continue;
-          }
-
-          // Step 2b: Refresh odds from Gamma and update DB
-          const marketMap = new Map<string, Market>();
-          for (const row of marketRows) {
-            let market = dbRowToMarket(row);
-            try {
-              const freshGamma = await gammaClient.getMarketById(market.id);
-              if (freshGamma) {
-                const freshMarket = mapGammaMarketToMarket(freshGamma);
-                if (freshMarket) {
-                  // Preserve polymarketUrl from DB — Gamma market endpoint
-                  // doesn't include event-level slug data needed for the URL
-                  freshMarket.polymarketUrl = market.polymarketUrl;
-                  logger.info("Prediction: odds refreshed", {
-                    marketId: market.id,
-                    oldPrices: market.outcomePrices,
-                    newPrices: freshMarket.outcomePrices,
-                  });
-                  await marketsRepo.upsert(marketToDbRow(freshMarket));
-                  market = freshMarket;
-                  result.oddsRefreshed++;
-                }
-              }
-            } catch (err) {
-              const msg = err instanceof Error ? err.message : String(err);
-              logger.warn("Prediction: odds refresh failed, using cached prices", {
-                marketId: market.id,
-                error: msg,
-              });
-              result.oddsRefreshFailed++;
-            }
-            marketMap.set(market.id, market);
-          }
-
-          // Step 2c: Build market contexts from refreshed markets
-          const marketContexts: MarketContext[] = [];
-          for (const market of marketMap.values()) {
-            marketContexts.push(buildMarketContext(market));
-          }
-
-          if (marketContexts.length === 0) continue;
-
-          // Step 2d: Fetch standings and H2H
-          const standingsResp = await footballClient.getStandings(
-            fixture.league.id,
-            fixture.league.season,
-          );
-          const allStandings = standingsResp.response.flatMap((r) => r.league.standings.flat());
-
-          const homeStanding = allStandings.find((s) => s.team.id === fixture.homeTeam.id);
-          const awayStanding = allStandings.find((s) => s.team.id === fixture.awayTeam.id);
-
-          if (!homeStanding || !awayStanding) {
-            result.errors.push(`Standings not found for fixture ${fixture.id} (${fixtureLabel})`);
-            continue;
-          }
-
-          const homeStats = mapStandingToTeamStats(homeStanding);
-          const awayStats = mapStandingToTeamStats(awayStanding);
-
-          const h2hResp = await footballClient.getHeadToHead(
-            fixture.homeTeam.id,
-            fixture.awayTeam.id,
-          );
-          const h2h = mapH2hFixturesToH2H(h2hResp.response, fixture.homeTeam.id);
-
-          // Step 2d-2: Fetch injuries (always fresh)
-          let injuries: Injury[] = [];
-          try {
-            const injResp = await footballClient.getInjuries(fixture.id);
-            injuries = mapApiInjuries(injResp.response);
-          } catch (err) {
-            const msg = err instanceof Error ? err.message : String(err);
-            logger.warn("Prediction: injuries fetch failed, continuing without", {
-              fixtureId: fixture.id,
-              error: msg,
-            });
-          }
-
-          // Step 2d-3/4: Fetch team & player stats in parallel (with cache)
-          async function fetchTeamSeasonStats(
-            teamId: number,
-          ): Promise<TeamSeasonStats | undefined> {
-            const cached = await statsCache.getTeamStats(
-              teamId,
-              fixture.league.id,
-              fixture.league.season,
-              STATS_CACHE_TTL,
-            );
-            if (cached) return cached;
-            // Pass fixture.date to prevent data leakage
-            const resp = await footballClient.getTeamStatistics(
-              teamId,
-              fixture.league.id,
-              fixture.league.season,
-              fixture.date,
-            );
-            const mapped = mapApiTeamStatistics(resp.response);
-            await statsCache.setTeamStats(teamId, fixture.league.id, fixture.league.season, mapped);
-            return mapped;
-          }
-
-          async function fetchPlayerStats(
-            teamId: number,
-          ): Promise<PlayerSeasonStats[] | undefined> {
-            const cached = await statsCache.getPlayerStats(
-              teamId,
-              fixture.league.id,
-              fixture.league.season,
-              STATS_CACHE_TTL,
-            );
-            let players: PlayerSeasonStats[];
-            if (cached) {
-              players = cached;
-            } else {
-              const raw = await footballClient.getAllPlayers(teamId, fixture.league.season);
-              players = raw
-                .map((p) => mapApiPlayerToPlayerStats(p, fixture.league.id))
-                .filter((p): p is PlayerSeasonStats => p !== null && p.appearances > 0);
-              await statsCache.setPlayerStats(
-                teamId,
-                fixture.league.id,
-                fixture.league.season,
-                players,
-              );
-            }
-            return summarisePlayerStats(players, injuries);
-          }
-
-          const [homeStatsResult, awayStatsResult, homePlayersResult, awayPlayersResult] =
-            await Promise.allSettled([
-              fetchTeamSeasonStats(fixture.homeTeam.id),
-              fetchTeamSeasonStats(fixture.awayTeam.id),
-              fetchPlayerStats(fixture.homeTeam.id),
-              fetchPlayerStats(fixture.awayTeam.id),
-            ]);
-
-          const unpack = <T>(result: PromiseSettledResult<T>, label: string): T | undefined => {
-            if (result.status === "fulfilled") return result.value;
-            const msg =
-              result.reason instanceof Error ? result.reason.message : String(result.reason);
-            logger.warn(`Prediction: ${label} fetch failed`, { fixtureId: fixture.id, error: msg });
-            return undefined;
-          };
-
-          const homeTeamSeasonStats = unpack(homeStatsResult, "home team stats");
-          const awayTeamSeasonStats = unpack(awayStatsResult, "away team stats");
-          const homeTeamPlayers = unpack(homePlayersResult, "home player stats");
-          const awayTeamPlayers = unpack(awayPlayersResult, "away player stats");
-
-          // Step 2e: Build statistics (enriched)
-          const statistics: Statistics = {
-            fixtureId: fixture.id,
-            league: fixture.league,
-            homeTeam: homeStats,
-            awayTeam: awayStats,
-            h2h,
-            markets: marketContexts,
-            injuries,
-            homeTeamSeasonStats,
-            awayTeamSeasonStats,
-            homeTeamPlayers,
-            awayTeamPlayers,
-          };
-
-          result.fixturesProcessed++;
-
-          // Step 2f: Run all engines
-          const engineResults = await runAllEngines(engines, statistics);
-
-          // Step 2g: Process engine results
-          for (const engineResult of engineResults) {
-            if ("error" in engineResult) {
-              result.errors.push(
-                `Engine ${engineResult.competitorId} failed on fixture ${fixture.id}: ${engineResult.error}`,
-              );
-              continue;
-            }
-
-            const { competitorId, predictions } = engineResult as EngineResult;
-
-            // Check if this competitor already has predictions for this fixture
-            const existingPredictions = await predictionsRepo.findByFixtureAndCompetitor(
-              fixture.id,
-              competitorId,
-            );
-            if (existingPredictions.length > 0) {
-              logger.info("Prediction: competitor already predicted for fixture, skipping", {
-                competitorId,
-                fixtureId: fixture.id,
-              });
-              continue;
-            }
-
-            // Fetch bankroll once per competitor per fixture
-            let bankroll: number;
-            try {
-              bankroll = await bankrollProvider.getBankroll(competitorId);
-            } catch (err) {
-              const msg = err instanceof Error ? err.message : String(err);
-              result.errors.push(`Bankroll fetch failed for ${competitorId}: ${msg}`);
-              continue;
-            }
-
-            for (const prediction of predictions) {
-              const market = marketMap.get(prediction.marketId);
-              if (!market) {
-                result.errors.push(
-                  `Engine ${competitorId} returned prediction for unknown market ${prediction.marketId}`,
-                );
-                continue;
-              }
-
-              // Resolve fractional stake to absolute dollar amount
-              const absoluteStake = prediction.stake * bankroll;
-
-              // ALWAYS save prediction to DB (with resolved absolute amount)
-              try {
-                await predictionsRepo.create({
-                  marketId: prediction.marketId,
-                  fixtureId: fixture.id,
-                  competitorId,
-                  side: prediction.side,
-                  confidence: prediction.confidence,
-                  stake: absoluteStake,
-                  reasoning: prediction.reasoning,
-                });
-                result.predictionsGenerated++;
-              } catch (err) {
-                const msg = err instanceof Error ? err.message : String(err);
-                result.errors.push(`Prediction save failed: ${msg}`);
-              }
-
-              // Validate stake against bankroll constraints before placing bet
-              const validation = validateStake(absoluteStake, bankroll, {
-                maxBetPctOfBankroll: config.betting.maxBetPctOfBankroll,
-                minBetAmount: config.betting.minBetAmount,
-              });
-
-              if (!validation.valid) {
-                logger.warn("Prediction: stake rejected", {
-                  competitorId,
-                  fixtureId: fixture.id,
-                  marketId: prediction.marketId,
-                  reason: validation.reason,
-                  requestedStake: absoluteStake,
-                  bankroll,
-                });
-                result.betsSkipped++;
-                continue;
-              }
-
-              // Attempt bet with resolved absolute amount
-              try {
-                const engineEntry = engines.find((e) => e.competitorId === competitorId);
-                const betResult = await bettingService.placeBet({
-                  prediction,
-                  resolvedStake: absoluteStake,
-                  market,
-                  fixtureId: fixture.id,
-                  competitorId,
-                  walletConfig: engineEntry?.walletConfig,
-                });
-
-                if (betResult.status === "placed") {
-                  result.betsPlaced++;
-                } else if (betResult.status === "dry_run") {
-                  result.betsDryRun++;
-                } else if (betResult.status === "failed") {
-                  result.betsSkipped++;
-                  logger.warn("Prediction: bet failed", {
-                    competitorId,
-                    fixtureId: fixture.id,
-                    marketId: market.id,
-                    error: betResult.error,
-                    errorCategory: betResult.errorCategory,
-                  });
-                } else {
-                  result.betsSkipped++;
-                  logger.info("Prediction: bet skipped", {
-                    competitorId,
-                    fixtureId: fixture.id,
-                    marketId: market.id,
-                    reason: betResult.reason,
-                  });
-                }
-              } catch (err) {
-                const msg = err instanceof Error ? err.message : String(err);
-                result.errors.push(`Bet placement failed: ${msg}`);
-                result.betsSkipped++;
-              }
-            }
-          }
+          const data = await gatherFixtureStats(fixtureRow, result);
+          if (data) preFetched.push(data);
         } catch (err) {
+          const fixture = dbRowToFixture(fixtureRow);
+          const fixtureLabel = `${fixture.homeTeam.name} vs ${fixture.awayTeam.name}`;
           const msg = err instanceof Error ? err.message : String(err);
           result.errors.push(`Fixture processing failed (${fixtureLabel}): ${msg}`);
-          logger.error("Prediction: fixture processing failed", {
+          logger.error("Prediction: fixture stats gathering failed", {
             fixture: fixture.id,
+            error: msg,
+          });
+        }
+      }
+
+      // Phase 2: Tight odds→predict→bet per fixture
+      for (const data of preFetched) {
+        try {
+          await processFixture(data, engines, result);
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          result.errors.push(`Fixture processing failed (${data.fixtureLabel}): ${msg}`);
+          logger.error("Prediction: fixture processing failed", {
+            fixture: data.fixture.id,
             error: msg,
           });
         }
