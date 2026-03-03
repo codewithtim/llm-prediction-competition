@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/table";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useBets } from "@/lib/api";
-import { formatDateTime } from "@/lib/format";
+import { formatDateTime, formatPct } from "@/lib/format";
 
 const STATUS_TABS = [
   { value: "", label: "All" },
@@ -53,6 +53,7 @@ export function BetsPage() {
                 <TableHead className="text-zinc-400">Competitor</TableHead>
                 <TableHead className="text-zinc-400">Market</TableHead>
                 <TableHead className="text-zinc-400">Side</TableHead>
+                <TableHead className="text-zinc-400 text-right">Confidence</TableHead>
                 <TableHead className="text-zinc-400 text-right">Amount</TableHead>
                 <TableHead className="text-zinc-400 text-right">Price</TableHead>
                 <TableHead className="text-zinc-400">Status</TableHead>
@@ -68,6 +69,9 @@ export function BetsPage() {
                     {b.marketQuestion}
                   </TableCell>
                   <TableCell className="font-mono text-zinc-300">{b.side}</TableCell>
+                  <TableCell className="text-right font-mono text-zinc-300">
+                    {b.confidence != null ? formatPct(b.confidence) : "—"}
+                  </TableCell>
                   <TableCell className="text-right font-mono text-zinc-300">
                     ${b.amount.toFixed(2)}
                   </TableCell>

@@ -2,7 +2,7 @@ import type { BetSummary } from "@shared/api-types";
 import { Money } from "@/components/shared/money";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { formatDateTime } from "@/lib/format";
+import { formatDateTime, formatPct } from "@/lib/format";
 
 export function RecentActivity({ bets }: { bets: BetSummary[] }) {
   return (
@@ -24,6 +24,9 @@ export function RecentActivity({ bets }: { bets: BetSummary[] }) {
                 <div className="text-xs text-zinc-500 line-clamp-1">{bet.marketQuestion}</div>
                 <div className="flex items-center gap-2 text-xs text-zinc-500">
                   <span className="font-mono">{bet.side}</span>
+                  {bet.confidence != null && (
+                    <span className="font-mono">{formatPct(bet.confidence)}</span>
+                  )}
                   <span>@ ${bet.price.toFixed(2)}</span>
                   <span>{formatDateTime(bet.placedAt)}</span>
                 </div>

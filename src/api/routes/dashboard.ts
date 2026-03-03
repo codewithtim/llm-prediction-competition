@@ -5,13 +5,15 @@ export function dashboardRoutes(deps: ApiDeps) {
   const app = new Hono();
 
   app.get("/dashboard", async (c) => {
-    const [allCompetitors, allFixtures, allMarkets, allBets, recentBetsRaw] = await Promise.all([
-      deps.competitorsRepo.findAll(),
-      deps.fixturesRepo.findAll(),
-      deps.marketsRepo.findAll(),
-      deps.betsRepo.findAll(),
-      deps.betsRepo.findRecent(10),
-    ]);
+    const [allCompetitors, allFixtures, allMarkets, allBets, recentBetsRaw, allPredictions] =
+      await Promise.all([
+        deps.competitorsRepo.findAll(),
+        deps.fixturesRepo.findAll(),
+        deps.marketsRepo.findAll(),
+        deps.betsRepo.findAll(),
+        deps.betsRepo.findRecent(10),
+        deps.predictionsRepo.findAll(),
+      ]);
 
     const walletList = await deps.walletsRepo.listAll();
     const walletSet = new Set(walletList.map((w) => w.competitorId));
@@ -64,6 +66,9 @@ export function dashboardRoutes(deps: ApiDeps) {
     // Enrich recent bets
     const competitorMap = new Map(allCompetitors.map((c) => [c.id, c.name]));
     const marketMap = new Map(allMarkets.map((m) => [m.id, m.question]));
+    const predictionMap = new Map(
+      allPredictions.map((p) => [`${p.competitorId}:${p.marketId}:${p.side}`, p.confidence]),
+    );
 
     const recentBets = recentBetsRaw.map((b) => ({
       id: b.id,
@@ -80,6 +85,7 @@ export function dashboardRoutes(deps: ApiDeps) {
       placedAt: b.placedAt?.toISOString() ?? "",
       settledAt: b.settledAt?.toISOString() ?? null,
       profit: b.profit,
+      confidence: predictionMap.get(`${b.competitorId}:${b.marketId}:${b.side}`) ?? null,
     }));
 
     // Aggregate totals

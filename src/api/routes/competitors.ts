@@ -73,6 +73,9 @@ export function competitorsRoutes(deps: ApiDeps) {
     }
 
     const competitorMap = new Map([[comp.id, comp.name]]);
+    const predictionMap = new Map(
+      predictions.map((p) => [`${p.competitorId}:${p.marketId}:${p.side}`, p.confidence]),
+    );
 
     return c.json({
       id: comp.id,
@@ -119,6 +122,7 @@ export function competitorsRoutes(deps: ApiDeps) {
         placedAt: b.placedAt?.toISOString() ?? "",
         settledAt: b.settledAt?.toISOString() ?? null,
         profit: b.profit,
+        confidence: predictionMap.get(`${b.competitorId}:${b.marketId}:${b.side}`) ?? null,
       })),
       recentPredictions: predictions.slice(0, 20).map((p) => ({
         id: p.id,

@@ -44,6 +44,86 @@ describe("GET /api/bets", () => {
     expect(data[0].marketQuestion).toBe("Will Arsenal win?");
   });
 
+  test("returns confidence from matching prediction", async () => {
+    const deps = createMockDeps({
+      betsRepo: {
+        findAll: async () => [
+          {
+            id: "b1",
+            competitorId: "c1",
+            marketId: "m1",
+            fixtureId: 1001,
+            side: "YES",
+            amount: 10,
+            price: 0.65,
+            shares: 15.38,
+            status: "pending",
+            placedAt: new Date("2026-01-01"),
+            settledAt: null,
+            profit: null,
+          },
+        ],
+      } as any,
+      competitorsRepo: {
+        findAll: async () => [{ id: "c1", name: "Claude" }],
+      } as any,
+      marketsRepo: {
+        findAll: async () => [{ id: "m1", question: "Will Arsenal win?" }],
+      } as any,
+      predictionsRepo: {
+        findAll: async () => [
+          { competitorId: "c1", marketId: "m1", side: "YES", confidence: 0.82 },
+        ],
+      } as any,
+    });
+
+    const app = new Hono();
+    app.route("/api", betsRoutes(deps));
+
+    const res = await app.request("/api/bets");
+    const data = await res.json();
+    expect(data[0].confidence).toBe(0.82);
+  });
+
+  test("returns null confidence when no prediction matches", async () => {
+    const deps = createMockDeps({
+      betsRepo: {
+        findAll: async () => [
+          {
+            id: "b1",
+            competitorId: "c1",
+            marketId: "m1",
+            fixtureId: 1001,
+            side: "YES",
+            amount: 10,
+            price: 0.65,
+            shares: 15.38,
+            status: "pending",
+            placedAt: new Date("2026-01-01"),
+            settledAt: null,
+            profit: null,
+          },
+        ],
+      } as any,
+      competitorsRepo: {
+        findAll: async () => [{ id: "c1", name: "Claude" }],
+      } as any,
+      marketsRepo: {
+        findAll: async () => [{ id: "m1", question: "Will Arsenal win?" }],
+      } as any,
+      predictionsRepo: {
+        findAll: async () => [],
+      } as any,
+    });
+
+    const app = new Hono();
+    app.route("/api", betsRoutes(deps));
+
+    const res = await app.request("/api/bets");
+    const data = await res.json();
+    expect(data[0].confidence).toBeNull();
+  });
+
   test("filters by status", async () => {
     const deps = createMockDeps({
       betsRepo: {

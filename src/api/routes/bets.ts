@@ -21,6 +21,10 @@ export function betsRoutes(deps: ApiDeps) {
     const competitorMap = new Map(allCompetitors.map((c) => [c.id, c.name]));
     const allMarkets = await deps.marketsRepo.findAll();
     const marketMap = new Map(allMarkets.map((m) => [m.id, m.question]));
+    const allPredictions = await deps.predictionsRepo.findAll();
+    const predictionMap = new Map(
+      allPredictions.map((p) => [`${p.competitorId}:${p.marketId}:${p.side}`, p.confidence]),
+    );
 
     return c.json(
       allBets.map((b) => ({
@@ -38,6 +42,7 @@ export function betsRoutes(deps: ApiDeps) {
         placedAt: b.placedAt?.toISOString() ?? "",
         settledAt: b.settledAt?.toISOString() ?? null,
         profit: b.profit,
+        confidence: predictionMap.get(`${b.competitorId}:${b.marketId}:${b.side}`) ?? null,
       })),
     );
   });

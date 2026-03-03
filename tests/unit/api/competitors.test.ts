@@ -122,6 +122,41 @@ describe("GET /api/competitors/:id", () => {
     expect(data.versions).toEqual([]);
   });
 
+  test("returns confidence in recentBets", async () => {
+    const deps = createMockDeps({
+      competitorsRepo: {
+        findById: async () => sampleCompetitor,
+        findAll: async () => [sampleCompetitor],
+      } as any,
+      walletsRepo: { listAll: async () => [] } as any,
+      betsRepo: {
+        getPerformanceStats: async () => ({
+          competitorId: "c1", totalBets: 1, wins: 0, losses: 0, pending: 1, failed: 0, lockedAmount: 10, totalStaked: 0, totalReturned: 0, profitLoss: 0, accuracy: 0, roi: 0,
+        }),
+        findByCompetitor: async () => [
+          { id: "b1", competitorId: "c1", marketId: "m1", fixtureId: 1, side: "YES", amount: 10, price: 0.6, shares: 16, status: "pending", placedAt: new Date(), settledAt: null, profit: null },
+        ],
+      } as any,
+      competitorVersionsRepo: { findByCompetitor: async () => [] } as any,
+      predictionsRepo: {
+        findByCompetitor: async () => [
+          { competitorId: "c1", marketId: "m1", side: "YES", confidence: 0.91, fixtureId: 1, stake: 10, reasoning: { summary: "", sections: [] }, createdAt: new Date() },
+        ],
+      } as any,
+      marketsRepo: {
+        findById: async () => ({ id: "m1", question: "Will Arsenal win?" }),
+      } as any,
+    });
+
+    const app = new Hono();
+    app.route("/api", competitorsRoutes(deps));
+
+    const res = await app.request("/api/competitors/c1");
+    const data = await res.json();
+    expect(data.recentBets).toHaveLength(1);
+    expect(data.recentBets[0].confidence).toBe(0.91);
+  });
+
   test("returns 404 for missing competitor", async () => {
     const deps = createMockDeps();
 

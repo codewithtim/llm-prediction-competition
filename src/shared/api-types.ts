@@ -116,6 +116,7 @@ export type BetSummary = {
   placedAt: string;
   settledAt: string | null;
   profit: number | null;
+  confidence: number | null;
 };
 
 export type ReasoningSectionDTO = {
