@@ -64,6 +64,13 @@
       "when": 1772465349032,
       "tag": "0008_organic_night_nurse",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1772697600000,
+      "tag": "0009_replace-competitors",
+      "breakpoints": true
     }
   ]
 }
