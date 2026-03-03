@@ -76,11 +76,11 @@ describe("addCompetitor", () => {
   it("returns error when competitor already exists", async () => {
     const repo = competitorsRepo(db);
 
-    // The migration seeds 3 competitors, including wt-gpt-4o
+    // The migration seeds competitors, including wt-gpt-52
     const result = await addCompetitor(repo, {
-      id: "wt-gpt-4o",
+      id: "wt-gpt-52",
       name: "Duplicate",
-      model: "openai/gpt-4o",
+      model: "openai/gpt-5.2",
     });
 
     expect(result.success).toBe(false);
