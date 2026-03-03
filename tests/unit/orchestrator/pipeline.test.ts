@@ -172,6 +172,10 @@ function mockFootballClient(overrides: Partial<FootballClient> = {}): FootballCl
     getFixtures: mock(() => Promise.resolve(apiResponse([makeApiFixture()]))),
     getStandings: mock(() => Promise.resolve(apiResponse(makeStandingsResponse()))),
     getHeadToHead: mock(() => Promise.resolve(apiResponse(makeH2hFixtures()))),
+    getInjuries: mock(() => Promise.resolve(apiResponse([]))),
+    getTeamStatistics: mock(() => Promise.resolve(apiResponse({} as never))),
+    getPlayers: mock(() => Promise.resolve(apiResponse([]))),
+    getAllPlayers: mock(() => Promise.resolve([])),
     ...overrides,
   };
 }
@@ -418,6 +422,16 @@ describe("createDiscoveryPipeline", () => {
 
 // ─── Prediction Pipeline Tests ─────────────────────────────────────────
 
+function mockStatsCache(overrides: Record<string, unknown> = {}) {
+  return {
+    getTeamStats: mock(() => Promise.resolve(null)),
+    setTeamStats: mock(() => Promise.resolve()),
+    getPlayerStats: mock(() => Promise.resolve(null)),
+    setPlayerStats: mock(() => Promise.resolve()),
+    ...overrides,
+  };
+}
+
 function buildPredictionDeps(
   overrides: Partial<PredictionPipelineDeps> = {},
 ): PredictionPipelineDeps {
@@ -430,6 +444,7 @@ function buildPredictionDeps(
     marketsRepo: mockMarketsRepo() as unknown as PredictionPipelineDeps["marketsRepo"],
     fixturesRepo: mockFixturesRepo() as unknown as PredictionPipelineDeps["fixturesRepo"],
     predictionsRepo: mockPredictionsRepo() as unknown as PredictionPipelineDeps["predictionsRepo"],
+    statsCache: mockStatsCache() as unknown as PredictionPipelineDeps["statsCache"],
     config: {
       ...DEFAULT_CONFIG,
       leagues: [
@@ -766,5 +781,94 @@ describe("createPredictionPipeline", () => {
     expect(result.betsSkipped).toBe(1);
     expect(result.betsPlaced).toBe(0);
     expect(betting.placeBet).not.toHaveBeenCalled();
+  });
+
+  test("pipeline continues gracefully when injuries API fails", async () => {
+    const { fr, mr } = withFixtureAndMarkets();
+    const fc = mockFootballClient({
+      getInjuries: mock(() => Promise.reject(new Error("Injuries API down"))),
+    });
+
+    const deps = buildPredictionDeps({
+      fixturesRepo: fr as unknown as PredictionPipelineDeps["fixturesRepo"],
+      marketsRepo: mr as unknown as PredictionPipelineDeps["marketsRepo"],
+      footballClient: fc,
+    });
+    const pipeline = createPredictionPipeline(deps);
+    const result = await pipeline.run();
+
+    expect(result.fixturesProcessed).toBe(1);
+    expect(result.predictionsGenerated).toBe(1);
+    expect(result.errors).toHaveLength(0);
+  });
+
+  test("pipeline continues gracefully when team stats API fails", async () => {
+    const { fr, mr } = withFixtureAndMarkets();
+    const fc = mockFootballClient({
+      getTeamStatistics: mock(() => Promise.reject(new Error("Team stats API down"))),
+    });
+
+    const deps = buildPredictionDeps({
+      fixturesRepo: fr as unknown as PredictionPipelineDeps["fixturesRepo"],
+      marketsRepo: mr as unknown as PredictionPipelineDeps["marketsRepo"],
+      footballClient: fc,
+    });
+    const pipeline = createPredictionPipeline(deps);
+    const result = await pipeline.run();
+
+    expect(result.fixturesProcessed).toBe(1);
+    expect(result.predictionsGenerated).toBe(1);
+  });
+
+  test("pipeline continues gracefully when player stats API fails", async () => {
+    const { fr, mr } = withFixtureAndMarkets();
+    const fc = mockFootballClient({
+      getAllPlayers: mock(() => Promise.reject(new Error("Players API down"))),
+    });
+
+    const deps = buildPredictionDeps({
+      fixturesRepo: fr as unknown as PredictionPipelineDeps["fixturesRepo"],
+      marketsRepo: mr as unknown as PredictionPipelineDeps["marketsRepo"],
+      footballClient: fc,
+    });
+    const pipeline = createPredictionPipeline(deps);
+    const result = await pipeline.run();
+
+    expect(result.fixturesProcessed).toBe(1);
+    expect(result.predictionsGenerated).toBe(1);
+  });
+
+  test("uses cached team stats when available", async () => {
+    const { fr, mr } = withFixtureAndMarkets();
+    const sc = mockStatsCache({
+      getTeamStats: mock(() =>
+        Promise.resolve({
+          form: "WWWWW",
+          fixtures: { played: { home: 10, away: 10, total: 20 } },
+          cleanSheets: { home: 6, away: 3, total: 9 },
+          failedToScore: { home: 1, away: 3, total: 4 },
+          biggestStreak: { wins: 5, draws: 2, loses: 1 },
+          penaltyRecord: { scored: 4, missed: 1, total: 5 },
+          preferredFormations: [],
+          goalsForByMinute: {},
+          goalsAgainstByMinute: {},
+          goalsForUnderOver: {},
+          goalsAgainstUnderOver: {},
+        }),
+      ),
+    });
+    const fc = mockFootballClient();
+
+    const deps = buildPredictionDeps({
+      fixturesRepo: fr as unknown as PredictionPipelineDeps["fixturesRepo"],
+      marketsRepo: mr as unknown as PredictionPipelineDeps["marketsRepo"],
+      statsCache: sc as unknown as PredictionPipelineDeps["statsCache"],
+      footballClient: fc,
+    });
+    const pipeline = createPredictionPipeline(deps);
+    const result = await pipeline.run();
+
+    expect(result.fixturesProcessed).toBe(1);
+    expect(fc.getTeamStatistics).not.toHaveBeenCalled();
   });
 });

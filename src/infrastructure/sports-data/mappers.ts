@@ -1,6 +1,18 @@
-import type { H2H, TeamStats } from "@domain/contracts/statistics.ts";
+import type {
+  H2H,
+  Injury,
+  PlayerSeasonStats,
+  TeamSeasonStats,
+  TeamStats,
+} from "@domain/contracts/statistics.ts";
 import type { Fixture, FixtureStatus } from "@domain/models/fixture.ts";
-import type { ApiFixture, ApiStandingEntry } from "./types.ts";
+import type {
+  ApiFixture,
+  ApiInjury,
+  ApiPlayerResponse,
+  ApiStandingEntry,
+  ApiTeamStatisticsResponse,
+} from "./types.ts";
 
 const STATUS_MAP: Record<string, FixtureStatus> = {
   NS: "scheduled",
@@ -110,4 +122,89 @@ export function mapH2hFixturesToH2H(fixtures: ApiFixture[], homeTeamId: number):
   }));
 
   return { totalMatches: fixtures.length, homeWins, awayWins, draws, recentMatches };
+}
+
+export function mapApiInjuries(injuries: ApiInjury[]): Injury[] {
+  return injuries.map((inj) => ({
+    playerId: inj.player.id,
+    playerName: inj.player.name,
+    type: inj.player.type,
+    reason: inj.player.reason,
+    teamId: inj.team.id,
+  }));
+}
+
+const MINUTE_INTERVALS = [
+  "0-15",
+  "16-30",
+  "31-45",
+  "46-60",
+  "61-75",
+  "76-90",
+  "91-105",
+  "106-120",
+] as const;
+
+function mapMinuteStats(
+  raw: Record<string, { total: number | null; percentage: string | null }>,
+): Record<string, { total: number | null; percentage: string | null }> {
+  return Object.fromEntries(
+    MINUTE_INTERVALS.map((k) => [k, raw[k] ?? { total: null, percentage: null }]),
+  );
+}
+
+const UNDER_OVER_LINES = ["0.5", "1.5", "2.5", "3.5", "4.5"] as const;
+
+function mapUnderOver(
+  raw: Record<string, { over: number; under: number }>,
+): Record<string, { over: number; under: number }> {
+  return Object.fromEntries(UNDER_OVER_LINES.map((k) => [k, raw[k] ?? { over: 0, under: 0 }]));
+}
+
+export function mapApiTeamStatistics(raw: ApiTeamStatisticsResponse): TeamSeasonStats {
+  return {
+    form: raw.form ?? null,
+    fixtures: { played: raw.fixtures.played },
+    cleanSheets: raw.clean_sheet,
+    failedToScore: raw.failed_to_score,
+    biggestStreak: raw.biggest.streak,
+    penaltyRecord: {
+      scored: raw.penalty.scored.total,
+      missed: raw.penalty.missed.total,
+      total: raw.penalty.total,
+    },
+    preferredFormations: raw.lineups.map((l) => ({ formation: l.formation, played: l.played })),
+    goalsForByMinute: mapMinuteStats(raw.goals.for.minute),
+    goalsAgainstByMinute: mapMinuteStats(raw.goals.against.minute),
+    goalsForUnderOver: mapUnderOver(raw.goals.for.under_over),
+    goalsAgainstUnderOver: mapUnderOver(raw.goals.against.under_over),
+  } as TeamSeasonStats;
+}
+
+export function mapApiPlayerToPlayerStats(
+  raw: ApiPlayerResponse,
+  leagueId: number,
+): PlayerSeasonStats | null {
+  const stat = raw.statistics.find((s) => s.league.id === leagueId);
+  if (!stat) return null;
+
+  return {
+    playerId: raw.player.id,
+    name: raw.player.name,
+    position: stat.games.position,
+    rating: stat.games.rating ? Number.parseFloat(stat.games.rating) : null,
+    appearances: stat.games.appearences ?? 0,
+    minutes: stat.games.minutes ?? 0,
+    goals: stat.goals.total ?? 0,
+    assists: stat.goals.assists ?? 0,
+    shotsTotal: stat.shots.total,
+    shotsOnTarget: stat.shots.on,
+    passesKey: stat.passes.key,
+    passAccuracy: stat.passes.accuracy,
+    dribblesSuccess: stat.dribbles.success,
+    dribblesAttempts: stat.dribbles.attempts,
+    yellowCards: stat.cards.yellow,
+    redCards: stat.cards.red,
+    injured: raw.player.injured,
+  };
 }

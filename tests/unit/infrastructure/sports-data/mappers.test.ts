@@ -1,13 +1,19 @@
 import { describe, expect, test } from "bun:test";
 import {
   mapApiFixtureToFixture,
+  mapApiInjuries,
+  mapApiPlayerToPlayerStats,
+  mapApiTeamStatistics,
   mapFixtureStatus,
   mapH2hFixturesToH2H,
   mapStandingToTeamStats,
 } from "../../../../src/infrastructure/sports-data/mappers.ts";
 import type {
   ApiFixture,
+  ApiInjury,
+  ApiPlayerResponse,
   ApiStandingEntry,
+  ApiTeamStatisticsResponse,
 } from "../../../../src/infrastructure/sports-data/types.ts";
 
 function makeApiFixture(
@@ -286,5 +292,294 @@ describe("mapH2hFixturesToH2H", () => {
       homeGoals: 3,
       awayGoals: 2,
     });
+  });
+});
+
+// ─── New Enrichment Mapper Tests ─────────────────────────────────────
+
+function makeApiInjury(overrides: Partial<ApiInjury> = {}): ApiInjury {
+  return {
+    player: {
+      id: 100,
+      name: "Mohamed Salah",
+      photo: "https://example.com/salah.png",
+      type: "Missing Fixture",
+      reason: "Knee Injury",
+    },
+    team: { id: 40, name: "Liverpool", logo: "https://example.com/liv.png" },
+    fixture: { id: 1234, timezone: "UTC", date: "2025-02-01T15:00:00+00:00", timestamp: 1738418400 },
+    league: { id: 39, season: 2024, name: "Premier League", country: "England" },
+    ...overrides,
+  };
+}
+
+function makeApiTeamStats(): ApiTeamStatisticsResponse {
+  const minuteEntry = (total: number | null, pct: string | null) => ({ total, percentage: pct });
+  return {
+    league: { id: 39, name: "Premier League", country: "England", season: 2024 },
+    team: { id: 40, name: "Liverpool", logo: "" },
+    form: "WWDLW",
+    fixtures: {
+      played: { home: 10, away: 10, total: 20 },
+      wins: { home: 7, away: 5, total: 12 },
+      draws: { home: 2, away: 3, total: 5 },
+      loses: { home: 1, away: 2, total: 3 },
+    },
+    goals: {
+      for: {
+        total: { home: 22, away: 15, total: 37 },
+        average: { home: "2.2", away: "1.5", total: "1.85" },
+        minute: {
+          "0-15": minuteEntry(5, "13.5%"),
+          "16-30": minuteEntry(7, "18.9%"),
+          "31-45": minuteEntry(4, "10.8%"),
+          "46-60": minuteEntry(6, "16.2%"),
+          "61-75": minuteEntry(8, "21.6%"),
+          "76-90": minuteEntry(5, "13.5%"),
+          "91-105": minuteEntry(2, "5.4%"),
+          "106-120": minuteEntry(null, null),
+        },
+        under_over: {
+          "0.5": { over: 18, under: 2 },
+          "1.5": { over: 15, under: 5 },
+          "2.5": { over: 10, under: 10 },
+          "3.5": { over: 5, under: 15 },
+          "4.5": { over: 2, under: 18 },
+        },
+      },
+      against: {
+        total: { home: 8, away: 12, total: 20 },
+        average: { home: "0.8", away: "1.2", total: "1.0" },
+        minute: {
+          "0-15": minuteEntry(3, "15%"),
+          "16-30": minuteEntry(4, "20%"),
+          "31-45": minuteEntry(3, "15%"),
+          "46-60": minuteEntry(3, "15%"),
+          "61-75": minuteEntry(4, "20%"),
+          "76-90": minuteEntry(2, "10%"),
+          "91-105": minuteEntry(1, "5%"),
+          "106-120": minuteEntry(null, null),
+        },
+        under_over: {
+          "0.5": { over: 14, under: 6 },
+          "1.5": { over: 8, under: 12 },
+          "2.5": { over: 3, under: 17 },
+          "3.5": { over: 1, under: 19 },
+          "4.5": { over: 0, under: 20 },
+        },
+      },
+    },
+    biggest: {
+      streak: { wins: 5, draws: 2, loses: 1 },
+      wins: { home: "4-0", away: "0-3" },
+      loses: { home: "0-2", away: "3-0" },
+      goals: { for: { home: 4, away: 3 }, against: { home: 2, away: 3 } },
+    },
+    clean_sheet: { home: 6, away: 3, total: 9 },
+    failed_to_score: { home: 1, away: 3, total: 4 },
+    penalty: {
+      scored: { total: 4, percentage: "80%" },
+      missed: { total: 1, percentage: "20%" },
+      total: 5,
+    },
+    lineups: [
+      { formation: "4-3-3", played: 12 },
+      { formation: "4-2-3-1", played: 8 },
+    ],
+    cards: {
+      yellow: { "0-15": { total: 2, percentage: "5%" } },
+      red: { "0-15": { total: null, percentage: null } },
+    },
+  };
+}
+
+function makeApiPlayerResponse(overrides: {
+  playerId?: number;
+  name?: string;
+  leagueId?: number;
+  rating?: string | null;
+  appearances?: number | null;
+  injured?: boolean;
+} = {}): ApiPlayerResponse {
+  return {
+    player: {
+      id: overrides.playerId ?? 200,
+      name: overrides.name ?? "Virgil van Dijk",
+      firstname: "Virgil",
+      lastname: "van Dijk",
+      age: 32,
+      nationality: "Netherlands",
+      height: "193 cm",
+      weight: "92 kg",
+      injured: overrides.injured ?? false,
+      photo: "https://example.com/vvd.png",
+    },
+    statistics: [
+      {
+        team: { id: 40, name: "Liverpool", logo: "" },
+        league: { id: overrides.leagueId ?? 39, name: "Premier League", country: "England", season: 2024 },
+        games: {
+          appearences: overrides.appearances ?? 18,
+          lineups: 18,
+          minutes: 1620,
+          number: 4,
+          position: "Defender",
+          rating: overrides.rating !== undefined ? overrides.rating : "7.45",
+          captain: true,
+        },
+        substitutes: { in: 0, out: 1, bench: 2 },
+        shots: { total: 12, on: 5 },
+        goals: { total: 3, conceded: null, assists: 1, saves: null },
+        passes: { total: 1400, key: 8, accuracy: 91 },
+        tackles: { total: 30, blocks: 15, interceptions: 25 },
+        duels: { total: 100, won: 70 },
+        dribbles: { attempts: 5, success: 3, past: null },
+        fouls: { drawn: 10, committed: 8 },
+        cards: { yellow: 3, yellowred: 0, red: 0 },
+        penalty: { won: null, commited: null, scored: 0, missed: 0, saved: null },
+      },
+    ],
+  };
+}
+
+describe("mapApiInjuries", () => {
+  test("maps injury list correctly", () => {
+    const injuries = [
+      makeApiInjury(),
+      makeApiInjury({
+        player: {
+          id: 101,
+          name: "Darwin Nunez",
+          photo: "",
+          type: "Questionable",
+          reason: "Illness",
+        },
+        team: { id: 40, name: "Liverpool", logo: "" },
+      }),
+    ];
+
+    const result = mapApiInjuries(injuries);
+
+    expect(result).toHaveLength(2);
+    expect(result[0]).toEqual({
+      playerId: 100,
+      playerName: "Mohamed Salah",
+      type: "Missing Fixture",
+      reason: "Knee Injury",
+      teamId: 40,
+    });
+    expect(result[1]).toEqual({
+      playerId: 101,
+      playerName: "Darwin Nunez",
+      type: "Questionable",
+      reason: "Illness",
+      teamId: 40,
+    });
+  });
+
+  test("returns empty array for empty input", () => {
+    expect(mapApiInjuries([])).toEqual([]);
+  });
+});
+
+describe("mapApiTeamStatistics", () => {
+  test("maps clean sheets, failed to score, biggest streak", () => {
+    const result = mapApiTeamStatistics(makeApiTeamStats());
+
+    expect(result.cleanSheets).toEqual({ home: 6, away: 3, total: 9 });
+    expect(result.failedToScore).toEqual({ home: 1, away: 3, total: 4 });
+    expect(result.biggestStreak).toEqual({ wins: 5, draws: 2, loses: 1 });
+  });
+
+  test("maps fixtures.played correctly", () => {
+    const result = mapApiTeamStatistics(makeApiTeamStats());
+    expect(result.fixtures.played).toEqual({ home: 10, away: 10, total: 20 });
+  });
+
+  test("maps goals by minute including null interval", () => {
+    const result = mapApiTeamStatistics(makeApiTeamStats());
+
+    expect(result.goalsForByMinute["0-15"]).toEqual({ total: 5, percentage: "13.5%" });
+    expect(result.goalsForByMinute["106-120"]).toEqual({ total: null, percentage: null });
+  });
+
+  test("defaults missing minute interval to null", () => {
+    const raw = makeApiTeamStats();
+    // Remove a key from the goals.for.minute to simulate missing data
+    const { "91-105": _, ...remainingMinute } = raw.goals.for.minute;
+    raw.goals.for.minute = remainingMinute;
+
+    const result = mapApiTeamStatistics(raw);
+    expect(result.goalsForByMinute["91-105"]).toEqual({ total: null, percentage: null });
+  });
+
+  test("maps under/over data", () => {
+    const result = mapApiTeamStatistics(makeApiTeamStats());
+
+    expect(result.goalsForUnderOver["2.5"]).toEqual({ over: 10, under: 10 });
+    expect(result.goalsAgainstUnderOver["4.5"]).toEqual({ over: 0, under: 20 });
+  });
+
+  test("defaults missing under/over line to zero", () => {
+    const raw = makeApiTeamStats();
+    const { "4.5": _, ...remainingLines } = raw.goals.for.under_over;
+    raw.goals.for.under_over = remainingLines;
+
+    const result = mapApiTeamStatistics(raw);
+    expect(result.goalsForUnderOver["4.5"]).toEqual({ over: 0, under: 0 });
+  });
+
+  test("maps preferred formations", () => {
+    const result = mapApiTeamStatistics(makeApiTeamStats());
+    expect(result.preferredFormations).toEqual([
+      { formation: "4-3-3", played: 12 },
+      { formation: "4-2-3-1", played: 8 },
+    ]);
+  });
+
+  test("maps penalty record", () => {
+    const result = mapApiTeamStatistics(makeApiTeamStats());
+    expect(result.penaltyRecord).toEqual({ scored: 4, missed: 1, total: 5 });
+  });
+});
+
+describe("mapApiPlayerToPlayerStats", () => {
+  test("maps player stats for correct league", () => {
+    const result = mapApiPlayerToPlayerStats(makeApiPlayerResponse(), 39);
+
+    expect(result).not.toBeNull();
+    expect(result?.playerId).toBe(200);
+    expect(result?.name).toBe("Virgil van Dijk");
+    expect(result?.position).toBe("Defender");
+    expect(result?.rating).toBeCloseTo(7.45);
+    expect(result?.appearances).toBe(18);
+    expect(result?.minutes).toBe(1620);
+    expect(result?.goals).toBe(3);
+    expect(result?.assists).toBe(1);
+    expect(result?.shotsTotal).toBe(12);
+    expect(result?.shotsOnTarget).toBe(5);
+    expect(result?.passesKey).toBe(8);
+    expect(result?.passAccuracy).toBe(91);
+    expect(result?.dribblesSuccess).toBe(3);
+    expect(result?.dribblesAttempts).toBe(5);
+    expect(result?.yellowCards).toBe(3);
+    expect(result?.redCards).toBe(0);
+    expect(result?.injured).toBe(false);
+  });
+
+  test("returns null when league not found in player stats", () => {
+    const result = mapApiPlayerToPlayerStats(makeApiPlayerResponse({ leagueId: 39 }), 140);
+    expect(result).toBeNull();
+  });
+
+  test("handles null rating and null appearances", () => {
+    const raw = makeApiPlayerResponse({ rating: null });
+    raw.statistics[0]!.games.appearences = null;
+
+    const result = mapApiPlayerToPlayerStats(raw, 39);
+
+    expect(result).not.toBeNull();
+    expect(result?.rating).toBeNull();
+    expect(result?.appearances).toBe(0);
   });
 });

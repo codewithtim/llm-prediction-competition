@@ -15,6 +15,7 @@ import { competitorsRepo } from "./infrastructure/database/repositories/competit
 import { fixturesRepo } from "./infrastructure/database/repositories/fixtures.ts";
 import { marketsRepo } from "./infrastructure/database/repositories/markets.ts";
 import { predictionsRepo } from "./infrastructure/database/repositories/predictions.ts";
+import { statsCacheRepo } from "./infrastructure/database/repositories/stats-cache.ts";
 import { walletsRepo } from "./infrastructure/database/repositories/wallets.ts";
 import { createOpenRouterClient } from "./infrastructure/openrouter/client.ts";
 import { createBettingClientFactory } from "./infrastructure/polymarket/betting-client-factory.ts";
@@ -43,6 +44,7 @@ try {
 const markets = marketsRepo(db);
 const fixtures = fixturesRepo(db);
 const preds = predictionsRepo(db);
+const statsCache = statsCacheRepo(db);
 const bets = betsRepo(db);
 const comps = competitorsRepo(db);
 const wallets = walletsRepo(db);
@@ -136,6 +138,7 @@ const predictionPipeline = createPredictionPipeline({
   marketsRepo: markets,
   fixturesRepo: fixtures,
   predictionsRepo: preds,
+  statsCache,
   config: DEFAULT_CONFIG,
 });
 

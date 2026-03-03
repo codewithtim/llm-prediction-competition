@@ -1,5 +1,11 @@
 import type { CompetitorRegistry } from "../competitors/registry.ts";
-import type { MarketContext, Statistics } from "../domain/contracts/statistics.ts";
+import type {
+  Injury,
+  MarketContext,
+  PlayerSeasonStats,
+  Statistics,
+  TeamSeasonStats,
+} from "../domain/contracts/statistics.ts";
 import type { Fixture } from "../domain/models/fixture.ts";
 import type { Market } from "../domain/models/market.ts";
 import type { BankrollProvider } from "../domain/services/bankroll.ts";
@@ -10,6 +16,7 @@ import type { EngineResult } from "../engine/types.ts";
 import type { fixturesRepo as fixturesRepoFactory } from "../infrastructure/database/repositories/fixtures.ts";
 import type { marketsRepo as marketsRepoFactory } from "../infrastructure/database/repositories/markets.ts";
 import type { predictionsRepo as predictionsRepoFactory } from "../infrastructure/database/repositories/predictions.ts";
+import type { statsCacheRepo as statsCacheRepoFactory } from "../infrastructure/database/repositories/stats-cache.ts";
 import type {
   fixtures as fixturesTable,
   markets as marketsTable,
@@ -18,6 +25,9 @@ import type { GammaClient } from "../infrastructure/polymarket/gamma-client.ts";
 import { mapGammaMarketToMarket } from "../infrastructure/polymarket/mappers.ts";
 import type { FootballClient } from "../infrastructure/sports-data/client.ts";
 import {
+  mapApiInjuries,
+  mapApiPlayerToPlayerStats,
+  mapApiTeamStatistics,
   mapH2hFixturesToH2H,
   mapStandingToTeamStats,
 } from "../infrastructure/sports-data/mappers.ts";
@@ -33,6 +43,7 @@ export type PredictionPipelineDeps = {
   marketsRepo: ReturnType<typeof marketsRepoFactory>;
   fixturesRepo: ReturnType<typeof fixturesRepoFactory>;
   predictionsRepo: ReturnType<typeof predictionsRepoFactory>;
+  statsCache: ReturnType<typeof statsCacheRepoFactory>;
   config: PipelineConfig;
 };
 
@@ -108,6 +119,23 @@ function buildMarketContext(market: Market): MarketContext {
   };
 }
 
+const STATS_CACHE_TTL = 24 * 60 * 60 * 1000;
+
+function summarisePlayerStats(
+  allPlayers: PlayerSeasonStats[],
+  injuries: Injury[],
+): PlayerSeasonStats[] {
+  const sorted = [...allPlayers].sort((a, b) => (b.rating ?? 0) - (a.rating ?? 0));
+  const top = sorted.slice(0, 8);
+  const injuredIds = new Set(injuries.map((i) => i.playerId));
+  for (const player of allPlayers) {
+    if (injuredIds.has(player.playerId) && !top.find((p) => p.playerId === player.playerId)) {
+      top.push(player);
+    }
+  }
+  return top;
+}
+
 function marketToDbRow(market: Market) {
   return {
     id: market.id,
@@ -138,6 +166,7 @@ export function createPredictionPipeline(deps: PredictionPipelineDeps) {
     marketsRepo,
     fixturesRepo,
     predictionsRepo,
+    statsCache,
     config,
   } = deps;
 
@@ -247,7 +276,158 @@ export function createPredictionPipeline(deps: PredictionPipelineDeps) {
           );
           const h2h = mapH2hFixturesToH2H(h2hResp.response, fixture.homeTeam.id);
 
-          // Step 2e: Build statistics
+          // Step 2d-2: Fetch injuries (always fresh)
+          let injuries: Injury[] = [];
+          try {
+            const injResp = await footballClient.getInjuries(fixture.id);
+            injuries = mapApiInjuries(injResp.response);
+          } catch (err) {
+            const msg = err instanceof Error ? err.message : String(err);
+            logger.warn("Prediction: injuries fetch failed, continuing without", {
+              fixtureId: fixture.id,
+              error: msg,
+            });
+          }
+
+          // Step 2d-3: Fetch team season statistics (with cache)
+          let homeTeamSeasonStats: TeamSeasonStats | undefined;
+          let awayTeamSeasonStats: TeamSeasonStats | undefined;
+
+          try {
+            const cached = await statsCache.getTeamStats(
+              fixture.homeTeam.id,
+              fixture.league.id,
+              fixture.league.season,
+              STATS_CACHE_TTL,
+            );
+            if (cached) {
+              homeTeamSeasonStats = cached;
+            } else {
+              const resp = await footballClient.getTeamStatistics(
+                fixture.homeTeam.id,
+                fixture.league.id,
+                fixture.league.season,
+                fixture.date,
+              );
+              homeTeamSeasonStats = mapApiTeamStatistics(resp.response);
+              await statsCache.setTeamStats(
+                fixture.homeTeam.id,
+                fixture.league.id,
+                fixture.league.season,
+                homeTeamSeasonStats,
+              );
+            }
+          } catch (err) {
+            const msg = err instanceof Error ? err.message : String(err);
+            logger.warn("Prediction: home team stats fetch failed", {
+              fixtureId: fixture.id,
+              error: msg,
+            });
+          }
+
+          try {
+            const cached = await statsCache.getTeamStats(
+              fixture.awayTeam.id,
+              fixture.league.id,
+              fixture.league.season,
+              STATS_CACHE_TTL,
+            );
+            if (cached) {
+              awayTeamSeasonStats = cached;
+            } else {
+              const resp = await footballClient.getTeamStatistics(
+                fixture.awayTeam.id,
+                fixture.league.id,
+                fixture.league.season,
+                fixture.date,
+              );
+              awayTeamSeasonStats = mapApiTeamStatistics(resp.response);
+              await statsCache.setTeamStats(
+                fixture.awayTeam.id,
+                fixture.league.id,
+                fixture.league.season,
+                awayTeamSeasonStats,
+              );
+            }
+          } catch (err) {
+            const msg = err instanceof Error ? err.message : String(err);
+            logger.warn("Prediction: away team stats fetch failed", {
+              fixtureId: fixture.id,
+              error: msg,
+            });
+          }
+
+          // Step 2d-4: Fetch player stats (with cache, paginated)
+          let homeTeamPlayers: PlayerSeasonStats[] | undefined;
+          let awayTeamPlayers: PlayerSeasonStats[] | undefined;
+
+          try {
+            const cached = await statsCache.getPlayerStats(
+              fixture.homeTeam.id,
+              fixture.league.id,
+              fixture.league.season,
+              STATS_CACHE_TTL,
+            );
+            if (cached) {
+              homeTeamPlayers = cached;
+            } else {
+              const raw = await footballClient.getAllPlayers(
+                fixture.homeTeam.id,
+                fixture.league.season,
+              );
+              homeTeamPlayers = raw
+                .map((p) => mapApiPlayerToPlayerStats(p, fixture.league.id))
+                .filter((p): p is PlayerSeasonStats => p !== null && p.appearances > 0);
+              await statsCache.setPlayerStats(
+                fixture.homeTeam.id,
+                fixture.league.id,
+                fixture.league.season,
+                homeTeamPlayers,
+              );
+            }
+            homeTeamPlayers = summarisePlayerStats(homeTeamPlayers, injuries);
+          } catch (err) {
+            const msg = err instanceof Error ? err.message : String(err);
+            logger.warn("Prediction: home player stats fetch failed", {
+              fixtureId: fixture.id,
+              error: msg,
+            });
+          }
+
+          try {
+            const cached = await statsCache.getPlayerStats(
+              fixture.awayTeam.id,
+              fixture.league.id,
+              fixture.league.season,
+              STATS_CACHE_TTL,
+            );
+            if (cached) {
+              awayTeamPlayers = cached;
+            } else {
+              const raw = await footballClient.getAllPlayers(
+                fixture.awayTeam.id,
+                fixture.league.season,
+              );
+              awayTeamPlayers = raw
+                .map((p) => mapApiPlayerToPlayerStats(p, fixture.league.id))
+                .filter((p): p is PlayerSeasonStats => p !== null && p.appearances > 0);
+              await statsCache.setPlayerStats(
+                fixture.awayTeam.id,
+                fixture.league.id,
+                fixture.league.season,
+                awayTeamPlayers,
+              );
+            }
+            awayTeamPlayers = summarisePlayerStats(awayTeamPlayers, injuries);
+          } catch (err) {
+            const msg = err instanceof Error ? err.message : String(err);
+            logger.warn("Prediction: away player stats fetch failed", {
+              fixtureId: fixture.id,
+              error: msg,
+            });
+          }
+
+          // Step 2e: Build statistics (enriched)
           const statistics: Statistics = {
             fixtureId: fixture.id,
             league: fixture.league,
@@ -255,6 +435,11 @@ export function createPredictionPipeline(deps: PredictionPipelineDeps) {
             awayTeam: awayStats,
             h2h,
             markets: marketContexts,
+            injuries,
+            homeTeamSeasonStats,
+            awayTeamSeasonStats,
+            homeTeamPlayers,
+            awayTeamPlayers,
           };
 
           result.fixturesProcessed++;

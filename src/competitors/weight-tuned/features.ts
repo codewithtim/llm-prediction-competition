@@ -73,6 +73,35 @@ export const FEATURE_REGISTRY: Record<string, FeatureExtractor> = {
       stats.awayTeam.played > 0 ? stats.awayTeam.goalsAgainst / stats.awayTeam.played : 0;
     return clamp((awayGA - homeGA) / 2 + 0.5, 0, 1);
   },
+
+  injuryImpact: (stats) => {
+    if (!stats.injuries?.length) return 0.5;
+    const homeMissing = stats.injuries.filter(
+      (i) => i.teamId === stats.homeTeam.teamId && i.type === "Missing Fixture",
+    ).length;
+    const awayMissing = stats.injuries.filter(
+      (i) => i.teamId === stats.awayTeam.teamId && i.type === "Missing Fixture",
+    ).length;
+    return clamp((awayMissing - homeMissing) / 6 + 0.5, 0, 1);
+  },
+
+  cleanSheetDiff: (stats) => {
+    if (!stats.homeTeamSeasonStats || !stats.awayTeamSeasonStats) return 0.5;
+    const homePlayed = stats.homeTeamSeasonStats.fixtures.played.total || 1;
+    const awayPlayed = stats.awayTeamSeasonStats.fixtures.played.total || 1;
+    const homeRate = stats.homeTeamSeasonStats.cleanSheets.total / homePlayed;
+    const awayRate = stats.awayTeamSeasonStats.cleanSheets.total / awayPlayed;
+    return clamp((homeRate - awayRate) / 0.6 + 0.5, 0, 1);
+  },
+
+  scoringConsistency: (stats) => {
+    if (!stats.homeTeamSeasonStats || !stats.awayTeamSeasonStats) return 0.5;
+    const homePlayed = stats.homeTeamSeasonStats.fixtures.played.total || 1;
+    const awayPlayed = stats.awayTeamSeasonStats.fixtures.played.total || 1;
+    const homeFail = stats.homeTeamSeasonStats.failedToScore.total / homePlayed;
+    const awayFail = stats.awayTeamSeasonStats.failedToScore.total / awayPlayed;
+    return clamp((awayFail - homeFail) / 0.6 + 0.5, 0, 1);
+  },
 };
 
 export function extractFeatures(statistics: Statistics): Record<string, number> {

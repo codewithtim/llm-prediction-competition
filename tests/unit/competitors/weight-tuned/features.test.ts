@@ -5,7 +5,7 @@ import {
   FEATURE_REGISTRY,
   type FeatureExtractor,
 } from "../../../../src/competitors/weight-tuned/features";
-import type { Statistics } from "../../../../src/domain/contracts/statistics";
+import type { Statistics, TeamSeasonStats } from "../../../../src/domain/contracts/statistics";
 
 function getFeature(name: string): FeatureExtractor {
   const fn = FEATURE_REGISTRY[name];
@@ -67,6 +67,40 @@ function makeStatistics(overrides?: Partial<Statistics>): Statistics {
         line: null,
       },
     ],
+    ...overrides,
+  };
+}
+
+function makeSeasonStats(overrides?: Partial<TeamSeasonStats>): TeamSeasonStats {
+  const minuteDefault = {
+    "0-15": { total: null, percentage: null },
+    "16-30": { total: null, percentage: null },
+    "31-45": { total: null, percentage: null },
+    "46-60": { total: null, percentage: null },
+    "61-75": { total: null, percentage: null },
+    "76-90": { total: null, percentage: null },
+    "91-105": { total: null, percentage: null },
+    "106-120": { total: null, percentage: null },
+  };
+  const underOverDefault = {
+    "0.5": { over: 0, under: 0 },
+    "1.5": { over: 0, under: 0 },
+    "2.5": { over: 0, under: 0 },
+    "3.5": { over: 0, under: 0 },
+    "4.5": { over: 0, under: 0 },
+  };
+  return {
+    form: "WWDLW",
+    fixtures: { played: { home: 10, away: 10, total: 20 } },
+    cleanSheets: { home: 5, away: 3, total: 8 },
+    failedToScore: { home: 2, away: 3, total: 5 },
+    biggestStreak: { wins: 4, draws: 2, loses: 1 },
+    penaltyRecord: { scored: 3, missed: 1, total: 4 },
+    preferredFormations: [{ formation: "4-3-3", played: 15 }],
+    goalsForByMinute: minuteDefault,
+    goalsAgainstByMinute: minuteDefault,
+    goalsForUnderOver: underOverDefault,
+    goalsAgainstUnderOver: underOverDefault,
     ...overrides,
   };
 }
@@ -226,12 +260,79 @@ describe("feature extractors", () => {
       expect(value).toBeLessThanOrEqual(1);
     });
   });
+
+  describe("injuryImpact", () => {
+    it("returns 0.5 when no injuries", () => {
+      const stats = makeStatistics();
+      expect(getFeature("injuryImpact")(stats)).toBe(0.5);
+    });
+
+    it("returns >0.5 when away team has more missing players", () => {
+      const stats = makeStatistics({
+        injuries: [
+          { playerId: 10, playerName: "Away P1", type: "Missing Fixture", reason: "Knee", teamId: 2 },
+          { playerId: 11, playerName: "Away P2", type: "Missing Fixture", reason: "Suspension", teamId: 2 },
+        ],
+      });
+      expect(getFeature("injuryImpact")(stats)).toBeGreaterThan(0.5);
+    });
+
+    it("returns <0.5 when home team has more missing players", () => {
+      const stats = makeStatistics({
+        injuries: [
+          { playerId: 10, playerName: "Home P1", type: "Missing Fixture", reason: "Knee", teamId: 1 },
+          { playerId: 11, playerName: "Home P2", type: "Missing Fixture", reason: "Suspension", teamId: 1 },
+          { playerId: 12, playerName: "Home P3", type: "Missing Fixture", reason: "Illness", teamId: 1 },
+        ],
+      });
+      expect(getFeature("injuryImpact")(stats)).toBeLessThan(0.5);
+    });
+
+    it("ignores Questionable players, only counts Missing Fixture", () => {
+      const stats = makeStatistics({
+        injuries: [
+          { playerId: 10, playerName: "Away P1", type: "Missing Fixture", reason: "Knee", teamId: 2 },
+          { playerId: 11, playerName: "Away P2", type: "Questionable", reason: "Illness", teamId: 2 },
+        ],
+      });
+      // Only 1 Missing Fixture for away, 0 for home → (1/6 + 0.5)
+      const value = getFeature("injuryImpact")(stats);
+      expect(value).toBeGreaterThan(0.5);
+      // But less than if both counted (which would be 2/6 + 0.5)
+      expect(value).toBeLessThan(0.5 + 2 / 6);
+    });
+  });
+
+  describe("cleanSheetDiff", () => {
+    it("returns 0.5 when no season stats", () => {
+      const stats = makeStatistics();
+      expect(getFeature("cleanSheetDiff")(stats)).toBe(0.5);
+    });
+
+    it("returns >0.5 when home team keeps more clean sheets", () => {
+      const stats = makeStatistics({
+        homeTeamSeasonStats: makeSeasonStats({ cleanSheets: { home: 8, away: 4, total: 12 } }),
+        awayTeamSeasonStats: makeSeasonStats({ cleanSheets: { home: 2, away: 1, total: 3 } }),
+      });
+      expect(getFeature("cleanSheetDiff")(stats)).toBeGreaterThan(0.5);
+    });
+  });
+
+  describe("scoringConsistency", () => {
+    it("returns >0.5 when away team fails to score more often", () => {
+      const stats = makeStatistics({
+        homeTeamSeasonStats: makeSeasonStats({ failedToScore: { home: 1, away: 1, total: 2 } }),
+        awayTeamSeasonStats: makeSeasonStats({ failedToScore: { home: 5, away: 5, total: 10 } }),
+      });
+      expect(getFeature("scoringConsistency")(stats)).toBeGreaterThan(0.5);
+    });
+  });
 });
 
 describe("extractFeatures", () => {
-  it("returns all 7 features", () => {
+  it("returns all 10 features", () => {
     const features = extractFeatures(makeStatistics());
-    expect(Object.keys(features)).toHaveLength(7);
+    expect(Object.keys(features)).toHaveLength(10);
     expect(features.homeWinRate).toBeDefined();
     expect(features.awayLossRate).toBeDefined();
     expect(features.formDiff).toBeDefined();
@@ -239,6 +340,9 @@ describe("extractFeatures", () => {
     expect(features.goalDiff).toBeDefined();
     expect(features.pointsPerGame).toBeDefined();
     expect(features.defensiveStrength).toBeDefined();
+    expect(features.injuryImpact).toBeDefined();
+    expect(features.cleanSheetDiff).toBeDefined();
+    expect(features.scoringConsistency).toBeDefined();
   });
 
   it("all features are in [0, 1]", () => {

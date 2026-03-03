@@ -23,6 +23,9 @@ export const DEFAULT_WEIGHTS: WeightConfig = {
     goalDiff: 0.0,
     pointsPerGame: 0.0,
     defensiveStrength: 0.0,
+    injuryImpact: 0.0,
+    cleanSheetDiff: 0.0,
+    scoringConsistency: 0.0,
   },
   drawBaseline: 0.25,
   drawPeak: 0.5,
@@ -54,7 +57,7 @@ export const WEIGHT_JSON_SCHEMA = {
       signals: {
         type: "object",
         description:
-          "Feature signal weights (0-1). Keys: homeWinRate, awayLossRate, formDiff, h2h, goalDiff, pointsPerGame, defensiveStrength",
+          "Feature signal weights (0-1). Keys: homeWinRate, awayLossRate, formDiff, h2h, goalDiff, pointsPerGame, defensiveStrength, injuryImpact, cleanSheetDiff, scoringConsistency",
         additionalProperties: { type: "number" },
       },
       drawBaseline: {

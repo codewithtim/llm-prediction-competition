@@ -1,5 +1,6 @@
 import { integer, real, sqliteTable, text } from "drizzle-orm/sqlite-core";
 import type { Reasoning } from "../../domain/contracts/prediction.ts";
+import type { PlayerSeasonStats, TeamSeasonStats } from "../../domain/contracts/statistics.ts";
 
 export const markets = sqliteTable("markets", {
   id: text("id").primaryKey(),
@@ -161,4 +162,22 @@ export const bets = sqliteTable("bets", {
   errorCategory: text("error_category"),
   attempts: integer("attempts").notNull().default(0),
   lastAttemptAt: integer("last_attempt_at", { mode: "timestamp" }),
+});
+
+export const teamStatsCache = sqliteTable("team_stats_cache", {
+  id: text("id").primaryKey(),
+  teamId: integer("team_id").notNull(),
+  leagueId: integer("league_id").notNull(),
+  season: integer("season").notNull(),
+  data: text("data", { mode: "json" }).$type<TeamSeasonStats>().notNull(),
+  fetchedAt: integer("fetched_at", { mode: "timestamp" }).notNull(),
+});
+
+export const playerStatsCache = sqliteTable("player_stats_cache", {
+  id: text("id").primaryKey(),
+  teamId: integer("team_id").notNull(),
+  leagueId: integer("league_id").notNull(),
+  season: integer("season").notNull(),
+  data: text("data", { mode: "json" }).$type<PlayerSeasonStats[]>().notNull(),
+  fetchedAt: integer("fetched_at", { mode: "timestamp" }).notNull(),
 });

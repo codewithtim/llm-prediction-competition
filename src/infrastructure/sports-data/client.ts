@@ -1,4 +1,13 @@
-import type { ApiFixture, ApiResponse, ApiStandingsResponse, FixtureParams } from "./types.ts";
+import type {
+  ApiFixture,
+  ApiInjury,
+  ApiPlayerResponse,
+  ApiResponse,
+  ApiStandingsResponse,
+  ApiTeamStatisticsResponse,
+  FixtureParams,
+  PlayerParams,
+} from "./types.ts";
 
 const BASE_URL = "https://v3.football.api-sports.io";
 
@@ -30,6 +39,36 @@ export function createFootballClient(apiKey: string) {
 
     async getStandings(league: number, season: number) {
       return request<ApiStandingsResponse[]>("/standings", { league, season });
+    },
+
+    async getInjuries(fixtureId: number) {
+      return request<ApiInjury[]>("/injuries", { fixture: fixtureId });
+    },
+
+    async getTeamStatistics(teamId: number, leagueId: number, season: number, date?: string) {
+      return request<ApiTeamStatisticsResponse>("/teams/statistics", {
+        team: teamId,
+        league: leagueId,
+        season,
+        ...(date ? { date } : {}),
+      });
+    },
+
+    async getPlayers(params: PlayerParams) {
+      return request<ApiPlayerResponse[]>("/players", params as Record<string, string | number>);
+    },
+
+    async getAllPlayers(teamId: number, season: number): Promise<ApiPlayerResponse[]> {
+      const all: ApiPlayerResponse[] = [];
+      let page = 1;
+      let totalPages = 1;
+      do {
+        const resp = await request<ApiPlayerResponse[]>("/players", { team: teamId, season, page });
+        totalPages = resp.paging.total;
+        all.push(...resp.response);
+        page++;
+      } while (page <= totalPages);
+      return all;
     },
   };
 }
