@@ -5,10 +5,11 @@
 - [X] Competitors: add logos for mdoels etc
 - [X] Make the left menu minimizable 
 - [X] Reasoning in model predictions needs to wrap/be visible
-- [ ] Add confidence to bet UI rows
+- [X] Add confidence to bet UI rows
 
 
 ## General Changes
+- Change the timings, flow for fetching stats + making bets
 - Deploy 
 - Add the models that we want to compete
 - Fund the wallets

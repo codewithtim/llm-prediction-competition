@@ -27,8 +27,8 @@ You must review code against the idioms and best practices of these specific tec
 
 The feature to review is: `$ARGUMENTS`
 
-1. Find the plan file at `docs/features/$ARGUMENTS/plan.md` — read it to understand what was intended
-2. If a previous `docs/features/$ARGUMENTS/review.md` exists, read it to understand what was already flagged
+1. Find the plan file at `features/$ARGUMENTS/plan.md` — read it to understand what was intended
+2. If a previous `features/$ARGUMENTS/review.md` exists, read it to understand what was already flagged
 
 ## What to review
 
@@ -117,7 +117,7 @@ Evaluate each area below. For each, give a **verdict** (Pass / Concern / Fail) a
 
 ## Output
 
-Write the review to `docs/features/$ARGUMENTS/review.md` using this format:
+Write the review to `features/$ARGUMENTS/review.md` using this format:
 
 ```markdown
 # Review: [Feature Name]
