@@ -1,10 +1,14 @@
 -- Clean related tables (FK dependencies)
 DELETE FROM `bets`;
+--> statement-breakpoint
 DELETE FROM `predictions`;
+--> statement-breakpoint
 DELETE FROM `competitor_versions`;
+--> statement-breakpoint
 DELETE FROM `competitor_wallets`;
+--> statement-breakpoint
 DELETE FROM `competitors`;
-
+--> statement-breakpoint
 -- Insert new competitors
 INSERT INTO `competitors` (id, name, type, status, model, engine_path, config, created_at)
 VALUES
