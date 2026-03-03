@@ -1,0 +1,5 @@
+config:
+  digitalocean:token:
+    secure: AAABACfO1XV8enW3PH2AWc7aOs8/86oJG8OKs1fxzym9lQXFreaY75fuUSYkENx7qqlQY1jScG7ROqNdQaZe8Sz+lRHdyZPJlG9n6ThLZ+rKYV7ok7qW4T92ifoUWJnaI7uj3fDGIw==
+  llm-betting-infra:sshKeyFingerprint:
+    secure: AAABABgA9ZWVa8m/Kc1BN+zowK/qbnbN/HJNJgauc48I9YJSjZJNHIk5YNBHpLtfDXv8eGxiwQf4PikCe6CQCOiyhg8wKg5dE1F6zo2uXQ==

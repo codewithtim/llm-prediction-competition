@@ -1,0 +1,6 @@
+name: llm-betting-infra
+runtime:
+  name: nodejs
+  options:
+    typescript: true
+description: Infrastructure for the LLM Betting Competition platform

@@ -1,0 +1,11 @@
+{
+  "name": "llm-betting-infra",
+  "version": "0.1.0",
+  "devDependencies": {
+    "@types/node": "^22"
+  },
+  "dependencies": {
+    "@pulumi/pulumi": "^3",
+    "@pulumi/digitalocean": "^4"
+  }
+}
