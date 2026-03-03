@@ -1,6 +1,10 @@
-import { eq, sql } from "drizzle-orm";
+import { and, eq, gt, lte, or, sql } from "drizzle-orm";
 import type { Database } from "../client";
 import { fixtures } from "../schema";
+
+function toISONoMs(date: Date): string {
+  return date.toISOString().replace(/\.\d{3}Z$/, "Z");
+}
 
 export function fixturesRepo(db: Database) {
   return {
@@ -51,6 +55,43 @@ export function fixturesRepo(db: Database) {
 
     async findScheduledUpcoming() {
       return db.select().from(fixtures).where(eq(fixtures.status, "scheduled")).all();
+    },
+
+    async findReadyForPrediction(leadTimeMs: number) {
+      const now = toISONoMs(new Date());
+      const cutoff = toISONoMs(new Date(Date.now() + leadTimeMs));
+      return db
+        .select()
+        .from(fixtures)
+        .where(
+          and(eq(fixtures.status, "scheduled"), lte(fixtures.date, cutoff), gt(fixtures.date, now)),
+        )
+        .all();
+    },
+
+    async findNeedingStatusUpdate() {
+      const now = toISONoMs(new Date());
+      return db
+        .select()
+        .from(fixtures)
+        .where(
+          or(
+            and(eq(fixtures.status, "scheduled"), lte(fixtures.date, now)),
+            eq(fixtures.status, "in_progress"),
+          ),
+        )
+        .all();
+    },
+
+    async updateStatus(
+      id: number,
+      status: "scheduled" | "in_progress" | "finished" | "postponed" | "cancelled",
+    ) {
+      return db
+        .update(fixtures)
+        .set({ status, updatedAt: new Date() })
+        .where(eq(fixtures.id, id))
+        .run();
     },
   };
 }

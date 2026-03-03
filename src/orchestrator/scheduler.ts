@@ -4,12 +4,14 @@ import type { SettlementService } from "../domain/services/settlement.ts";
 import { logger } from "../shared/logger.ts";
 import type { PipelineConfig } from "./config.ts";
 import type { DiscoveryPipeline } from "./discovery-pipeline.ts";
+import type { FixtureStatusPipeline } from "./fixture-status-pipeline.ts";
 import type { PredictionPipeline } from "./prediction-pipeline.ts";
 
 export type SchedulerDeps = {
   discoveryPipeline: DiscoveryPipeline;
   predictionPipeline: PredictionPipeline;
   settlementService: SettlementService;
+  fixtureStatusPipeline: FixtureStatusPipeline;
   orderConfirmationService?: OrderConfirmationService;
   betRetryService?: BetRetryService;
   config: PipelineConfig;
@@ -20,6 +22,7 @@ export function createScheduler(deps: SchedulerDeps) {
     discoveryPipeline,
     predictionPipeline,
     settlementService,
+    fixtureStatusPipeline,
     orderConfirmationService,
     betRetryService,
     config,
@@ -28,6 +31,7 @@ export function createScheduler(deps: SchedulerDeps) {
   let discoveryTimer: ReturnType<typeof setInterval> | null = null;
   let predictionTimer: ReturnType<typeof setInterval> | null = null;
   let settlementTimer: ReturnType<typeof setInterval> | null = null;
+  let fixtureStatusTimer: ReturnType<typeof setInterval> | null = null;
   let orderConfirmationTimer: ReturnType<typeof setInterval> | null = null;
   let betRetryTimer: ReturnType<typeof setInterval> | null = null;
   let discoveryDelayTimer: ReturnType<typeof setTimeout> | null = null;
@@ -36,6 +40,7 @@ export function createScheduler(deps: SchedulerDeps) {
   let discoveryRunning = false;
   let predictionRunning = false;
   let settlementRunning = false;
+  let fixtureStatusRunning = false;
   let orderConfirmationRunning = false;
   let betRetryRunning = false;
 
@@ -125,6 +130,34 @@ export function createScheduler(deps: SchedulerDeps) {
     }
   }
 
+  async function runFixtureStatus() {
+    if (fixtureStatusRunning) {
+      logger.warn("Scheduler: fixture status run skipped (previous run still in progress)");
+      return;
+    }
+    fixtureStatusRunning = true;
+    const start = Date.now();
+    try {
+      logger.info("Scheduler: starting fixture status run");
+      const result = await fixtureStatusPipeline.run();
+      const durationMs = Date.now() - start;
+      logger.info("Scheduler: fixture status run complete", {
+        durationMs,
+        fixturesChecked: result.fixturesChecked,
+        statusesUpdated: result.statusesUpdated,
+        errors: result.errors.length,
+      });
+      for (const error of result.errors) {
+        logger.error("Scheduler: fixture status error", { message: error });
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      logger.error("Scheduler: fixture status run failed", { error: msg });
+    } finally {
+      fixtureStatusRunning = false;
+    }
+  }
+
   async function runOrderConfirmation() {
     if (!orderConfirmationService) return;
     if (orderConfirmationRunning) {
@@ -192,6 +225,7 @@ export function createScheduler(deps: SchedulerDeps) {
         discoveryIntervalMs: config.discoveryIntervalMs,
         predictionIntervalMs: config.predictionIntervalMs,
         settlementIntervalMs: config.settlementIntervalMs,
+        fixtureStatusIntervalMs: config.fixtureStatusIntervalMs,
         orderConfirmationIntervalMs: config.orderConfirmation.intervalMs,
         retryIntervalMs: config.retry.intervalMs,
       });
@@ -229,6 +263,10 @@ export function createScheduler(deps: SchedulerDeps) {
         runSettlement();
         settlementTimer = setInterval(runSettlement, config.settlementIntervalMs);
       }
+
+      // Fixture status runs immediately on interval
+      runFixtureStatus();
+      fixtureStatusTimer = setInterval(runFixtureStatus, config.fixtureStatusIntervalMs);
 
       // Order confirmation and bet retry run immediately on interval
       if (orderConfirmationService) {
@@ -270,6 +308,10 @@ export function createScheduler(deps: SchedulerDeps) {
       if (settlementTimer) {
         clearInterval(settlementTimer);
         settlementTimer = null;
+      }
+      if (fixtureStatusTimer) {
+        clearInterval(fixtureStatusTimer);
+        fixtureStatusTimer = null;
       }
       if (orderConfirmationTimer) {
         clearInterval(orderConfirmationTimer);

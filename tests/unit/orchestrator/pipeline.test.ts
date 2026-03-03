@@ -384,6 +384,9 @@ function mockFixturesRepo(overrides: Record<string, unknown> = {}) {
     findById: mock(() => Promise.resolve(null)),
     findByStatus: mock(() => Promise.resolve([] as ReturnType<typeof makeFixtureRow>[])),
     findScheduledUpcoming: mock(() => Promise.resolve([] as ReturnType<typeof makeFixtureRow>[])),
+    findReadyForPrediction: mock(() => Promise.resolve([] as ReturnType<typeof makeFixtureRow>[])),
+    findNeedingStatusUpdate: mock(() => Promise.resolve([] as ReturnType<typeof makeFixtureRow>[])),
+    updateStatus: mock(() => Promise.resolve()),
     ...overrides,
   };
 }
@@ -629,7 +632,7 @@ describe("createPredictionPipeline", () => {
   // Helper: builds fixtures + markets repos that return data for one fixture
   function withFixtureAndMarkets() {
     const fr = mockFixturesRepo({
-      findScheduledUpcoming: mock(() => Promise.resolve([makeFixtureRow()])),
+      findReadyForPrediction: mock(() => Promise.resolve([makeFixtureRow()])),
     });
     const mr = mockMarketsRepo({
       findByFixtureId: mock(() => Promise.resolve([makeMarketRow()])),
@@ -676,7 +679,7 @@ describe("createPredictionPipeline", () => {
 
   test("skips fixtures with no markets", async () => {
     const fr = mockFixturesRepo({
-      findScheduledUpcoming: mock(() => Promise.resolve([makeFixtureRow()])),
+      findReadyForPrediction: mock(() => Promise.resolve([makeFixtureRow()])),
     });
 
     const deps = buildPredictionDeps({
@@ -718,7 +721,7 @@ describe("createPredictionPipeline", () => {
 
   test("skips predictions when no engines registered", async () => {
     const fr = mockFixturesRepo({
-      findScheduledUpcoming: mock(() => Promise.resolve([makeFixtureRow()])),
+      findReadyForPrediction: mock(() => Promise.resolve([makeFixtureRow()])),
     });
 
     const emptyRegistry = {
@@ -777,7 +780,7 @@ describe("createPredictionPipeline", () => {
 
     // The upsert should preserve the polymarketUrl from the DB row,
     // not overwrite it with null from mapGammaMarketToMarket
-    const upsertCall = (mr.upsert as ReturnType<typeof mock>).mock.calls[0];
+    const upsertCall = (mr.upsert as ReturnType<typeof mock>).mock.calls[0]!;
     expect(upsertCall[0].polymarketUrl).toBe(
       "https://polymarket.com/sports/premier-league-2025/epl-tea-teb-2026-03-05",
     );
@@ -991,7 +994,7 @@ describe("createPredictionPipeline", () => {
     expect(result.errors).toHaveLength(0);
   });
 
-  test("skips fixture when team stats API fails", async () => {
+  test("continues fixture when team stats API fails", async () => {
     const { fr, mr } = withFixtureAndMarkets();
     const fc = mockFootballClient({
       getTeamStatistics: mock(() => Promise.reject(new Error("Team stats API down"))),
@@ -1005,12 +1008,13 @@ describe("createPredictionPipeline", () => {
     const pipeline = createPredictionPipeline(deps);
     const result = await pipeline.run();
 
-    expect(result.fixturesProcessed).toBe(0);
-    expect(result.predictionsGenerated).toBe(0);
-    expect(result.errors.some((e: string) => e.includes("Incomplete stats"))).toBe(true);
+    // Enriched stats are optional — fixture should still be processed
+    expect(result.fixturesProcessed).toBe(1);
+    expect(result.predictionsGenerated).toBe(1);
+    expect(result.errors).toHaveLength(0);
   });
 
-  test("skips fixture when player stats API fails", async () => {
+  test("continues fixture when player stats API fails", async () => {
     const { fr, mr } = withFixtureAndMarkets();
     const fc = mockFootballClient({
       getAllPlayers: mock(() => Promise.reject(new Error("Players API down"))),
@@ -1024,9 +1028,10 @@ describe("createPredictionPipeline", () => {
     const pipeline = createPredictionPipeline(deps);
     const result = await pipeline.run();
 
-    expect(result.fixturesProcessed).toBe(0);
-    expect(result.predictionsGenerated).toBe(0);
-    expect(result.errors.some((e: string) => e.includes("Incomplete stats"))).toBe(true);
+    // Enriched stats are optional — fixture should still be processed
+    expect(result.fixturesProcessed).toBe(1);
+    expect(result.predictionsGenerated).toBe(1);
+    expect(result.errors).toHaveLength(0);
   });
 
   test("enriched statistics include injuries and season stats when available", async () => {
@@ -1097,13 +1102,17 @@ describe("createPredictionPipeline", () => {
   });
 
   test("stats pre-fetch failure skips fixture but processes others", async () => {
+    // Use different leagues so the standings cache doesn't merge them
+    const fixture100 = makeFixtureRow(100);
+    const fixture200 = { ...makeFixtureRow(200), leagueId: 140, leagueName: "La Liga", leagueCountry: "Spain" };
+
     const fr = mockFixturesRepo({
-      findScheduledUpcoming: mock(() =>
-        Promise.resolve([makeFixtureRow(100), makeFixtureRow(200)]),
+      findReadyForPrediction: mock(() =>
+        Promise.resolve([fixture100, fixture200]),
       ),
     });
 
-    // Fixture 100 has no standings for away team → will be skipped
+    // Fixture 100 (league 39) has no standings for away team → will be skipped
     const onlyHomeStandings: ApiStandingsResponse[] = [
       {
         league: {
@@ -1131,11 +1140,9 @@ describe("createPredictionPipeline", () => {
       },
     ];
 
-    let standingsCallCount = 0;
     const fc = mockFootballClient({
-      getStandings: mock(() => {
-        standingsCallCount++;
-        if (standingsCallCount === 1) {
+      getStandings: mock((leagueId: number) => {
+        if (leagueId === 39) {
           return Promise.resolve(apiResponse(onlyHomeStandings));
         }
         return Promise.resolve(apiResponse(makeStandingsResponse()));
@@ -1163,7 +1170,7 @@ describe("createPredictionPipeline", () => {
     const callOrder: string[] = [];
 
     const fr = mockFixturesRepo({
-      findScheduledUpcoming: mock(() => Promise.resolve([makeFixtureRow()])),
+      findReadyForPrediction: mock(() => Promise.resolve([makeFixtureRow()])),
     });
     const mr = mockMarketsRepo({
       findByFixtureId: mock(() => Promise.resolve([makeMarketRow()])),
@@ -1206,7 +1213,7 @@ describe("createPredictionPipeline", () => {
 
   test("multiple fixtures each get independently refreshed odds", async () => {
     const fr = mockFixturesRepo({
-      findScheduledUpcoming: mock(() =>
+      findReadyForPrediction: mock(() =>
         Promise.resolve([makeFixtureRow(100), makeFixtureRow(200)]),
       ),
     });
@@ -1250,5 +1257,19 @@ describe("createPredictionPipeline", () => {
     expect(result.fixturesProcessed).toBe(2);
     expect(oddsCallMarketIds).toHaveLength(2);
     expect(gc.getMarketById).toHaveBeenCalledTimes(2);
+  });
+
+  test("uses findReadyForPrediction with predictionLeadTimeMs from config", async () => {
+    const findReadyForPrediction = mock(() => Promise.resolve([]));
+    const fr = mockFixturesRepo({ findReadyForPrediction });
+
+    const deps = buildPredictionDeps({
+      fixturesRepo: fr as unknown as PredictionPipelineDeps["fixturesRepo"],
+    });
+    const pipeline = createPredictionPipeline(deps);
+    await pipeline.run();
+
+    expect(findReadyForPrediction).toHaveBeenCalledTimes(1);
+    expect(findReadyForPrediction).toHaveBeenCalledWith(DEFAULT_CONFIG.predictionLeadTimeMs);
   });
 });

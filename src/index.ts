@@ -24,6 +24,7 @@ import { createMarketDiscovery } from "./infrastructure/polymarket/market-discov
 import { createFootballClient } from "./infrastructure/sports-data/client.ts";
 import { DEFAULT_CONFIG } from "./orchestrator/config.ts";
 import { createDiscoveryPipeline } from "./orchestrator/discovery-pipeline.ts";
+import { createFixtureStatusPipeline } from "./orchestrator/fixture-status-pipeline.ts";
 import { createPredictionPipeline } from "./orchestrator/prediction-pipeline.ts";
 import { createScheduler } from "./orchestrator/scheduler.ts";
 import { env } from "./shared/env.ts";
@@ -142,10 +143,16 @@ const predictionPipeline = createPredictionPipeline({
   config: DEFAULT_CONFIG,
 });
 
+const fixtureStatusPipeline = createFixtureStatusPipeline({
+  footballClient,
+  fixturesRepo: fixtures,
+});
+
 const scheduler = createScheduler({
   discoveryPipeline,
   predictionPipeline,
   settlementService,
+  fixtureStatusPipeline,
   orderConfirmationService,
   betRetryService,
   config: DEFAULT_CONFIG,

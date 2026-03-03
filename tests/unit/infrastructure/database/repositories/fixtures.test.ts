@@ -71,4 +71,101 @@ describe("fixturesRepo", () => {
     const all = await repo.findAll();
     expect(all).toHaveLength(2);
   });
+
+  describe("findReadyForPrediction", () => {
+    const THIRTY_MINUTES = 30 * 60 * 1000;
+
+    function futureDate(ms: number): string {
+      return new Date(Date.now() + ms).toISOString().replace(/\.\d{3}Z$/, "Z");
+    }
+
+    function pastDate(ms: number): string {
+      return new Date(Date.now() - ms).toISOString().replace(/\.\d{3}Z$/, "Z");
+    }
+
+    it("returns fixtures within lead time", async () => {
+      const repo = fixturesRepo(db);
+      await repo.upsert({ ...sampleFixture, date: futureDate(15 * 60 * 1000) });
+      const results = await repo.findReadyForPrediction(THIRTY_MINUTES);
+      expect(results).toHaveLength(1);
+      expect(results[0]?.id).toBe(1001);
+    });
+
+    it("excludes fixtures too far ahead", async () => {
+      const repo = fixturesRepo(db);
+      await repo.upsert({ ...sampleFixture, date: futureDate(2 * 60 * 60 * 1000) });
+      const results = await repo.findReadyForPrediction(THIRTY_MINUTES);
+      expect(results).toHaveLength(0);
+    });
+
+    it("excludes past fixtures", async () => {
+      const repo = fixturesRepo(db);
+      await repo.upsert({ ...sampleFixture, date: pastDate(60 * 60 * 1000) });
+      const results = await repo.findReadyForPrediction(THIRTY_MINUTES);
+      expect(results).toHaveLength(0);
+    });
+
+    it("excludes non-scheduled fixtures", async () => {
+      const repo = fixturesRepo(db);
+      await repo.upsert({ ...sampleFixture, date: futureDate(15 * 60 * 1000), status: "in_progress" });
+      const results = await repo.findReadyForPrediction(THIRTY_MINUTES);
+      expect(results).toHaveLength(0);
+    });
+  });
+
+  describe("findNeedingStatusUpdate", () => {
+    function pastDate(ms: number): string {
+      return new Date(Date.now() - ms).toISOString().replace(/\.\d{3}Z$/, "Z");
+    }
+
+    function futureDate(ms: number): string {
+      return new Date(Date.now() + ms).toISOString().replace(/\.\d{3}Z$/, "Z");
+    }
+
+    it("returns past scheduled fixtures", async () => {
+      const repo = fixturesRepo(db);
+      await repo.upsert({ ...sampleFixture, date: pastDate(60 * 60 * 1000) });
+      const results = await repo.findNeedingStatusUpdate();
+      expect(results).toHaveLength(1);
+      expect(results[0]?.id).toBe(1001);
+    });
+
+    it("returns in_progress fixtures", async () => {
+      const repo = fixturesRepo(db);
+      await repo.upsert({ ...sampleFixture, status: "in_progress", date: pastDate(30 * 60 * 1000) });
+      const results = await repo.findNeedingStatusUpdate();
+      expect(results).toHaveLength(1);
+    });
+
+    it("excludes finished/cancelled/postponed fixtures", async () => {
+      const repo = fixturesRepo(db);
+      await repo.upsert({ ...sampleFixture, id: 1001, status: "finished", date: pastDate(60 * 60 * 1000) });
+      await repo.upsert({ ...sampleFixture, id: 1002, status: "cancelled", date: pastDate(60 * 60 * 1000) });
+      await repo.upsert({ ...sampleFixture, id: 1003, status: "postponed", date: pastDate(60 * 60 * 1000) });
+      const results = await repo.findNeedingStatusUpdate();
+      expect(results).toHaveLength(0);
+    });
+
+    it("excludes future scheduled fixtures", async () => {
+      const repo = fixturesRepo(db);
+      await repo.upsert({ ...sampleFixture, date: futureDate(2 * 60 * 60 * 1000) });
+      const results = await repo.findNeedingStatusUpdate();
+      expect(results).toHaveLength(0);
+    });
+  });
+
+  describe("updateStatus", () => {
+    it("updates status and updatedAt", async () => {
+      const repo = fixturesRepo(db);
+      await repo.upsert(sampleFixture);
+      const before = await repo.findById(1001);
+
+      await new Promise((r) => setTimeout(r, 10));
+      await repo.updateStatus(1001, "in_progress");
+
+      const after = await repo.findById(1001);
+      expect(after?.status).toBe("in_progress");
+      expect(after!.updatedAt.getTime()).toBeGreaterThanOrEqual(before!.updatedAt.getTime());
+    });
+  });
 });

@@ -26,6 +26,8 @@ export type PipelineConfig = {
   discoveryIntervalMs: number;
   predictionIntervalMs: number;
   settlementIntervalMs: number;
+  fixtureStatusIntervalMs: number;
+  predictionLeadTimeMs: number;
   discoveryDelayMs?: number;
   predictionDelayMs?: number;
   settlementDelayMs?: number;
@@ -46,10 +48,12 @@ export const DEFAULT_LEAGUES: LeagueConfig[] = [
 
 export const DEFAULT_CONFIG: PipelineConfig = {
   leagues: DEFAULT_LEAGUES,
-  fixtureLookAheadDays: 7,
-  discoveryIntervalMs: 30 * 60 * 1000, // 30 minutes
-  predictionIntervalMs: 6 * 60 * 60 * 1000, // 6 hours
+  fixtureLookAheadDays: 14,
+  discoveryIntervalMs: 7 * 24 * 60 * 60 * 1000, // 7 days
+  predictionIntervalMs: 15 * 60 * 1000, // 15 minutes
   settlementIntervalMs: 2 * 60 * 60 * 1000, // 2 hours
+  fixtureStatusIntervalMs: 15 * 60 * 1000, // 15 minutes
+  predictionLeadTimeMs: 30 * 60 * 1000, // 30 minutes before kickoff
   predictionDelayMs: 30_000,
   betting: {
     maxStakePerBet: 10,

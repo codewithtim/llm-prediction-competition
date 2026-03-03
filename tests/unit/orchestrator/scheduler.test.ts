@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, mock, test } from "bun:test";
 import type { PipelineConfig } from "../../../src/orchestrator/config.ts";
 import type { DiscoveryPipeline } from "../../../src/orchestrator/discovery-pipeline.ts";
+import type { FixtureStatusPipeline } from "../../../src/orchestrator/fixture-status-pipeline.ts";
 import type { PredictionPipeline } from "../../../src/orchestrator/prediction-pipeline.ts";
 import { createScheduler, type SchedulerDeps } from "../../../src/orchestrator/scheduler.ts";
 
@@ -8,10 +9,12 @@ function makeConfig(overrides: Partial<PipelineConfig> = {}): PipelineConfig {
   return {
     leagues: [],
     season: 2024,
-    fixtureLookAheadDays: 7,
+    fixtureLookAheadDays: 14,
     discoveryIntervalMs: 100,
     predictionIntervalMs: 100,
     settlementIntervalMs: 100,
+    fixtureStatusIntervalMs: 100,
+    predictionLeadTimeMs: 30 * 60 * 1000,
     betting: {
       maxStakePerBet: 10,
       maxBetPctOfBankroll: 0.1,
@@ -75,11 +78,26 @@ function mockSettlementService() {
   };
 }
 
+function emptyFixtureStatusResult() {
+  return {
+    fixturesChecked: 0,
+    statusesUpdated: 0,
+    errors: [],
+  };
+}
+
+function mockFixtureStatusPipeline(): FixtureStatusPipeline {
+  return {
+    run: mock(() => Promise.resolve(emptyFixtureStatusResult())),
+  };
+}
+
 function buildDeps(overrides: Partial<SchedulerDeps> = {}): SchedulerDeps {
   return {
     discoveryPipeline: mockDiscoveryPipeline(),
     predictionPipeline: mockPredictionPipeline(),
     settlementService: mockSettlementService(),
+    fixtureStatusPipeline: mockFixtureStatusPipeline(),
     config: makeConfig(),
     ...overrides,
   };
@@ -312,6 +330,60 @@ describe("createScheduler", () => {
 
     resolveFirst();
     await new Promise((r) => setTimeout(r, 10));
+  });
+
+  test("start() runs fixture status pipeline immediately", async () => {
+    const deps = buildDeps();
+    scheduler = createScheduler(deps);
+    scheduler.start();
+
+    await new Promise((r) => setTimeout(r, 20));
+
+    expect(deps.fixtureStatusPipeline.run).toHaveBeenCalled();
+  });
+
+  test("overlap guard prevents concurrent fixture status runs", async () => {
+    let resolveFirst: () => void = () => {};
+    const slowFixtureStatus = mock(
+      () =>
+        new Promise<ReturnType<typeof emptyFixtureStatusResult>>((resolve) => {
+          resolveFirst = () => resolve(emptyFixtureStatusResult());
+        }),
+    );
+
+    const deps = buildDeps({
+      fixtureStatusPipeline: { run: slowFixtureStatus },
+      config: makeConfig({ fixtureStatusIntervalMs: 30 }),
+    });
+    scheduler = createScheduler(deps);
+    scheduler.start();
+
+    await new Promise((r) => setTimeout(r, 60));
+
+    expect(slowFixtureStatus.mock.calls.length).toBe(1);
+
+    resolveFirst();
+    await new Promise((r) => setTimeout(r, 10));
+  });
+
+  test("stop() clears fixture status timer", async () => {
+    const deps = buildDeps({
+      config: makeConfig({ fixtureStatusIntervalMs: 50 }),
+    });
+    scheduler = createScheduler(deps);
+    scheduler.start();
+
+    await new Promise((r) => setTimeout(r, 20));
+    scheduler.stop();
+
+    const statusCalls = (deps.fixtureStatusPipeline.run as ReturnType<typeof mock>).mock.calls
+      .length;
+
+    await new Promise((r) => setTimeout(r, 100));
+
+    expect((deps.fixtureStatusPipeline.run as ReturnType<typeof mock>).mock.calls.length).toBe(
+      statusCalls,
+    );
   });
 
   test("stop() clears order confirmation and bet retry timers", async () => {

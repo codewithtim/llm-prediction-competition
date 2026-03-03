@@ -71,10 +71,10 @@ type PreFetchedFixtureData = {
   awayStats: TeamStats;
   h2h: H2H;
   injuries: Injury[];
-  homeTeamSeasonStats: TeamSeasonStats;
-  awayTeamSeasonStats: TeamSeasonStats;
-  homeTeamPlayers: PlayerSeasonStats[];
-  awayTeamPlayers: PlayerSeasonStats[];
+  homeTeamSeasonStats?: TeamSeasonStats;
+  awayTeamSeasonStats?: TeamSeasonStats;
+  homeTeamPlayers?: PlayerSeasonStats[];
+  awayTeamPlayers?: PlayerSeasonStats[];
 };
 
 function dbRowToMarket(row: MarketRow): Market {
@@ -238,6 +238,17 @@ export function createPredictionPipeline(deps: PredictionPipelineDeps) {
     config,
   } = deps;
 
+  const standingsCache = new Map<string, Awaited<ReturnType<typeof footballClient.getStandings>>>();
+
+  async function getStandingsCached(leagueId: number, season: number) {
+    const key = `${leagueId}:${season}`;
+    const cached = standingsCache.get(key);
+    if (cached) return cached;
+    const resp = await footballClient.getStandings(leagueId, season);
+    standingsCache.set(key, resp);
+    return resp;
+  }
+
   async function gatherFixtureStats(
     fixtureRow: FixtureRow,
     result: PredictionPipelineResult,
@@ -254,12 +265,25 @@ export function createPredictionPipeline(deps: PredictionPipelineDeps) {
       return null;
     }
 
-    const standingsResp = await footballClient.getStandings(
-      fixture.league.id,
-      fixture.league.season,
-    );
-    const allStandings = standingsResp.response.flatMap((r) => r.league.standings.flat());
+    // Fetch standings, H2H, and injuries in parallel — they're independent
+    const [standingsResp, h2hResp, injuriesResult] = await Promise.allSettled([
+      getStandingsCached(fixture.league.id, fixture.league.season),
+      footballClient.getHeadToHead(fixture.homeTeam.id, fixture.awayTeam.id),
+      footballClient.getInjuries(fixture.id),
+    ]);
 
+    if (standingsResp.status === "rejected") {
+      const msg =
+        standingsResp.reason instanceof Error
+          ? standingsResp.reason.message
+          : String(standingsResp.reason);
+      result.errors.push(
+        `Standings fetch failed for fixture ${fixture.id} (${fixtureLabel}): ${msg}`,
+      );
+      return null;
+    }
+
+    const allStandings = standingsResp.value.response.flatMap((r) => r.league.standings.flat());
     const homeStanding = allStandings.find((s) => s.team.id === fixture.homeTeam.id);
     const awayStanding = allStandings.find((s) => s.team.id === fixture.awayTeam.id);
 
@@ -271,15 +295,26 @@ export function createPredictionPipeline(deps: PredictionPipelineDeps) {
     const homeStats = mapStandingToTeamStats(homeStanding);
     const awayStats = mapStandingToTeamStats(awayStanding);
 
-    const h2hResp = await footballClient.getHeadToHead(fixture.homeTeam.id, fixture.awayTeam.id);
-    const h2h = mapH2hFixturesToH2H(h2hResp.response, fixture.homeTeam.id);
+    let h2h: H2H;
+    if (h2hResp.status === "fulfilled") {
+      h2h = mapH2hFixturesToH2H(h2hResp.value.response, fixture.homeTeam.id);
+    } else {
+      const msg = h2hResp.reason instanceof Error ? h2hResp.reason.message : String(h2hResp.reason);
+      logger.warn("Prediction: H2H fetch failed, using empty", {
+        fixtureId: fixture.id,
+        error: msg,
+      });
+      h2h = { totalMatches: 0, homeWins: 0, awayWins: 0, draws: 0, recentMatches: [] };
+    }
 
     let injuries: Injury[] = [];
-    try {
-      const injResp = await footballClient.getInjuries(fixture.id);
-      injuries = mapApiInjuries(injResp.response);
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
+    if (injuriesResult.status === "fulfilled") {
+      injuries = mapApiInjuries(injuriesResult.value.response);
+    } else {
+      const msg =
+        injuriesResult.reason instanceof Error
+          ? injuriesResult.reason.message
+          : String(injuriesResult.reason);
       logger.warn("Prediction: injuries fetch failed, continuing without", {
         fixtureId: fixture.id,
         error: msg,
@@ -307,17 +342,16 @@ export function createPredictionPipeline(deps: PredictionPipelineDeps) {
     const awayTeamPlayers = unpack(awayPlayersResult, "away player stats");
 
     if (!homeTeamSeasonStats || !awayTeamSeasonStats || !homeTeamPlayers || !awayTeamPlayers) {
-      result.errors.push(
-        `Incomplete stats for fixture ${fixture.id} (${fixtureLabel}): missing ${[
+      logger.warn("Prediction: incomplete enriched stats, continuing without", {
+        fixtureId: fixture.id,
+        fixture: fixtureLabel,
+        missing: [
           !homeTeamSeasonStats && "home team stats",
           !awayTeamSeasonStats && "away team stats",
           !homeTeamPlayers && "home player stats",
           !awayTeamPlayers && "away player stats",
-        ]
-          .filter(Boolean)
-          .join(", ")}`,
-      );
-      return null;
+        ].filter(Boolean),
+      });
     }
 
     return {
@@ -529,11 +563,11 @@ export function createPredictionPipeline(deps: PredictionPipelineDeps) {
         errors: [],
       };
 
-      const fixtureRows = await fixturesRepo.findScheduledUpcoming();
-      logger.info("Prediction: found scheduled fixtures", { count: fixtureRows.length });
+      const fixtureRows = await fixturesRepo.findReadyForPrediction(config.predictionLeadTimeMs);
+      logger.info("Prediction: found fixtures ready for prediction", { count: fixtureRows.length });
 
       if (fixtureRows.length === 0) {
-        logger.info("Prediction: no scheduled fixtures to process");
+        logger.info("Prediction: no fixtures within prediction window");
         return result;
       }
 
