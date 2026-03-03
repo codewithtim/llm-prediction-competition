@@ -1,4 +1,5 @@
 import type { OpenRouterClient } from "../../infrastructure/openrouter/client";
+import { FEATURE_REGISTRY } from "./features";
 import { WEIGHT_JSON_SCHEMA } from "./types";
 
 export type GeneratedWeights = {
@@ -18,6 +19,12 @@ export function stripMarkdownFences(text: string): string {
   return match ? (match[1] ?? "").trim() : trimmed;
 }
 
+function buildFeatureDescriptions(): string {
+  return Object.entries(FEATURE_REGISTRY)
+    .map(([name, entry]) => `- **${name}**: ${entry.description}`)
+    .join("\n");
+}
+
 export const WEIGHT_SYSTEM_PROMPT = `You are a football betting strategist tuning a prediction engine via weight configuration.
 
 ## How The Engine Works
@@ -26,13 +33,7 @@ The engine computes a home-strength score as a weighted average of feature signa
 
 ## Feature Signals (0-1 range, where 0.5 is neutral)
 
-- **homeWinRate**: Home team's win rate at home. Higher = stronger home team.
-- **awayLossRate**: Away team's loss rate when playing away. Higher = weaker away team (good for home).
-- **formDiff**: Recent form difference (home form vs away form). Higher = home in better form.
-- **h2h**: Head-to-head advantage for home team. Higher = home historically dominant.
-- **goalDiff**: Goal difference per game comparison. Higher = home scores/concedes better.
-- **pointsPerGame**: Points per game comparison. Higher = home accumulates more points.
-- **defensiveStrength**: Defensive comparison (away concedes more vs home concedes less). Higher = home defends better.
+${buildFeatureDescriptions()}
 
 ## Required Output JSON Schema
 

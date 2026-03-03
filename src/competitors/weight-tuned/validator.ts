@@ -16,10 +16,9 @@ export function validateWeights(input: unknown, stakeConfig: StakeConfig): Valid
 
   const weights = parsed.data;
 
-  const engine = createWeightedEngine(weights, stakeConfig);
-
   let output: unknown;
   try {
+    const engine = createWeightedEngine(weights, stakeConfig);
     output = engine(SAMPLE_STATISTICS_MULTI_MARKET);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);

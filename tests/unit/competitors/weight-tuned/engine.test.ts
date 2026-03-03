@@ -277,6 +277,19 @@ describe("createWeightedEngine", () => {
         goalDiff: 0,
         pointsPerGame: 0,
         defensiveStrength: 0,
+        injuryImpact: 0,
+        cleanSheetDiff: 0,
+        scoringConsistency: 0,
+        winStreakMomentum: 0,
+        penaltyReliability: 0,
+        lateGoalThreat: 0,
+        lateGoalVulnerability: 0,
+        overTwoFiveGoals: 0,
+        defensiveOverTwoFive: 0,
+        squadRating: 0,
+        attackingOutput: 0,
+        injuredKeyPlayers: 0,
+        h2hRecentForm: 0,
       },
       drawBaseline: 0.25,
       drawPeak: 0.5,
@@ -299,6 +312,40 @@ describe("createWeightedEngine", () => {
     const predictions = run(DEFAULT_WEIGHTS, DEFAULT_STAKE_CONFIG, makeStatistics());
     expect(predictions).toHaveLength(1);
     expect(predictions[0]?.marketId).toBe("market-123");
+  });
+
+  it("throws when weights are missing signals", () => {
+    const incompleteWeights: WeightConfig = {
+      ...DEFAULT_WEIGHTS,
+      signals: {
+        homeWinRate: 0.4,
+        formDiff: 0.3,
+        h2h: 0.3,
+      },
+    };
+    expect(() => createWeightedEngine(incompleteWeights, DEFAULT_STAKE_CONFIG)).toThrow(
+      "Weight config is missing signals",
+    );
+  });
+
+  it("error message lists all missing signal names", () => {
+    const incompleteWeights: WeightConfig = {
+      ...DEFAULT_WEIGHTS,
+      signals: {
+        homeWinRate: 0.4,
+        formDiff: 0.3,
+        h2h: 0.3,
+      },
+    };
+    expect(() => createWeightedEngine(incompleteWeights, DEFAULT_STAKE_CONFIG)).toThrow(
+      /cleanSheetDiff/,
+    );
+    expect(() => createWeightedEngine(incompleteWeights, DEFAULT_STAKE_CONFIG)).toThrow(
+      /scoringConsistency/,
+    );
+    expect(() => createWeightedEngine(incompleteWeights, DEFAULT_STAKE_CONFIG)).toThrow(
+      /injuryImpact/,
+    );
   });
 
   it("balanced teams produce higher draw probability", () => {

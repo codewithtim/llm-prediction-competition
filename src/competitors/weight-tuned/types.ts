@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { FEATURE_NAMES } from "./features";
 
 export const weightConfigSchema = z.object({
   signals: z.record(z.string(), z.number().min(0).max(1)),
@@ -14,19 +15,14 @@ export const weightConfigSchema = z.object({
 
 export type WeightConfig = z.infer<typeof weightConfigSchema>;
 
+const ACTIVE_DEFAULTS: Record<string, number> = {
+  homeWinRate: 0.4,
+  formDiff: 0.3,
+  h2h: 0.3,
+};
+
 export const DEFAULT_WEIGHTS: WeightConfig = {
-  signals: {
-    homeWinRate: 0.4,
-    formDiff: 0.3,
-    h2h: 0.3,
-    awayLossRate: 0.0,
-    goalDiff: 0.0,
-    pointsPerGame: 0.0,
-    defensiveStrength: 0.0,
-    injuryImpact: 0.0,
-    cleanSheetDiff: 0.0,
-    scoringConsistency: 0.0,
-  },
+  signals: Object.fromEntries(FEATURE_NAMES.map((name) => [name, ACTIVE_DEFAULTS[name] ?? 0.0])),
   drawBaseline: 0.25,
   drawPeak: 0.5,
   drawWidth: 0.15,
@@ -56,8 +52,7 @@ export const WEIGHT_JSON_SCHEMA = {
     properties: {
       signals: {
         type: "object",
-        description:
-          "Feature signal weights (0-1). Keys: homeWinRate, awayLossRate, formDiff, h2h, goalDiff, pointsPerGame, defensiveStrength, injuryImpact, cleanSheetDiff, scoringConsistency",
+        description: `Feature signal weights (0-1). Keys: ${FEATURE_NAMES.join(", ")}`,
         additionalProperties: { type: "number" },
       },
       drawBaseline: {
@@ -106,4 +101,4 @@ export const WEIGHT_JSON_SCHEMA = {
     ],
     additionalProperties: false,
   },
-} as const;
+};

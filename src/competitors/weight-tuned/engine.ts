@@ -1,7 +1,7 @@
 import type { PredictionOutput, Reasoning } from "../../domain/contracts/prediction";
 import type { MarketContext, Statistics } from "../../domain/contracts/statistics";
 import type { PredictionEngine } from "../../engine/types";
-import { clamp, extractFeatures } from "./features";
+import { clamp, extractFeatures, getMissingSignals } from "./features";
 import type { StakeConfig, WeightConfig } from "./types";
 
 export function classifyMarket(
@@ -41,8 +41,21 @@ export function createWeightedEngine(
   weights: WeightConfig,
   stakeConfig: StakeConfig,
 ): PredictionEngine {
+  const missing = getMissingSignals(weights.signals);
+  if (missing.length > 0) {
+    throw new Error(
+      `Weight config is missing signals: ${missing.join(", ")}. All features in the registry must have a corresponding signal weight.`,
+    );
+  }
+
+  const activeSignals = new Set(
+    Object.entries(weights.signals)
+      .filter(([, w]) => w > 0)
+      .map(([name]) => name),
+  );
+
   return (statistics: Statistics): PredictionOutput[] => {
-    const features = extractFeatures(statistics);
+    const features = extractFeatures(statistics, activeSignals);
 
     // Compute weighted home strength
     let weightedSum = 0;
@@ -151,10 +164,10 @@ export function createWeightedEngine(
       stakeConfig.maxBetPct,
     );
 
-    const activeSignals = Object.entries(features).filter(
+    const signalEntries = Object.entries(features).filter(
       ([name]) => (weights.signals[name] ?? 0) > 0,
     );
-    const featuresSummary = activeSignals
+    const featuresSummary = signalEntries
       .map(([name, val]) => `${name}=${(val * 100).toFixed(0)}%`)
       .join(", ");
 
@@ -169,7 +182,7 @@ export function createWeightedEngine(
         {
           label: "Signals",
           content: featuresSummary,
-          data: Object.fromEntries(activeSignals),
+          data: Object.fromEntries(signalEntries),
         },
         {
           label: "Edge",

@@ -22,6 +22,22 @@ describe("validateWeights", () => {
         formDiff: 0.2,
         h2h: 0.1,
         goalDiff: 0.2,
+        awayLossRate: 0,
+        pointsPerGame: 0,
+        defensiveStrength: 0,
+        injuryImpact: 0,
+        cleanSheetDiff: 0,
+        scoringConsistency: 0,
+        winStreakMomentum: 0,
+        penaltyReliability: 0,
+        lateGoalThreat: 0,
+        lateGoalVulnerability: 0,
+        overTwoFiveGoals: 0,
+        defensiveOverTwoFive: 0,
+        squadRating: 0,
+        attackingOutput: 0,
+        injuredKeyPlayers: 0,
+        h2hRecentForm: 0,
       },
       drawBaseline: 0.2,
       drawPeak: 0.45,
@@ -84,6 +100,25 @@ describe("validateWeights", () => {
   it("rejects null input", () => {
     const result = validateWeights(null, DEFAULT_STAKE_CONFIG);
     expect(result.valid).toBe(false);
+  });
+
+  it("rejects weights with missing signal coverage", () => {
+    const weights = {
+      ...DEFAULT_WEIGHTS,
+      signals: {
+        homeWinRate: 0.4,
+        formDiff: 0.3,
+        h2h: 0.3,
+      },
+    };
+    const result = validateWeights(weights, DEFAULT_STAKE_CONFIG);
+    expect(result.valid).toBe(false);
+    if (!result.valid) {
+      expect(result.error).toContain("missing signals");
+      expect(result.error).toContain("injuryImpact");
+      expect(result.error).toContain("cleanSheetDiff");
+      expect(result.error).toContain("scoringConsistency");
+    }
   });
 
   it("rejects edgeMultiplier out of range", () => {
