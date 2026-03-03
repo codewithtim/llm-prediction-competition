@@ -15,9 +15,7 @@ describe("classifyBetError", () => {
   });
 
   it('classifies "ECONNREFUSED" as network_error', () => {
-    expect(classifyBetError(new Error("connect ECONNREFUSED 127.0.0.1:443"))).toBe(
-      "network_error",
-    );
+    expect(classifyBetError(new Error("connect ECONNREFUSED 127.0.0.1:443"))).toBe("network_error");
   });
 
   it('classifies "ECONNRESET" as network_error', () => {
@@ -58,5 +56,3 @@ describe("classifyBetError", () => {
     expect(classifyBetError(null)).toBe("unknown");
   });
 });
-
-

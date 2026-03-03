@@ -1,5 +1,5 @@
-import * as pulumi from "@pulumi/pulumi";
 import * as digitalocean from "@pulumi/digitalocean";
+import * as pulumi from "@pulumi/pulumi";
 
 const config = new pulumi.Config();
 
@@ -38,7 +38,7 @@ const _firewall = new digitalocean.Firewall("llm-betting", {
     { protocol: "udp", portRange: "1-65535", destinationAddresses: ["0.0.0.0/0", "::/0"] },
     { protocol: "icmp", destinationAddresses: ["0.0.0.0/0", "::/0"] },
   ],
-  dropletIds: [droplet.id.apply(id => parseInt(id, 10))],
+  dropletIds: [droplet.id.apply((id) => parseInt(id, 10))],
 });
 
 const _project = new digitalocean.Project("llm-betting", {

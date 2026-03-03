@@ -154,11 +154,14 @@ describe("createOrderConfirmationService", () => {
     const result = await service.confirmOrders();
 
     expect(result.failed).toBe(1);
-    expect(repo.updateBetAfterSubmission).toHaveBeenCalledWith("bet-1", expect.objectContaining({
-      status: "failed",
-      errorCategory: "unknown",
-      attempts: 1,
-    }));
+    expect(repo.updateBetAfterSubmission).toHaveBeenCalledWith(
+      "bet-1",
+      expect.objectContaining({
+        status: "failed",
+        errorCategory: "unknown",
+        attempts: 1,
+      }),
+    );
     expect(repo.updateStatus).not.toHaveBeenCalled();
   });
 
@@ -179,10 +182,13 @@ describe("createOrderConfirmationService", () => {
     const result = await service.confirmOrders();
 
     expect(result.failed).toBe(1);
-    expect(repo.updateBetAfterSubmission).toHaveBeenCalledWith("bet-1", expect.objectContaining({
-      status: "failed",
-      errorCategory: "unknown",
-    }));
+    expect(repo.updateBetAfterSubmission).toHaveBeenCalledWith(
+      "bet-1",
+      expect.objectContaining({
+        status: "failed",
+        errorCategory: "unknown",
+      }),
+    );
     expect(repo.updateStatus).not.toHaveBeenCalled();
   });
 

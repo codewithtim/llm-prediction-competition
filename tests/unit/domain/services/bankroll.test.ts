@@ -15,7 +15,14 @@ type BetRow = {
   amount: number;
   price: number;
   shares: number;
-  status: "submitting" | "pending" | "filled" | "settled_won" | "settled_lost" | "cancelled" | "failed";
+  status:
+    | "submitting"
+    | "pending"
+    | "filled"
+    | "settled_won"
+    | "settled_lost"
+    | "cancelled"
+    | "failed";
   placedAt: Date;
   settledAt: Date | null;
   profit: number | null;

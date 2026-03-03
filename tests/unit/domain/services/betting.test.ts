@@ -99,7 +99,14 @@ type BetRow = {
   amount: number;
   price: number;
   shares: number;
-  status: "submitting" | "pending" | "filled" | "settled_won" | "settled_lost" | "cancelled" | "failed";
+  status:
+    | "submitting"
+    | "pending"
+    | "filled"
+    | "settled_won"
+    | "settled_lost"
+    | "cancelled"
+    | "failed";
   placedAt: Date;
   settledAt: Date | null;
   profit: number | null;
@@ -230,7 +237,10 @@ describe("createBettingService", () => {
       await service.placeBet(makeInput());
 
       expect(callOrder).toEqual(["create", "placeOrder"]);
-      const createArg = (repo.create as ReturnType<typeof mock>).mock.calls[0]?.[0] as Record<string, unknown>;
+      const createArg = (repo.create as ReturnType<typeof mock>).mock.calls[0]?.[0] as Record<
+        string,
+        unknown
+      >;
       expect(createArg.status).toBe("submitting");
     });
 
@@ -247,7 +257,8 @@ describe("createBettingService", () => {
 
       expect(result.status).toBe("placed");
       expect(repo.updateBetAfterSubmission).toHaveBeenCalledTimes(1);
-      const [, update] = (repo.updateBetAfterSubmission as ReturnType<typeof mock>).mock.calls[0] as [string, { status: string; orderId: string }];
+      const [, update] = (repo.updateBetAfterSubmission as ReturnType<typeof mock>).mock
+        .calls[0] as [string, { status: string; orderId: string }];
       expect(update.status).toBe("pending");
       expect(update.orderId).toBe("order-abc");
     });
@@ -346,7 +357,8 @@ describe("createBettingService", () => {
       await service.placeBet(makeInput());
 
       expect(repo.updateBetAfterSubmission).toHaveBeenCalledTimes(1);
-      const [, update] = (repo.updateBetAfterSubmission as ReturnType<typeof mock>).mock.calls[0] as [
+      const [, update] = (repo.updateBetAfterSubmission as ReturnType<typeof mock>).mock
+        .calls[0] as [
         string,
         { status: string; errorMessage: string; errorCategory: string; attempts: number },
       ];
@@ -514,7 +526,9 @@ describe("createBettingService", () => {
 
     it("skips when budget would be exceeded", async () => {
       const client = mockBettingClient();
-      const repo = mockBetsRepo([makeBetRow({ marketId: "market-other", amount: 98, status: "pending" })]);
+      const repo = mockBetsRepo([
+        makeBetRow({ marketId: "market-other", amount: 98, status: "pending" }),
+      ]);
       const service = createBettingService({
         bettingClientFactory: mockBettingClientFactory(client),
         betsRepo: repo,

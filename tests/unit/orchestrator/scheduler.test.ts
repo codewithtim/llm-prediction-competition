@@ -285,7 +285,13 @@ describe("createScheduler", () => {
     let resolveFirst: () => void = () => {};
     const slowConfirm = mock(
       () =>
-        new Promise<{ confirmed: number; cancelled: number; failed: number; stillPending: number; errors: string[] }>((resolve) => {
+        new Promise<{
+          confirmed: number;
+          cancelled: number;
+          failed: number;
+          stillPending: number;
+          errors: string[];
+        }>((resolve) => {
           resolveFirst = () =>
             resolve({ confirmed: 0, cancelled: 0, failed: 0, stillPending: 0, errors: [] });
         }),

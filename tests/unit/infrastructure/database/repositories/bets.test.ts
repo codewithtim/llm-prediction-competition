@@ -128,8 +128,20 @@ describe("betsRepo", () => {
       const repo = betsRepo(db);
       // Create 3 bets: 1 settled, 2 failed
       await repo.create({ ...sampleBet, id: "bet-s", orderId: "o-s", amount: 10 });
-      await repo.create({ ...sampleBet, id: "bet-f1", orderId: "o-f1", amount: 5, status: "failed" });
-      await repo.create({ ...sampleBet, id: "bet-f2", orderId: "o-f2", amount: 5, status: "failed" });
+      await repo.create({
+        ...sampleBet,
+        id: "bet-f1",
+        orderId: "o-f1",
+        amount: 5,
+        status: "failed",
+      });
+      await repo.create({
+        ...sampleBet,
+        id: "bet-f2",
+        orderId: "o-f2",
+        amount: 5,
+        status: "failed",
+      });
 
       await repo.updateStatus("bet-s", "settled_won", new Date(), 5);
 
@@ -144,8 +156,20 @@ describe("betsRepo", () => {
 
     it("tracks lockedAmount from pending and filled bets", async () => {
       const repo = betsRepo(db);
-      await repo.create({ ...sampleBet, id: "bet-p", orderId: "o-p", amount: 8, status: "pending" });
-      await repo.create({ ...sampleBet, id: "bet-f", orderId: "o-f", amount: 12, status: "filled" });
+      await repo.create({
+        ...sampleBet,
+        id: "bet-p",
+        orderId: "o-p",
+        amount: 8,
+        status: "pending",
+      });
+      await repo.create({
+        ...sampleBet,
+        id: "bet-f",
+        orderId: "o-f",
+        amount: 12,
+        status: "filled",
+      });
       await repo.create({ ...sampleBet, id: "bet-x", orderId: "o-x", amount: 5, status: "failed" });
 
       const stats = await repo.getPerformanceStats("claude-1");
@@ -320,5 +344,4 @@ describe("betsRepo", () => {
       expect(retryable[0]?.id).toBe("bet-rate");
     });
   });
-
 });
