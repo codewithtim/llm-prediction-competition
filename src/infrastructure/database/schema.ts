@@ -160,7 +160,16 @@ export const bets = sqliteTable("bets", {
   settledAt: integer("settled_at", { mode: "timestamp" }),
   profit: real("profit"),
   errorMessage: text("error_message"),
-  errorCategory: text("error_category"),
+  errorCategory: text("error_category", {
+    enum: [
+      "insufficient_funds",
+      "network_error",
+      "rate_limited",
+      "wallet_error",
+      "invalid_market",
+      "unknown",
+    ],
+  }),
   attempts: integer("attempts").notNull().default(0),
   lastAttemptAt: integer("last_attempt_at", { mode: "timestamp" }),
 });

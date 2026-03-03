@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import type { ApiDeps } from "../index";
+import { toBetSummary } from "../mappers";
 
 export function competitorsRoutes(deps: ApiDeps) {
   const app = new Hono();
@@ -66,16 +67,19 @@ export function competitorsRoutes(deps: ApiDeps) {
     const marketIds = [
       ...new Set([...bets.map((b) => b.marketId), ...predictions.map((p) => p.marketId)]),
     ];
-    const marketMap = new Map<string, string>();
+    const marketById = new Map<string, { question: string; polymarketUrl: string | null }>();
     for (const mid of marketIds) {
       const m = await deps.marketsRepo.findById(mid);
-      if (m) marketMap.set(m.id, m.question);
+      if (m) marketById.set(m.id, m);
     }
 
-    const competitorMap = new Map([[comp.id, comp.name]]);
-    const predictionMap = new Map(
-      predictions.map((p) => [`${p.competitorId}:${p.marketId}:${p.side}`, p.confidence]),
-    );
+    const lookups = {
+      competitorMap: new Map([[comp.id, comp.name]]),
+      marketById,
+      predictionMap: new Map(
+        predictions.map((p) => [`${p.competitorId}:${p.marketId}:${p.side}`, p.confidence]),
+      ),
+    };
 
     return c.json({
       id: comp.id,
@@ -107,29 +111,13 @@ export function competitorsRoutes(deps: ApiDeps) {
         performanceSnapshot: v.performanceSnapshot,
         generatedAt: v.generatedAt?.toISOString() ?? "",
       })),
-      recentBets: bets.slice(0, 20).map((b) => ({
-        id: b.id,
-        competitorId: b.competitorId,
-        competitorName: competitorMap.get(b.competitorId) ?? "Unknown",
-        marketId: b.marketId,
-        marketQuestion: marketMap.get(b.marketId) ?? "Unknown",
-        fixtureId: b.fixtureId,
-        side: b.side,
-        amount: b.amount,
-        price: b.price,
-        shares: b.shares,
-        status: b.status,
-        placedAt: b.placedAt?.toISOString() ?? "",
-        settledAt: b.settledAt?.toISOString() ?? null,
-        profit: b.profit,
-        confidence: predictionMap.get(`${b.competitorId}:${b.marketId}:${b.side}`) ?? null,
-      })),
+      recentBets: bets.slice(0, 20).map((b) => toBetSummary(b, lookups)),
       recentPredictions: predictions.slice(0, 20).map((p) => ({
         id: p.id,
         competitorId: p.competitorId,
-        competitorName: competitorMap.get(p.competitorId) ?? "Unknown",
+        competitorName: lookups.competitorMap.get(p.competitorId) ?? "Unknown",
         marketId: p.marketId,
-        marketQuestion: marketMap.get(p.marketId) ?? "Unknown",
+        marketQuestion: marketById.get(p.marketId)?.question ?? "Unknown",
         fixtureId: p.fixtureId,
         side: p.side,
         confidence: p.confidence,

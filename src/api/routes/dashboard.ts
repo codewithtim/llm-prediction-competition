@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import type { ApiDeps } from "../index";
+import { toBetSummary } from "../mappers";
 
 export function dashboardRoutes(deps: ApiDeps) {
   const app = new Hono();
@@ -64,32 +65,15 @@ export function dashboardRoutes(deps: ApiDeps) {
     }
 
     // Enrich recent bets
-    const competitorMap = new Map(allCompetitors.map((c) => [c.id, c.name]));
-    const marketById = new Map(allMarkets.map((m) => [m.id, m]));
-    const predictionMap = new Map(
-      allPredictions.map((p) => [`${p.competitorId}:${p.marketId}:${p.side}`, p.confidence]),
-    );
+    const lookups = {
+      competitorMap: new Map(allCompetitors.map((c) => [c.id, c.name])),
+      marketById: new Map(allMarkets.map((m) => [m.id, m])),
+      predictionMap: new Map(
+        allPredictions.map((p) => [`${p.competitorId}:${p.marketId}:${p.side}`, p.confidence]),
+      ),
+    };
 
-    const recentBets = recentBetsRaw.map((b) => ({
-      id: b.id,
-      competitorId: b.competitorId,
-      competitorName: competitorMap.get(b.competitorId) ?? "Unknown",
-      marketId: b.marketId,
-      marketQuestion: marketById.get(b.marketId)?.question ?? "Unknown",
-      polymarketUrl: marketById.get(b.marketId)?.polymarketUrl ?? null,
-      fixtureId: b.fixtureId,
-      side: b.side,
-      amount: b.amount,
-      price: b.price,
-      shares: b.shares,
-      status: b.status,
-      placedAt: b.placedAt?.toISOString() ?? "",
-      settledAt: b.settledAt?.toISOString() ?? null,
-      profit: b.profit,
-      confidence: predictionMap.get(`${b.competitorId}:${b.marketId}:${b.side}`) ?? null,
-      errorMessage: b.errorMessage ?? null,
-      errorCategory: b.errorCategory ?? null,
-    }));
+    const recentBets = recentBetsRaw.map((b) => toBetSummary(b, lookups));
 
     // Aggregate totals
     const totalProfitLoss = leaderboard.reduce((sum, e) => sum + e.competitor.stats.profitLoss, 0);

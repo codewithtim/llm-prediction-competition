@@ -23,6 +23,7 @@ describe("GET /api/bets", () => {
             profit: null,
             errorMessage: null,
             errorCategory: null,
+            attempts: 0,
           },
         ],
       } as any,
@@ -53,6 +54,7 @@ describe("GET /api/bets", () => {
     expect(data[0].polymarketUrl).toBe("https://polymarket.com/sports/epl/epl-ars-che-2026-03-15");
     expect(data[0].errorMessage).toBeNull();
     expect(data[0].errorCategory).toBeNull();
+    expect(data[0].attempts).toBe(0);
   });
 
   test("returns error fields for failed bets", async () => {
@@ -74,6 +76,7 @@ describe("GET /api/bets", () => {
             profit: null,
             errorMessage: "insufficient balance",
             errorCategory: "insufficient_funds",
+            attempts: 3,
           },
         ],
       } as any,
@@ -98,6 +101,7 @@ describe("GET /api/bets", () => {
     const data = await res.json();
     expect(data[0].errorMessage).toBe("insufficient balance");
     expect(data[0].errorCategory).toBe("insufficient_funds");
+    expect(data[0].attempts).toBe(3);
   });
 
   test("returns confidence from matching prediction", async () => {
@@ -219,6 +223,49 @@ describe("GET /api/bets", () => {
     const res = await app.request("/api/bets");
     const data = await res.json();
     expect(data[0].confidence).toBeNull();
+  });
+
+  test("filters by errorCategory", async () => {
+    const deps = createMockDeps({
+      betsRepo: {
+        findAll: async () => [
+          { id: "b1", status: "failed", competitorId: "c1", marketId: "m1", placedAt: new Date(), errorCategory: "insufficient_funds", errorMessage: "no funds", attempts: 2 },
+          { id: "b2", status: "failed", competitorId: "c1", marketId: "m1", placedAt: new Date(), errorCategory: "network_error", errorMessage: "timeout", attempts: 1 },
+          { id: "b3", status: "failed", competitorId: "c1", marketId: "m1", placedAt: new Date(), errorCategory: "insufficient_funds", errorMessage: "no funds", attempts: 1 },
+        ],
+      } as any,
+      competitorsRepo: { findAll: async () => [{ id: "c1", name: "Claude" }] } as any,
+      marketsRepo: { findAll: async () => [{ id: "m1", question: "Q" }] } as any,
+    });
+
+    const app = new Hono();
+    app.route("/api", betsRoutes(deps));
+
+    const res = await app.request("/api/bets?errorCategory=insufficient_funds");
+    const data = await res.json();
+    expect(data).toHaveLength(2);
+    expect(data[0].id).toBe("b1");
+    expect(data[1].id).toBe("b3");
+  });
+
+  test("returns all bets when no errorCategory filter", async () => {
+    const deps = createMockDeps({
+      betsRepo: {
+        findAll: async () => [
+          { id: "b1", status: "failed", competitorId: "c1", marketId: "m1", placedAt: new Date(), errorCategory: "insufficient_funds", errorMessage: "no funds", attempts: 1 },
+          { id: "b2", status: "failed", competitorId: "c1", marketId: "m1", placedAt: new Date(), errorCategory: "network_error", errorMessage: "timeout", attempts: 1 },
+        ],
+      } as any,
+      competitorsRepo: { findAll: async () => [{ id: "c1", name: "Claude" }] } as any,
+      marketsRepo: { findAll: async () => [{ id: "m1", question: "Q" }] } as any,
+    });
+
+    const app = new Hono();
+    app.route("/api", betsRoutes(deps));
+
+    const res = await app.request("/api/bets");
+    const data = await res.json();
+    expect(data).toHaveLength(2);
   });
 
   test("filters by status", async () => {

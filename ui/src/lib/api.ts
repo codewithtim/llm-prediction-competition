@@ -66,10 +66,15 @@ export function useMarkets(filters?: { active?: string; closed?: string }) {
   });
 }
 
-export function useBets(filters?: { status?: string; competitorId?: string }) {
+export function useBets(filters?: {
+  status?: string;
+  competitorId?: string;
+  errorCategory?: string;
+}) {
   const params = new URLSearchParams();
   if (filters?.status) params.set("status", filters.status);
   if (filters?.competitorId) params.set("competitorId", filters.competitorId);
+  if (filters?.errorCategory) params.set("errorCategory", filters.errorCategory);
   const qs = params.toString();
   return useQuery<BetSummary[]>({
     queryKey: ["bets", filters],

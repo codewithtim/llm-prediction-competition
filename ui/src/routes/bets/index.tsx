@@ -5,6 +5,14 @@ import { ExternalLink } from "@/components/shared/external-link";
 import { TableSkeleton } from "@/components/shared/loading-skeleton";
 import { Money } from "@/components/shared/money";
 import { StatusBadge } from "@/components/shared/status-badge";
+import { Badge } from "@/components/ui/badge";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Table,
   TableBody,
@@ -16,6 +24,30 @@ import {
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useBets } from "@/lib/api";
 import { formatDateTime, formatPct } from "@/lib/format";
+
+const ERROR_CATEGORIES: Record<string, { label: string; className: string }> = {
+  insufficient_funds: {
+    label: "Insufficient Funds",
+    className: "bg-amber-500/15 text-amber-400 border-amber-500/30",
+  },
+  network_error: {
+    label: "Network Error",
+    className: "bg-blue-500/15 text-blue-400 border-blue-500/30",
+  },
+  rate_limited: {
+    label: "Rate Limited",
+    className: "bg-orange-500/15 text-orange-400 border-orange-500/30",
+  },
+  wallet_error: {
+    label: "Wallet Error",
+    className: "bg-purple-500/15 text-purple-400 border-purple-500/30",
+  },
+  invalid_market: {
+    label: "Invalid Market",
+    className: "bg-pink-500/15 text-pink-400 border-pink-500/30",
+  },
+  unknown: { label: "Unknown Error", className: "bg-zinc-500/15 text-zinc-400 border-zinc-500/30" },
+};
 
 const STATUS_TABS = [
   { value: "", label: "All" },
@@ -29,19 +61,45 @@ const STATUS_TABS = [
 
 export function BetsPage() {
   const [status, setStatus] = useState("");
-  const { data, isLoading } = useBets(status ? { status } : undefined);
+  const [errorCategory, setErrorCategory] = useState("");
+  const filters: { status?: string; errorCategory?: string } = {};
+  if (status) filters.status = status;
+  if (status === "failed" && errorCategory) filters.errorCategory = errorCategory;
+  const { data, isLoading } = useBets(Object.keys(filters).length > 0 ? filters : undefined);
 
   return (
     <PageShell title="Bets" subtitle="All bets placed by competitors">
-      <Tabs value={status} onValueChange={setStatus}>
-        <TabsList className="bg-zinc-900 border border-zinc-800">
-          {STATUS_TABS.map((tab) => (
-            <TabsTrigger key={tab.value} value={tab.value}>
-              {tab.label}
-            </TabsTrigger>
-          ))}
-        </TabsList>
-      </Tabs>
+      <div className="flex items-center gap-3 flex-wrap">
+        <Tabs
+          value={status}
+          onValueChange={(v) => {
+            setStatus(v);
+            setErrorCategory("");
+          }}
+        >
+          <TabsList className="bg-zinc-900 border border-zinc-800">
+            {STATUS_TABS.map((tab) => (
+              <TabsTrigger key={tab.value} value={tab.value}>
+                {tab.label}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+        </Tabs>
+        {status === "failed" && (
+          <Select value={errorCategory} onValueChange={setErrorCategory}>
+            <SelectTrigger className="w-48 bg-zinc-900 border-zinc-800 text-zinc-300">
+              <SelectValue placeholder="All reasons" />
+            </SelectTrigger>
+            <SelectContent>
+              {Object.entries(ERROR_CATEGORIES).map(([value, { label }]) => (
+                <SelectItem key={value} value={value}>
+                  {label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
+      </div>
 
       {isLoading ? (
         <TableSkeleton />
@@ -59,6 +117,7 @@ export function BetsPage() {
                 <TableHead className="text-zinc-400 text-right">Amount</TableHead>
                 <TableHead className="text-zinc-400 text-right">Price</TableHead>
                 <TableHead className="text-zinc-400">Status</TableHead>
+                <TableHead className="text-zinc-400">Error</TableHead>
                 <TableHead className="text-zinc-400">Placed</TableHead>
                 <TableHead className="text-zinc-400 text-right">Profit</TableHead>
               </TableRow>
@@ -81,18 +140,18 @@ export function BetsPage() {
                     {b.price.toFixed(2)}
                   </TableCell>
                   <TableCell>
-                    <div className="flex flex-col gap-1">
-                      <StatusBadge status={b.status} />
-                      {b.status === "failed" && b.errorMessage && (
-                        <span
-                          className="text-xs text-red-400/70 max-w-48 truncate"
-                          title={b.errorMessage}
-                        >
-                          {b.errorCategory ? `${b.errorCategory}: ` : ""}
-                          {b.errorMessage}
-                        </span>
-                      )}
-                    </div>
+                    <StatusBadge status={b.status} />
+                  </TableCell>
+                  <TableCell>
+                    {b.status === "failed" && b.errorCategory && (
+                      <Badge
+                        variant="outline"
+                        className={`${(ERROR_CATEGORIES[b.errorCategory] ?? ERROR_CATEGORIES.unknown).className} text-xs font-medium`}
+                        title={b.errorMessage ?? undefined}
+                      >
+                        {ERROR_CATEGORIES[b.errorCategory]?.label ?? b.errorCategory}
+                      </Badge>
+                    )}
                   </TableCell>
                   <TableCell className="text-zinc-400 text-sm">
                     {formatDateTime(b.placedAt)}

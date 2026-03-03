@@ -10,6 +10,10 @@ describe("classifyBetError", () => {
     expect(classifyBetError(new Error("not enough funds"))).toBe("insufficient_funds");
   });
 
+  it('classifies "not enough balance / allowance" as insufficient_funds', () => {
+    expect(classifyBetError(new Error("not enough balance / allowance"))).toBe("insufficient_funds");
+  });
+
   it('classifies "timeout" as network_error', () => {
     expect(classifyBetError(new Error("request timeout"))).toBe("network_error");
   });

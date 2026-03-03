@@ -1,7 +1,10 @@
 import type { BetErrorCategory } from "../models/prediction";
 
 const ERROR_PATTERNS: Array<{ pattern: RegExp; category: BetErrorCategory }> = [
-  { pattern: /insufficient balance|not enough funds/i, category: "insufficient_funds" },
+  {
+    pattern: /insufficient balance|not enough funds|not enough balance/i,
+    category: "insufficient_funds",
+  },
   { pattern: /timeout|ECONNREFUSED|ECONNRESET|socket hang up/i, category: "network_error" },
   { pattern: /429|rate limit/i, category: "rate_limited" },
   { pattern: /invalid signature|nonce/i, category: "wallet_error" },

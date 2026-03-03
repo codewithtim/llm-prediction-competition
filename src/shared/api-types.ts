@@ -121,6 +121,7 @@ export type BetSummary = {
   confidence: number | null;
   errorMessage: string | null;
   errorCategory: string | null;
+  attempts: number;
 };
 
 export type ReasoningSectionDTO = {
