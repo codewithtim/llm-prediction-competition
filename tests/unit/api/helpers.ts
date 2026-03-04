@@ -40,6 +40,7 @@ export function createMockDeps(overrides: Partial<ApiDeps> = {}): ApiDeps {
         accuracy: 0,
         roi: 0,
       }),
+      getAllPerformanceStats: async () => new Map(),
       ...overrides.betsRepo,
     } as any,
     predictionsRepo: {
@@ -56,6 +57,7 @@ export function createMockDeps(overrides: Partial<ApiDeps> = {}): ApiDeps {
       bulkUpsert: async () => ({}) as any,
       findAll: async () => [],
       findById: async () => undefined,
+      findByIds: async () => [],
       findActive: async () => [],
       findByGameId: async () => [],
       findByFixtureId: async () => [],

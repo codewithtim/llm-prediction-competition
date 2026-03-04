@@ -10,6 +10,52 @@ const TERMINAL_CATEGORIES: BetErrorCategory[] = [
   "invalid_market",
 ];
 
+type BetRow = typeof bets.$inferSelect;
+
+type PerformanceStats = {
+  competitorId: string;
+  totalBets: number;
+  wins: number;
+  losses: number;
+  pending: number;
+  failed: number;
+  lockedAmount: number;
+  totalStaked: number;
+  totalReturned: number;
+  profitLoss: number;
+  accuracy: number;
+  roi: number;
+};
+
+function computeStats(competitorId: string, rows: BetRow[]): PerformanceStats {
+  const settled = rows.filter((r) => r.status === "settled_won" || r.status === "settled_lost");
+  const wins = rows.filter((r) => r.status === "settled_won").length;
+  const losses = rows.filter((r) => r.status === "settled_lost").length;
+  const activeStatuses = new Set<string>(ACTIVE_BET_STATUSES);
+  const pending = rows.filter((r) => activeStatuses.has(r.status)).length;
+  const failed = rows.filter((r) => r.status === "failed").length;
+  const activeBets = rows.filter((r) => r.status === "pending" || r.status === "filled");
+  const lockedAmount = activeBets.reduce((sum, r) => sum + r.amount, 0);
+
+  const totalStaked = settled.reduce((sum, r) => sum + r.amount, 0);
+  const totalReturned = settled.reduce((sum, r) => sum + r.amount + (r.profit ?? 0), 0);
+
+  return {
+    competitorId,
+    totalBets: rows.length,
+    wins,
+    losses,
+    pending,
+    failed,
+    lockedAmount,
+    totalStaked,
+    totalReturned,
+    profitLoss: totalReturned - totalStaked,
+    accuracy: wins + losses > 0 ? wins / (wins + losses) : 0,
+    roi: totalStaked > 0 ? (totalReturned - totalStaked) / totalStaked : 0,
+  };
+}
+
 export function betsRepo(db: Database) {
   return {
     async create(bet: typeof bets.$inferInsert) {
@@ -130,34 +176,24 @@ export function betsRepo(db: Database) {
 
     async getPerformanceStats(competitorId: string) {
       const rows = await db.select().from(bets).where(eq(bets.competitorId, competitorId)).all();
+      return computeStats(competitorId, rows);
+    },
 
-      const settled = rows.filter((r) => r.status === "settled_won" || r.status === "settled_lost");
-      const wins = rows.filter((r) => r.status === "settled_won").length;
-      const losses = rows.filter((r) => r.status === "settled_lost").length;
-      const activeStatuses = new Set<string>(ACTIVE_BET_STATUSES);
-      const pending = rows.filter((r) => activeStatuses.has(r.status)).length;
-      const failed = rows.filter((r) => r.status === "failed").length;
-      const activeBets = rows.filter((r) => r.status === "pending" || r.status === "filled");
-      const lockedAmount = activeBets.reduce((sum, r) => sum + r.amount, 0);
+    async getAllPerformanceStats() {
+      const rows = await db.select().from(bets).all();
 
-      // P&L only from settled bets — failed/cancelled bets never used real money
-      const totalStaked = settled.reduce((sum, r) => sum + r.amount, 0);
-      const totalReturned = settled.reduce((sum, r) => sum + r.amount + (r.profit ?? 0), 0);
+      const byCompetitor = new Map<string, BetRow[]>();
+      for (const row of rows) {
+        const existing = byCompetitor.get(row.competitorId) ?? [];
+        existing.push(row);
+        byCompetitor.set(row.competitorId, existing);
+      }
 
-      return {
-        competitorId,
-        totalBets: rows.length,
-        wins,
-        losses,
-        pending,
-        failed,
-        lockedAmount,
-        totalStaked,
-        totalReturned,
-        profitLoss: totalReturned - totalStaked,
-        accuracy: wins + losses > 0 ? wins / (wins + losses) : 0,
-        roi: totalStaked > 0 ? (totalReturned - totalStaked) / totalStaked : 0,
-      };
+      const result = new Map<string, PerformanceStats>();
+      for (const [competitorId, competitorRows] of byCompetitor) {
+        result.set(competitorId, computeStats(competitorId, competitorRows));
+      }
+      return result;
     },
   };
 }

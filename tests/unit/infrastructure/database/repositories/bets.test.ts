@@ -190,6 +190,107 @@ describe("betsRepo", () => {
     });
   });
 
+  describe("getAllPerformanceStats", () => {
+    it("returns empty map when no bets exist", async () => {
+      const repo = betsRepo(db);
+      const result = await repo.getAllPerformanceStats();
+      expect(result.size).toBe(0);
+    });
+
+    it("groups stats by competitor", async () => {
+      await db.insert(schema.competitors).values({
+        id: "gpt-1",
+        name: "GPT",
+        model: "openai/gpt-4",
+        enginePath: "src/competitors/gpt/engine.ts",
+      });
+
+      const repo = betsRepo(db);
+      await repo.create({ ...sampleBet, id: "bet-c1", orderId: "o-c1", amount: 10 });
+      await repo.create({
+        ...sampleBet,
+        id: "bet-c2",
+        orderId: "o-c2",
+        competitorId: "gpt-1",
+        amount: 20,
+      });
+
+      await repo.updateStatus("bet-c1", "settled_won", new Date(), 5);
+      await repo.updateStatus("bet-c2", "settled_lost", new Date(), -20);
+
+      const result = await repo.getAllPerformanceStats();
+      expect(result.size).toBe(2);
+
+      const claude = result.get("claude-1");
+      expect(claude?.wins).toBe(1);
+      expect(claude?.losses).toBe(0);
+      expect(claude?.totalStaked).toBe(10);
+      expect(claude?.profitLoss).toBe(5);
+
+      const gpt = result.get("gpt-1");
+      expect(gpt?.wins).toBe(0);
+      expect(gpt?.losses).toBe(1);
+      expect(gpt?.totalStaked).toBe(20);
+      expect(gpt?.profitLoss).toBe(-20);
+    });
+
+    it("matches single-competitor getPerformanceStats", async () => {
+      const repo = betsRepo(db);
+      await repo.create({ ...sampleBet, id: "bet-1", orderId: "o-1", amount: 10 });
+      await repo.create({
+        ...sampleBet,
+        id: "bet-2",
+        orderId: "o-2",
+        marketId: "market-2",
+        amount: 5,
+      });
+      await repo.updateStatus("bet-1", "settled_won", new Date(), 5);
+      await repo.updateStatus("bet-2", "settled_lost", new Date(), -5);
+
+      const singleStats = await repo.getPerformanceStats("claude-1");
+      const allStats = await repo.getAllPerformanceStats();
+      const fromAll = allStats.get("claude-1");
+
+      expect(fromAll?.totalBets).toBe(singleStats.totalBets);
+      expect(fromAll?.wins).toBe(singleStats.wins);
+      expect(fromAll?.losses).toBe(singleStats.losses);
+      expect(fromAll?.pending).toBe(singleStats.pending);
+      expect(fromAll?.failed).toBe(singleStats.failed);
+      expect(fromAll?.lockedAmount).toBe(singleStats.lockedAmount);
+      expect(fromAll?.totalStaked).toBe(singleStats.totalStaked);
+      expect(fromAll?.totalReturned).toBe(singleStats.totalReturned);
+      expect(fromAll?.profitLoss).toBe(singleStats.profitLoss);
+      expect(fromAll?.accuracy).toBe(singleStats.accuracy);
+      expect(fromAll?.roi).toBe(singleStats.roi);
+    });
+
+    it("includes pending and failed counts", async () => {
+      const repo = betsRepo(db);
+      await repo.create({
+        ...sampleBet,
+        id: "bet-p",
+        orderId: "o-p",
+        amount: 8,
+        status: "pending",
+      });
+      await repo.create({
+        ...sampleBet,
+        id: "bet-f",
+        orderId: "o-f",
+        marketId: "market-2",
+        amount: 5,
+        status: "failed",
+      });
+
+      const result = await repo.getAllPerformanceStats();
+      const stats = result.get("claude-1");
+      expect(stats?.totalBets).toBe(2);
+      expect(stats?.pending).toBe(1);
+      expect(stats?.failed).toBe(1);
+      expect(stats?.lockedAmount).toBe(8);
+    });
+  });
+
   it("finds all bets", async () => {
     const repo = betsRepo(db);
     await repo.create(sampleBet);

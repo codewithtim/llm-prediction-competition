@@ -81,4 +81,42 @@ describe("marketsRepo", () => {
     const all = await repo.findAll();
     expect(all).toHaveLength(2);
   });
+
+  describe("findByIds", () => {
+    it("returns matching markets", async () => {
+      const repo = marketsRepo(db);
+      await repo.upsert(sampleMarket);
+      await repo.upsert({ ...sampleMarket, id: "market-2", question: "Will Chelsea win?" });
+      await repo.upsert({ ...sampleMarket, id: "market-3", question: "Draw?" });
+
+      const results = await repo.findByIds(["market-1", "market-3"]);
+      expect(results).toHaveLength(2);
+      const ids = results.map((m) => m.id).sort();
+      expect(ids).toEqual(["market-1", "market-3"]);
+    });
+
+    it("returns empty array for empty input", async () => {
+      const repo = marketsRepo(db);
+      const results = await repo.findByIds([]);
+      expect(results).toEqual([]);
+    });
+
+    it("ignores non-existent IDs", async () => {
+      const repo = marketsRepo(db);
+      await repo.upsert(sampleMarket);
+
+      const results = await repo.findByIds(["market-1", "nonexistent", "also-fake"]);
+      expect(results).toHaveLength(1);
+      expect(results[0]?.id).toBe("market-1");
+    });
+
+    it("returns all markets when all IDs exist", async () => {
+      const repo = marketsRepo(db);
+      await repo.upsert(sampleMarket);
+      await repo.upsert({ ...sampleMarket, id: "market-2" });
+
+      const results = await repo.findByIds(["market-1", "market-2"]);
+      expect(results).toHaveLength(2);
+    });
+  });
 });

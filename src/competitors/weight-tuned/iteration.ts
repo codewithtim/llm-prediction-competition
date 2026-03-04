@@ -45,19 +45,19 @@ export function createWeightIterationService(deps: WeightIterationDeps) {
 
   async function buildLeaderboard(): Promise<LeaderboardEntry[]> {
     const active = await competitors.findByStatus("active");
-    const entries: LeaderboardEntry[] = [];
+    const statsMap = await bets.getAllPerformanceStats();
 
-    for (const competitor of active) {
-      const stats = await bets.getPerformanceStats(competitor.id);
-      entries.push({
-        name: competitor.name,
-        accuracy: stats.accuracy,
-        roi: stats.roi,
-        profitLoss: stats.profitLoss,
-      });
-    }
-
-    return entries.sort((a, b) => b.profitLoss - a.profitLoss);
+    return active
+      .map((c) => {
+        const stats = statsMap.get(c.id);
+        return {
+          name: c.name,
+          accuracy: stats?.accuracy ?? 0,
+          roi: stats?.roi ?? 0,
+          profitLoss: stats?.profitLoss ?? 0,
+        };
+      })
+      .sort((a, b) => b.profitLoss - a.profitLoss);
   }
 
   async function buildRecentOutcomes(competitorId: string): Promise<PredictionOutcome[]> {
@@ -69,10 +69,14 @@ export function createWeightIterationService(deps: WeightIterationDeps) {
       betsByMarket.set(bet.marketId, bet);
     }
 
+    const marketIds = [...new Set(allPredictions.map((p) => p.marketId))];
+    const marketList = await markets.findByIds(marketIds);
+    const marketMap = new Map(marketList.map((m) => [m.id, m]));
+
     const outcomes: PredictionOutcome[] = [];
 
     for (const pred of allPredictions) {
-      const market = await markets.findById(pred.marketId);
+      const market = marketMap.get(pred.marketId);
       const bet = betsByMarket.get(pred.marketId);
 
       let result: "won" | "lost" | "pending" = "pending";
@@ -112,7 +116,10 @@ export function createWeightIterationService(deps: WeightIterationDeps) {
     }
   }
 
-  async function iterateCompetitor(competitorId: string): Promise<WeightIterationResult> {
+  async function iterateCompetitor(
+    competitorId: string,
+    precomputedLeaderboard?: LeaderboardEntry[],
+  ): Promise<WeightIterationResult> {
     const competitor = await competitors.findById(competitorId);
     if (!competitor) {
       return { success: false, competitorId, error: `Competitor ${competitorId} not found` };
@@ -132,7 +139,7 @@ export function createWeightIterationService(deps: WeightIterationDeps) {
 
       const stats = await bets.getPerformanceStats(competitorId);
       const recentOutcomes = await buildRecentOutcomes(competitorId);
-      const leaderboard = await buildLeaderboard();
+      const leaderboard = precomputedLeaderboard ?? (await buildLeaderboard());
 
       let generated: Awaited<ReturnType<typeof generator.generateWeights>>;
       if (!latestVersion) {
@@ -223,9 +230,11 @@ export function createWeightIterationService(deps: WeightIterationDeps) {
     );
     const weightTuned = groups.flat().filter((c) => c.type === "weight-tuned");
 
+    const leaderboard = await buildLeaderboard();
+
     const results: WeightIterationResult[] = [];
     for (const competitor of weightTuned) {
-      const result = await iterateCompetitor(competitor.id);
+      const result = await iterateCompetitor(competitor.id, leaderboard);
       results.push(result);
     }
 

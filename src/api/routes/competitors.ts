@@ -17,34 +17,47 @@ export function competitorsRoutes(deps: ApiDeps) {
     const walletList = await deps.walletsRepo.listAll();
     const walletMap = new Map(walletList.map((w) => [w.competitorId, w.walletAddress]));
 
-    const results = await Promise.all(
-      allCompetitors.map(async (comp) => {
-        const stats = await deps.betsRepo.getPerformanceStats(comp.id);
-        return {
-          id: comp.id,
-          name: comp.name,
-          model: comp.model,
-          status: comp.status,
-          type: comp.type,
-          hasWallet: walletMap.has(comp.id),
-          walletAddress: walletMap.get(comp.id) ?? null,
-          createdAt: comp.createdAt?.toISOString() ?? "",
-          stats: {
-            totalBets: stats.totalBets,
-            wins: stats.wins,
-            losses: stats.losses,
-            pending: stats.pending,
-            failed: stats.failed,
-            lockedAmount: stats.lockedAmount,
-            totalStaked: stats.totalStaked,
-            totalReturned: stats.totalReturned,
-            profitLoss: stats.profitLoss,
-            accuracy: stats.accuracy,
-            roi: stats.roi,
-          },
-        };
-      }),
-    );
+    const statsMap = await deps.betsRepo.getAllPerformanceStats();
+    const emptyStats = {
+      totalBets: 0,
+      wins: 0,
+      losses: 0,
+      pending: 0,
+      failed: 0,
+      lockedAmount: 0,
+      totalStaked: 0,
+      totalReturned: 0,
+      profitLoss: 0,
+      accuracy: 0,
+      roi: 0,
+    };
+
+    const results = allCompetitors.map((comp) => {
+      const stats = statsMap.get(comp.id) ?? emptyStats;
+      return {
+        id: comp.id,
+        name: comp.name,
+        model: comp.model,
+        status: comp.status,
+        type: comp.type,
+        hasWallet: walletMap.has(comp.id),
+        walletAddress: walletMap.get(comp.id) ?? null,
+        createdAt: comp.createdAt?.toISOString() ?? "",
+        stats: {
+          totalBets: stats.totalBets,
+          wins: stats.wins,
+          losses: stats.losses,
+          pending: stats.pending,
+          failed: stats.failed,
+          lockedAmount: stats.lockedAmount,
+          totalStaked: stats.totalStaked,
+          totalReturned: stats.totalReturned,
+          profitLoss: stats.profitLoss,
+          accuracy: stats.accuracy,
+          roi: stats.roi,
+        },
+      };
+    });
 
     return c.json(results);
   });
@@ -67,11 +80,8 @@ export function competitorsRoutes(deps: ApiDeps) {
     const marketIds = [
       ...new Set([...bets.map((b) => b.marketId), ...predictions.map((p) => p.marketId)]),
     ];
-    const marketById = new Map<string, { question: string; polymarketUrl: string | null }>();
-    for (const mid of marketIds) {
-      const m = await deps.marketsRepo.findById(mid);
-      if (m) marketById.set(m.id, m);
-    }
+    const marketList = await deps.marketsRepo.findByIds(marketIds);
+    const marketById = new Map(marketList.map((m) => [m.id, m]));
 
     const lookups = {
       competitorMap: new Map([[comp.id, comp.name]]),

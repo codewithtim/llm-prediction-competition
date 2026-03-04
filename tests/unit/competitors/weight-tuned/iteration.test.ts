@@ -112,6 +112,7 @@ function createMockDeps(overrides: Partial<WeightIterationDeps> = {}): WeightIte
       findByStatus: mock(() => Promise.resolve([])),
       updateStatus: mock(() => Promise.resolve()),
       getPerformanceStats: mock(() => Promise.resolve(EMPTY_STATS)),
+      getAllPerformanceStats: mock(() => Promise.resolve(new Map())),
     } as unknown as WeightIterationDeps["betsRepo"],
     predictionsRepo: {
       create: mock(() => Promise.resolve()),
@@ -121,6 +122,7 @@ function createMockDeps(overrides: Partial<WeightIterationDeps> = {}): WeightIte
     } as unknown as WeightIterationDeps["predictionsRepo"],
     marketsRepo: {
       findById: mock(() => Promise.resolve(undefined)),
+      findByIds: mock(() => Promise.resolve([])),
     } as unknown as WeightIterationDeps["marketsRepo"],
     registry: {
       register: mock(() => {}),
@@ -285,10 +287,14 @@ describe("createWeightIterationService", () => {
           findByStatus: mock(() => Promise.resolve([])),
           updateStatus: mock(() => Promise.resolve()),
           getPerformanceStats: mock(() => Promise.resolve(EMPTY_STATS)),
+          getAllPerformanceStats: mock(() => Promise.resolve(new Map())),
         } as unknown as WeightIterationDeps["betsRepo"],
         marketsRepo: {
           findById: mock(() =>
             Promise.resolve({ id: "m1", question: "Will Arsenal win?" }),
+          ),
+          findByIds: mock(() =>
+            Promise.resolve([{ id: "m1", question: "Will Arsenal win?" }]),
           ),
         } as unknown as WeightIterationDeps["marketsRepo"],
       });

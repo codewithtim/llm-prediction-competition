@@ -24,18 +24,26 @@ describe("GET /api/competitors", () => {
         listAll: async () => [{ competitorId: "c1", walletAddress: "0xabc" }],
       } as any,
       betsRepo: {
-        getPerformanceStats: async () => ({
-          competitorId: "c1",
-          totalBets: 5,
-          wins: 3,
-          losses: 1,
-          pending: 1,
-          totalStaked: 50,
-          totalReturned: 65,
-          profitLoss: 15,
-          accuracy: 0.75,
-          roi: 0.3,
-        }),
+        getAllPerformanceStats: async () =>
+          new Map([
+            [
+              "c1",
+              {
+                competitorId: "c1",
+                totalBets: 5,
+                wins: 3,
+                losses: 1,
+                pending: 1,
+                failed: 0,
+                lockedAmount: 0,
+                totalStaked: 50,
+                totalReturned: 65,
+                profitLoss: 15,
+                accuracy: 0.75,
+                roi: 0.3,
+              },
+            ],
+          ]),
       } as any,
     });
 
@@ -60,18 +68,7 @@ describe("GET /api/competitors", () => {
       } as any,
       walletsRepo: { listAll: async () => [] } as any,
       betsRepo: {
-        getPerformanceStats: async () => ({
-          competitorId: "c1",
-          totalBets: 0,
-          wins: 0,
-          losses: 0,
-          pending: 0,
-          totalStaked: 0,
-          totalReturned: 0,
-          profitLoss: 0,
-          accuracy: 0,
-          roi: 0,
-        }),
+        getAllPerformanceStats: async () => new Map(),
       } as any,
     });
 
@@ -144,7 +141,7 @@ describe("GET /api/competitors/:id", () => {
         ],
       } as any,
       marketsRepo: {
-        findById: async () => ({ id: "m1", question: "Will Arsenal win?" }),
+        findByIds: async () => [{ id: "m1", question: "Will Arsenal win?", polymarketUrl: null }],
       } as any,
     });
 
@@ -175,7 +172,7 @@ describe("GET /api/competitors/:id", () => {
       competitorVersionsRepo: { findByCompetitor: async () => [] } as any,
       predictionsRepo: { findByCompetitor: async () => [] } as any,
       marketsRepo: {
-        findById: async () => ({ id: "m1", question: "Will Arsenal win?" }),
+        findByIds: async () => [{ id: "m1", question: "Will Arsenal win?", polymarketUrl: null }],
       } as any,
     });
 

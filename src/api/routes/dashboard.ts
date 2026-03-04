@@ -26,37 +26,50 @@ export function dashboardRoutes(deps: ApiDeps) {
     const pendingBets = allBets.filter((b) => activeStatuses.has(b.status));
 
     // Build leaderboard
-    const leaderboard = await Promise.all(
-      allCompetitors.map(async (comp) => {
-        const stats = await deps.betsRepo.getPerformanceStats(comp.id);
-        return {
-          competitor: {
-            id: comp.id,
-            name: comp.name,
-            model: comp.model,
-            status: comp.status,
-            type: comp.type,
-            hasWallet: walletSet.has(comp.id),
-            walletAddress: null as string | null,
-            createdAt: comp.createdAt?.toISOString() ?? "",
-            stats: {
-              totalBets: stats.totalBets,
-              wins: stats.wins,
-              losses: stats.losses,
-              pending: stats.pending,
-              failed: stats.failed,
-              lockedAmount: stats.lockedAmount,
-              totalStaked: stats.totalStaked,
-              totalReturned: stats.totalReturned,
-              profitLoss: stats.profitLoss,
-              accuracy: stats.accuracy,
-              roi: stats.roi,
-            },
+    const statsMap = await deps.betsRepo.getAllPerformanceStats();
+    const emptyStats = {
+      totalBets: 0,
+      wins: 0,
+      losses: 0,
+      pending: 0,
+      failed: 0,
+      lockedAmount: 0,
+      totalStaked: 0,
+      totalReturned: 0,
+      profitLoss: 0,
+      accuracy: 0,
+      roi: 0,
+    };
+
+    const leaderboard = allCompetitors.map((comp) => {
+      const stats = statsMap.get(comp.id) ?? emptyStats;
+      return {
+        competitor: {
+          id: comp.id,
+          name: comp.name,
+          model: comp.model,
+          status: comp.status,
+          type: comp.type,
+          hasWallet: walletSet.has(comp.id),
+          walletAddress: null as string | null,
+          createdAt: comp.createdAt?.toISOString() ?? "",
+          stats: {
+            totalBets: stats.totalBets,
+            wins: stats.wins,
+            losses: stats.losses,
+            pending: stats.pending,
+            failed: stats.failed,
+            lockedAmount: stats.lockedAmount,
+            totalStaked: stats.totalStaked,
+            totalReturned: stats.totalReturned,
+            profitLoss: stats.profitLoss,
+            accuracy: stats.accuracy,
+            roi: stats.roi,
           },
-          rank: 0,
-        };
-      }),
-    );
+        },
+        rank: 0,
+      };
+    });
 
     leaderboard.sort((a, b) => b.competitor.stats.profitLoss - a.competitor.stats.profitLoss);
     for (let i = 0; i < leaderboard.length; i++) {

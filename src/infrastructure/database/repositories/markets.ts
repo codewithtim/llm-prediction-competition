@@ -1,4 +1,4 @@
-import { and, eq, isNotNull, sql } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, sql } from "drizzle-orm";
 import type { Database } from "../client";
 import { markets } from "../schema";
 
@@ -53,6 +53,11 @@ export function marketsRepo(db: Database) {
 
     async findById(id: string) {
       return db.select().from(markets).where(eq(markets.id, id)).get();
+    },
+
+    async findByIds(ids: string[]) {
+      if (ids.length === 0) return [];
+      return db.select().from(markets).where(inArray(markets.id, ids)).all();
     },
 
     async findActive() {

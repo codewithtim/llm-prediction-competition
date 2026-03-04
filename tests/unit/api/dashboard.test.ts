@@ -27,18 +27,26 @@ describe("GET /api/dashboard", () => {
       betsRepo: {
         findAll: async () => [{ id: "b1", status: "pending" }],
         findRecent: async () => [],
-        getPerformanceStats: async () => ({
-          competitorId: "c1",
-          totalBets: 1,
-          wins: 0,
-          losses: 0,
-          pending: 1,
-          totalStaked: 10,
-          totalReturned: 0,
-          profitLoss: -10,
-          accuracy: 0,
-          roi: -1,
-        }),
+        getAllPerformanceStats: async () =>
+          new Map([
+            [
+              "c1",
+              {
+                competitorId: "c1",
+                totalBets: 1,
+                wins: 0,
+                losses: 0,
+                pending: 1,
+                failed: 0,
+                lockedAmount: 10,
+                totalStaked: 10,
+                totalReturned: 0,
+                profitLoss: -10,
+                accuracy: 0,
+                roi: -1,
+              },
+            ],
+          ]),
       } as any,
       walletsRepo: {
         listAll: async () => [{ competitorId: "c1", walletAddress: "0x123" }],
@@ -79,9 +87,10 @@ describe("GET /api/dashboard", () => {
         findRecent: async () => [
           { id: "b1", competitorId: "c1", marketId: "m1", fixtureId: 1, side: "YES", amount: 10, price: 0.6, shares: 16, status: "pending", placedAt: new Date(), settledAt: null, profit: null },
         ],
-        getPerformanceStats: async () => ({
-          competitorId: "c1", totalBets: 1, wins: 0, losses: 0, pending: 1, failed: 0, lockedAmount: 10, totalStaked: 0, totalReturned: 0, profitLoss: 0, accuracy: 0, roi: 0,
-        }),
+        getAllPerformanceStats: async () =>
+          new Map([
+            ["c1", { competitorId: "c1", totalBets: 1, wins: 0, losses: 0, pending: 1, failed: 0, lockedAmount: 10, totalStaked: 0, totalReturned: 0, profitLoss: 0, accuracy: 0, roi: 0 }],
+          ]),
       } as any,
       predictionsRepo: {
         findAll: async () => [
@@ -116,9 +125,10 @@ describe("GET /api/dashboard", () => {
         findRecent: async () => [
           { id: "b1", competitorId: "c1", marketId: "m1", fixtureId: 1, side: "YES", amount: 10, price: 0.6, shares: 16, status: "pending", placedAt: new Date(), settledAt: null, profit: null },
         ],
-        getPerformanceStats: async () => ({
-          competitorId: "c1", totalBets: 1, wins: 0, losses: 0, pending: 1, failed: 0, lockedAmount: 10, totalStaked: 0, totalReturned: 0, profitLoss: 0, accuracy: 0, roi: 0,
-        }),
+        getAllPerformanceStats: async () =>
+          new Map([
+            ["c1", { competitorId: "c1", totalBets: 1, wins: 0, losses: 0, pending: 1, failed: 0, lockedAmount: 10, totalStaked: 0, totalReturned: 0, profitLoss: 0, accuracy: 0, roi: 0 }],
+          ]),
       } as any,
       predictionsRepo: {
         findAll: async () => [],

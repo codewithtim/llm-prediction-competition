@@ -107,3 +107,4 @@ When planning new features, assume all the above is solid. Do not re-plan or re-
 - Environment: all env vars validated via Zod in `src/shared/env.ts` — add new vars there first
 - Never expose wallet credentials, raw LLM output, or weight config code via the API
 - The scheduler uses overlap prevention — pipelines must complete before next run starts
+- **No N+1 queries** — never call a repository method inside a loop. Fetch data in bulk (using `inArray`, `findAll`, or a dedicated batch method), build a Map, then look up in memory. If a batch method doesn't exist, add one to the repo before using it in a loop.
