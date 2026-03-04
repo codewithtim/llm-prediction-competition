@@ -40,7 +40,7 @@ ${buildFeatureDescriptions()}
 When given performance feedback, respond with a JSON object containing:
 1. **weights**: Your updated weight configuration
 2. **changelog**: An array of changes you made, each with the parameter path, previous value, new value, and your reasoning
-3. **overallAssessment**: A 2-4 sentence strategic summary of your analysis
+3. **overallAssessment**: A 2-4 sentence strategic summary referencing specific metrics from your performance data (e.g. accuracy, ROI, signal correlations) to justify your changes
 
 When generating an initial configuration (no feedback), respond with just the weight configuration directly.
 

@@ -198,13 +198,7 @@ export function createWeightIterationService(deps: WeightIterationDeps) {
         }
         validatedWeights = validation.weights;
       } else {
-        const previousReasoning = latestVersion.reasoning as
-          | {
-              changelog: ChangelogEntry[];
-              overallAssessment: string;
-            }
-          | null
-          | undefined;
+        const previousReasoning = latestVersion.reasoning ?? undefined;
 
         const feedbackPrompt = buildWeightFeedbackPrompt({
           currentWeights,
