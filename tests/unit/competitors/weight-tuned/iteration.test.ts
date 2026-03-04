@@ -57,6 +57,8 @@ const EMPTY_STATS = {
   wins: 0,
   losses: 0,
   pending: 0,
+  failed: 0,
+  lockedAmount: 0,
   totalStaked: 0,
   totalReturned: 0,
   profitLoss: 0,
@@ -351,6 +353,63 @@ describe("createWeightIterationService", () => {
         expect(result.error).toContain("not found");
       }
     });
+
+    test("returns error for disabled competitor", async () => {
+      const deps = createMockDeps({
+        competitorsRepo: {
+          create: mock(() => Promise.resolve()),
+          findById: mock(() => Promise.resolve({ ...COMPETITOR, status: "disabled" as const })),
+          findByStatus: mock(() => Promise.resolve([])),
+          setStatus: mock(() => Promise.resolve()),
+          updateEnginePath: mock(() => Promise.resolve()),
+        } as unknown as WeightIterationDeps["competitorsRepo"],
+      });
+      const service = createWeightIterationService(deps);
+
+      const result = await service.iterateCompetitor("wt-test");
+
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error).toContain("disabled");
+      }
+    });
+
+    test("returns error for error-state competitor", async () => {
+      const deps = createMockDeps({
+        competitorsRepo: {
+          create: mock(() => Promise.resolve()),
+          findById: mock(() => Promise.resolve({ ...COMPETITOR, status: "error" as const })),
+          findByStatus: mock(() => Promise.resolve([])),
+          setStatus: mock(() => Promise.resolve()),
+          updateEnginePath: mock(() => Promise.resolve()),
+        } as unknown as WeightIterationDeps["competitorsRepo"],
+      });
+      const service = createWeightIterationService(deps);
+
+      const result = await service.iterateCompetitor("wt-test");
+
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error).toContain("error");
+      }
+    });
+
+    test("allows iteration for pending competitor", async () => {
+      const deps = createMockDeps({
+        competitorsRepo: {
+          create: mock(() => Promise.resolve()),
+          findById: mock(() => Promise.resolve({ ...COMPETITOR, status: "pending" as const })),
+          findByStatus: mock(() => Promise.resolve([])),
+          setStatus: mock(() => Promise.resolve()),
+          updateEnginePath: mock(() => Promise.resolve()),
+        } as unknown as WeightIterationDeps["competitorsRepo"],
+      });
+      const service = createWeightIterationService(deps);
+
+      const result = await service.iterateCompetitor("wt-test");
+
+      expect(result.success).toBe(true);
+    });
   });
 
   describe("iterateAll", () => {
@@ -363,7 +422,10 @@ describe("createWeightIterationService", () => {
             if (id === "wt-test") return Promise.resolve(COMPETITOR);
             return Promise.resolve(undefined);
           }),
-          findByStatus: mock(() => Promise.resolve([COMPETITOR, externalCompetitor])),
+          findByStatus: mock((status: string) => {
+            if (status === "active") return Promise.resolve([COMPETITOR, externalCompetitor]);
+            return Promise.resolve([]);
+          }),
           setStatus: mock(() => Promise.resolve()),
           updateEnginePath: mock(() => Promise.resolve()),
         } as unknown as WeightIterationDeps["competitorsRepo"],
@@ -375,6 +437,35 @@ describe("createWeightIterationService", () => {
       // Should only iterate the weight-tuned competitor, not the external one
       expect(results).toHaveLength(1);
       expect(results[0]?.competitorId).toBe("wt-test");
+    });
+
+    test("includes pending weight-tuned competitors", async () => {
+      const pendingCompetitor = { ...COMPETITOR, id: "wt-pending", status: "pending" as const };
+      const deps = createMockDeps({
+        competitorsRepo: {
+          create: mock(() => Promise.resolve()),
+          findById: mock((id: string) => {
+            if (id === "wt-test") return Promise.resolve(COMPETITOR);
+            if (id === "wt-pending") return Promise.resolve(pendingCompetitor);
+            return Promise.resolve(undefined);
+          }),
+          findByStatus: mock((status: string) => {
+            if (status === "active") return Promise.resolve([COMPETITOR]);
+            if (status === "pending") return Promise.resolve([pendingCompetitor]);
+            return Promise.resolve([]);
+          }),
+          setStatus: mock(() => Promise.resolve()),
+          updateEnginePath: mock(() => Promise.resolve()),
+        } as unknown as WeightIterationDeps["competitorsRepo"],
+      });
+      const service = createWeightIterationService(deps);
+
+      const results = await service.iterateAll();
+
+      expect(results).toHaveLength(2);
+      const ids = results.map((r) => r.competitorId);
+      expect(ids).toContain("wt-test");
+      expect(ids).toContain("wt-pending");
     });
   });
 });

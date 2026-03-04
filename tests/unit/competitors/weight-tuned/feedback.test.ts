@@ -26,6 +26,9 @@ function makeInput(
       accuracy: (overrides.wins ?? 6) / ((overrides.wins ?? 6) + (overrides.losses ?? 4)),
       roi: 0.12,
       profitLoss: 5.5,
+      lockedAmount: 12.0,
+      totalStaked: 50.0,
+      totalReturned: 55.5,
     },
     recentOutcomes: overrides.recentOutcomes ?? [],
     leaderboard: overrides.leaderboard ?? [],
@@ -163,6 +166,14 @@ describe("buildWeightFeedbackPrompt", () => {
     expect(prompt).toContain("Will Arsenal win?");
     expect(prompt).toContain("LOSS");
     expect(prompt).not.toContain("Features:");
+  });
+
+  test("includes staking stats in performance summary", () => {
+    const prompt = buildWeightFeedbackPrompt(makeInput());
+
+    expect(prompt).toContain("Total Staked: +50.00");
+    expect(prompt).toContain("Total Returned: +55.50");
+    expect(prompt).toContain("Locked in Active Bets: +12.00");
   });
 
   test("includes feature analysis instruction", () => {

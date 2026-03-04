@@ -109,10 +109,20 @@ export function createWeightIterationService(deps: WeightIterationDeps) {
     }
   }
 
+  const ITERABLE_STATUSES = new Set(["active", "pending"]);
+
   async function iterateCompetitor(competitorId: string): Promise<WeightIterationResult> {
     const competitor = await competitors.findById(competitorId);
     if (!competitor) {
       return { success: false, competitorId, error: `Competitor ${competitorId} not found` };
+    }
+
+    if (!ITERABLE_STATUSES.has(competitor.status)) {
+      return {
+        success: false,
+        competitorId,
+        error: `Competitor ${competitorId} has status "${competitor.status}" — only active and pending competitors can be iterated`,
+      };
     }
 
     try {
@@ -139,6 +149,9 @@ export function createWeightIterationService(deps: WeightIterationDeps) {
             accuracy: stats.accuracy,
             roi: stats.roi,
             profitLoss: stats.profitLoss,
+            lockedAmount: stats.lockedAmount,
+            totalStaked: stats.totalStaked,
+            totalReturned: stats.totalReturned,
           },
           recentOutcomes,
           leaderboard,
@@ -201,8 +214,12 @@ export function createWeightIterationService(deps: WeightIterationDeps) {
   }
 
   async function iterateAll(): Promise<WeightIterationResult[]> {
-    const active = await competitors.findByStatus("active");
-    const weightTuned = active.filter((c) => c.type === "weight-tuned");
+    const [active, pending] = await Promise.all([
+      competitors.findByStatus("active"),
+      competitors.findByStatus("pending"),
+    ]);
+    const all = [...active, ...pending];
+    const weightTuned = all.filter((c) => c.type === "weight-tuned");
 
     const results: WeightIterationResult[] = [];
     for (const competitor of weightTuned) {

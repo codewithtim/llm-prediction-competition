@@ -24,6 +24,9 @@ export type PerformanceStats = {
   accuracy: number;
   roi: number;
   profitLoss: number;
+  lockedAmount: number;
+  totalStaked: number;
+  totalReturned: number;
 };
 
 type FeedbackPromptInput = {
@@ -189,6 +192,9 @@ ${currentConfig}
 - Accuracy: ${formatPercentage(performance.accuracy)}
 - ROI: ${formatPercentage(performance.roi)}
 - Profit/Loss: ${formatCurrency(performance.profitLoss)}
+- Total Staked: ${formatCurrency(performance.totalStaked)}
+- Total Returned: ${formatCurrency(performance.totalReturned)}
+- Locked in Active Bets: ${formatCurrency(performance.lockedAmount)}
 
 ## Recent Prediction Outcomes (last ${truncatedOutcomes.length})
 
