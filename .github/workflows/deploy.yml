@@ -36,6 +36,12 @@ jobs:
         uses: appleboy/ssh-action@v1
         env:
           GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          API_SPORTS_KEY: ${{ secrets.API_SPORTS_KEY }}
+          TURSO_DATABASE_URL: ${{ secrets.TURSO_DATABASE_URL }}
+          TURSO_AUTH_TOKEN: ${{ secrets.TURSO_AUTH_TOKEN }}
+          WALLET_ENCRYPTION_KEY: ${{ secrets.WALLET_ENCRYPTION_KEY }}
+          BETTERSTACK_SOURCE_TOKEN: ${{ secrets.BETTERSTACK_SOURCE_TOKEN }}
         with:
           host: ${{ secrets.DROPLET_HOST }}
           username: ${{ secrets.DROPLET_USER }}
