@@ -64,11 +64,7 @@ jobs:
             chmod 600 /opt/llm-betting/.env
 
             # Caddyfile for TLS reverse proxy
-            cat > /opt/llm-betting/Caddyfile <<'CADDYEOF'
-{$DOMAIN} {
-  reverse_proxy llm-betting:3000
-}
-CADDYEOF
+            printf '%s\n' '{$DOMAIN} {' '  reverse_proxy llm-betting:3000' '}' > /opt/llm-betting/Caddyfile
 
             # Install Vector log shipper (idempotent — skips if already running)
             if [ -n "$BETTERSTACK_SOURCE_TOKEN" ] && ! systemctl is-active --quiet vector; then
