@@ -72,12 +72,8 @@ jobs:
             chmod 600 /opt/llm-betting/certs/key.pem
 
             # Caddyfile using Origin Certificate (no ACME needed)
-            cat > /opt/llm-betting/Caddyfile <<'CADDYEOF'
-{$DOMAIN} {
-  tls /etc/caddy/certs/cert.pem /etc/caddy/certs/key.pem
-  reverse_proxy llm-betting:3000
-}
-CADDYEOF
+            printf '%s {\n  tls /etc/caddy/certs/cert.pem /etc/caddy/certs/key.pem\n  reverse_proxy llm-betting:3000\n}\n' \
+              "$DOMAIN" > /opt/llm-betting/Caddyfile
 
             # Install Vector log shipper (idempotent — skips if already running)
             if [ -n "$BETTERSTACK_SOURCE_TOKEN" ] && ! systemctl is-active --quiet vector; then
