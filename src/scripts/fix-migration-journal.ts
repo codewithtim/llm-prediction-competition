@@ -38,8 +38,8 @@ function main() {
   let changed = false;
 
   for (let i = 1; i < journal.entries.length; i++) {
-    const prev = journal.entries[i - 1];
-    const curr = journal.entries[i];
+    const prev = journal.entries[i - 1]!;
+    const curr = journal.entries[i]!;
 
     if (curr.when <= prev.when) {
       const fixed = prev.when + 1000;
