@@ -218,6 +218,14 @@ export type DashboardResponse = {
   recentBets: BetSummary[];
 };
 
+export type StakeAdjustment = {
+  originalStake: number;
+  adjustedStake: number;
+  reason: string;
+  minSizeFromError: number;
+  adjustedAt: string;
+};
+
 export type BetAuditEntry = {
   id: number;
   betId: string;

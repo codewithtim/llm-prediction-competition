@@ -2,10 +2,12 @@ import { describe, expect, it, mock } from "bun:test";
 import { createBetRetryService } from "../../../../src/domain/services/bet-retry";
 import type { AuditLogRepo } from "../../../../src/database/repositories/audit-log";
 import type { betsRepo as betsRepoFactory } from "../../../../src/database/repositories/bets";
+import type { predictionsRepo as predictionsRepoFactory } from "../../../../src/database/repositories/predictions";
 import type { BettingClient } from "../../../../src/apis/polymarket/betting-client";
 import type { BettingClientFactory } from "../../../../src/apis/polymarket/betting-client-factory";
 
 type BetsRepo = ReturnType<typeof betsRepoFactory>;
+type PredictionsRepo = ReturnType<typeof predictionsRepoFactory>;
 
 function mockAuditLog(): AuditLogRepo {
   return {
@@ -70,6 +72,7 @@ function mockBetsRepo(retryableBets: BetRow[] = []): BetsRepo {
     findByStatus: mock(() => Promise.resolve([])),
     updateStatus: mock(() => Promise.resolve()),
     updateBetAfterSubmission: mock(() => Promise.resolve()),
+    updateAmount: mock(() => Promise.resolve()),
     findRetryableBets: mock(() => Promise.resolve(retryableBets)),
     findAll: mock(() => Promise.resolve([])),
     findRecent: mock(() => Promise.resolve([])),
@@ -110,6 +113,18 @@ function mockBettingClientFactory(client: BettingClient): BettingClientFactory {
   } as unknown as BettingClientFactory;
 }
 
+function mockPredictionsRepo(): PredictionsRepo {
+  return {
+    create: mock(() => Promise.resolve()),
+    findAll: mock(() => Promise.resolve([])),
+    findRecent: mock(() => Promise.resolve([])),
+    findByCompetitor: mock(() => Promise.resolve([])),
+    findByMarket: mock(() => Promise.resolve([])),
+    findByFixtureAndCompetitor: mock(() => Promise.resolve([])),
+    addStakeAdjustment: mock(() => Promise.resolve()),
+  } as unknown as PredictionsRepo;
+}
+
 function makeWalletConfigs() {
   return new Map([
     [
@@ -135,8 +150,10 @@ describe("createBetRetryService", () => {
       betsRepo: repo,
       bettingClientFactory: factory,
       auditLog: mockAuditLog(),
+      predictionsRepo: mockPredictionsRepo(),
       walletConfigs: makeWalletConfigs(),
       maxRetryAttempts: 3,
+      maxStakePerBet: 10,
     });
 
     const result = await service.retryFailedBets();
@@ -164,8 +181,10 @@ describe("createBetRetryService", () => {
       betsRepo: repo,
       bettingClientFactory: factory,
       auditLog: mockAuditLog(),
+      predictionsRepo: mockPredictionsRepo(),
       walletConfigs: makeWalletConfigs(),
       maxRetryAttempts: 3,
+      maxStakePerBet: 10,
     });
 
     const result = await service.retryFailedBets();
@@ -185,8 +204,10 @@ describe("createBetRetryService", () => {
       betsRepo: repo,
       bettingClientFactory: factory,
       auditLog: mockAuditLog(),
+      predictionsRepo: mockPredictionsRepo(),
       walletConfigs: makeWalletConfigs(),
       maxRetryAttempts: 3,
+      maxStakePerBet: 10,
     });
 
     const result = await service.retryFailedBets();
@@ -222,8 +243,10 @@ describe("createBetRetryService", () => {
       betsRepo: repo,
       bettingClientFactory: factory,
       auditLog: mockAuditLog(),
+      predictionsRepo: mockPredictionsRepo(),
       walletConfigs: makeWalletConfigs(),
       maxRetryAttempts: 3,
+      maxStakePerBet: 10,
     });
 
     await service.retryFailedBets();
@@ -247,8 +270,10 @@ describe("createBetRetryService", () => {
       betsRepo: repo,
       bettingClientFactory: factory,
       auditLog: mockAuditLog(),
+      predictionsRepo: mockPredictionsRepo(),
       walletConfigs: makeWalletConfigs(),
       maxRetryAttempts: 3,
+      maxStakePerBet: 10,
     });
 
     const result = await service.retryFailedBets();
@@ -266,8 +291,10 @@ describe("createBetRetryService", () => {
       betsRepo: repo,
       bettingClientFactory: factory,
       auditLog: mockAuditLog(),
+      predictionsRepo: mockPredictionsRepo(),
       walletConfigs: makeWalletConfigs(),
       maxRetryAttempts: 3,
+      maxStakePerBet: 10,
     });
 
     const result = await service.retryFailedBets();
@@ -291,8 +318,10 @@ describe("createBetRetryService", () => {
       betsRepo: repo,
       bettingClientFactory: factory,
       auditLog: mockAuditLog(),
+      predictionsRepo: mockPredictionsRepo(),
       walletConfigs: makeWalletConfigs(),
       maxRetryAttempts: 3,
+      maxStakePerBet: 10,
     });
 
     const result = await service.retryFailedBets();
@@ -316,8 +345,10 @@ describe("createBetRetryService", () => {
       betsRepo: repo,
       bettingClientFactory: factory,
       auditLog: mockAuditLog(),
+      predictionsRepo: mockPredictionsRepo(),
       walletConfigs: makeWalletConfigs(),
       maxRetryAttempts: 3,
+      maxStakePerBet: 10,
     });
 
     const result = await service.retryFailedBets();
@@ -338,8 +369,10 @@ describe("createBetRetryService", () => {
       betsRepo: repo,
       bettingClientFactory: factory,
       auditLog: mockAuditLog(),
+      predictionsRepo: mockPredictionsRepo(),
       walletConfigs: makeWalletConfigs(),
       maxRetryAttempts: 3,
+      maxStakePerBet: 10,
     });
 
     const result = await service.retryFailedBets();
@@ -361,8 +394,10 @@ describe("createBetRetryService", () => {
         betsRepo: repo,
         bettingClientFactory: factory,
         auditLog: audit,
+        predictionsRepo: mockPredictionsRepo(),
         walletConfigs: makeWalletConfigs(),
         maxRetryAttempts: 3,
+        maxStakePerBet: 10,
       });
 
       await service.retryFailedBets();
@@ -394,8 +429,10 @@ describe("createBetRetryService", () => {
         betsRepo: repo,
         bettingClientFactory: factory,
         auditLog: audit,
+        predictionsRepo: mockPredictionsRepo(),
         walletConfigs: makeWalletConfigs(),
         maxRetryAttempts: 3,
+        maxStakePerBet: 10,
       });
 
       await service.retryFailedBets();
@@ -410,6 +447,228 @@ describe("createBetRetryService", () => {
       expect(second.statusBefore).toBe("submitting");
       expect(second.statusAfter).toBe("failed");
       expect(second.error).toContain("Still failing");
+    });
+  });
+
+  describe("auto-bump for order_too_small", () => {
+    it("retries with bumped amount extracted from error message", async () => {
+      const bet = makeFailedBet({
+        amount: 0.31,
+        errorCategory: "order_too_small",
+        errorMessage: "invalid amount for a marketable BUY order ($0.31), min size: $1",
+        attempts: 1,
+      });
+      const repo = mockBetsRepo([bet]);
+      const client = mockBettingClient();
+      const factory = mockBettingClientFactory(client);
+
+      const service = createBetRetryService({
+        betsRepo: repo,
+        bettingClientFactory: factory,
+        auditLog: mockAuditLog(),
+        predictionsRepo: mockPredictionsRepo(),
+        walletConfigs: makeWalletConfigs(),
+        maxRetryAttempts: 3,
+        maxStakePerBet: 10,
+      });
+
+      const result = await service.retryFailedBets();
+
+      expect(result.succeeded).toBe(1);
+      const placeOrderCall = (client.placeOrder as ReturnType<typeof mock>).mock.calls[0]![0] as {
+        amount: number;
+      };
+      expect(placeOrderCall.amount).toBe(1);
+    });
+
+    it("updates bet amount in DB before retrying", async () => {
+      const bet = makeFailedBet({
+        amount: 0.31,
+        errorCategory: "order_too_small",
+        errorMessage: "invalid amount for a marketable BUY order ($0.31), min size: $1",
+        attempts: 1,
+      });
+      const repo = mockBetsRepo([bet]);
+      const client = mockBettingClient();
+      const factory = mockBettingClientFactory(client);
+
+      const service = createBetRetryService({
+        betsRepo: repo,
+        bettingClientFactory: factory,
+        auditLog: mockAuditLog(),
+        predictionsRepo: mockPredictionsRepo(),
+        walletConfigs: makeWalletConfigs(),
+        maxRetryAttempts: 3,
+        maxStakePerBet: 10,
+      });
+
+      await service.retryFailedBets();
+
+      expect(repo.updateAmount).toHaveBeenCalledWith("bet-1", 1);
+    });
+
+    it("records stake adjustment on the prediction", async () => {
+      const bet = makeFailedBet({
+        amount: 0.31,
+        errorCategory: "order_too_small",
+        errorMessage: "invalid amount for a marketable BUY order ($0.31), min size: $1",
+        attempts: 1,
+      });
+      const repo = mockBetsRepo([bet]);
+      const client = mockBettingClient();
+      const factory = mockBettingClientFactory(client);
+      const predsRepo = mockPredictionsRepo();
+
+      const service = createBetRetryService({
+        betsRepo: repo,
+        bettingClientFactory: factory,
+        auditLog: mockAuditLog(),
+        predictionsRepo: predsRepo,
+        walletConfigs: makeWalletConfigs(),
+        maxRetryAttempts: 3,
+        maxStakePerBet: 10,
+      });
+
+      await service.retryFailedBets();
+
+      expect(predsRepo.addStakeAdjustment).toHaveBeenCalledTimes(1);
+      const [mktId, compId, adj] = (predsRepo.addStakeAdjustment as ReturnType<typeof mock>).mock
+        .calls[0] as [string, string, { originalStake: number; adjustedStake: number; reason: string }];
+      expect(mktId).toBe("market-1");
+      expect(compId).toBe("comp-a");
+      expect(adj.originalStake).toBe(0.31);
+      expect(adj.adjustedStake).toBe(1);
+      expect(adj.reason).toBe("min_bet_bump");
+    });
+
+    it("includes stakeAdjustment in audit metadata for bumped bets", async () => {
+      const bet = makeFailedBet({
+        amount: 0.31,
+        errorCategory: "order_too_small",
+        errorMessage: "invalid amount for a marketable BUY order ($0.31), min size: $1",
+        attempts: 1,
+      });
+      const repo = mockBetsRepo([bet]);
+      const client = mockBettingClient();
+      const factory = mockBettingClientFactory(client);
+      const audit = mockAuditLog();
+
+      const service = createBetRetryService({
+        betsRepo: repo,
+        bettingClientFactory: factory,
+        auditLog: audit,
+        predictionsRepo: mockPredictionsRepo(),
+        walletConfigs: makeWalletConfigs(),
+        maxRetryAttempts: 3,
+        maxStakePerBet: 10,
+      });
+
+      await service.retryFailedBets();
+
+      const calls = (audit.safeRecord as ReturnType<typeof mock>).mock.calls as unknown[][];
+      const retryStarted = calls[0]![0] as Record<string, unknown>;
+      expect(retryStarted.event).toBe("retry_started");
+      const metadata = retryStarted.metadata as Record<string, unknown>;
+      expect(metadata.stakeAdjustment).toBeDefined();
+      const adj = metadata.stakeAdjustment as Record<string, unknown>;
+      expect(adj.originalAmount).toBe(0.31);
+      expect(adj.bumpedAmount).toBe(1);
+    });
+
+    it("falls back to original amount if min size cannot be extracted", async () => {
+      const bet = makeFailedBet({
+        amount: 0.31,
+        errorCategory: "order_too_small",
+        errorMessage: "order size is too small",
+        attempts: 1,
+      });
+      const repo = mockBetsRepo([bet]);
+      const client = mockBettingClient();
+      const factory = mockBettingClientFactory(client);
+      const predsRepo = mockPredictionsRepo();
+
+      const service = createBetRetryService({
+        betsRepo: repo,
+        bettingClientFactory: factory,
+        auditLog: mockAuditLog(),
+        predictionsRepo: predsRepo,
+        walletConfigs: makeWalletConfigs(),
+        maxRetryAttempts: 3,
+        maxStakePerBet: 10,
+      });
+
+      await service.retryFailedBets();
+
+      const placeOrderCall = (client.placeOrder as ReturnType<typeof mock>).mock.calls[0]![0] as {
+        amount: number;
+      };
+      expect(placeOrderCall.amount).toBe(0.31);
+      expect(predsRepo.addStakeAdjustment).not.toHaveBeenCalled();
+    });
+
+    it("does not bump if extracted min size is less than or equal to original amount", async () => {
+      const bet = makeFailedBet({
+        amount: 5,
+        errorCategory: "order_too_small",
+        errorMessage: "invalid amount, min size: $3",
+        attempts: 1,
+      });
+      const repo = mockBetsRepo([bet]);
+      const client = mockBettingClient();
+      const factory = mockBettingClientFactory(client);
+      const predsRepo = mockPredictionsRepo();
+
+      const service = createBetRetryService({
+        betsRepo: repo,
+        bettingClientFactory: factory,
+        auditLog: mockAuditLog(),
+        predictionsRepo: predsRepo,
+        walletConfigs: makeWalletConfigs(),
+        maxRetryAttempts: 3,
+        maxStakePerBet: 10,
+      });
+
+      await service.retryFailedBets();
+
+      const placeOrderCall = (client.placeOrder as ReturnType<typeof mock>).mock.calls[0]![0] as {
+        amount: number;
+      };
+      expect(placeOrderCall.amount).toBe(5);
+      expect(predsRepo.addStakeAdjustment).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("guard conditions", () => {
+    it("skips retry when bumped min size exceeds maxStakePerBet", async () => {
+      const bet = makeFailedBet({
+        amount: 0.31,
+        errorCategory: "order_too_small",
+        errorMessage: "invalid amount for a marketable BUY order ($0.31), min size: $50",
+        attempts: 1,
+      });
+      const repo = mockBetsRepo([bet]);
+      const client = mockBettingClient();
+      const factory = mockBettingClientFactory(client);
+      const predsRepo = mockPredictionsRepo();
+
+      const service = createBetRetryService({
+        betsRepo: repo,
+        bettingClientFactory: factory,
+        auditLog: mockAuditLog(),
+        predictionsRepo: predsRepo,
+        walletConfigs: makeWalletConfigs(),
+        maxRetryAttempts: 3,
+        maxStakePerBet: 10,
+      });
+
+      const result = await service.retryFailedBets();
+
+      expect(result.retried).toBe(0);
+      expect(client.placeOrder).not.toHaveBeenCalled();
+      expect(repo.updateAmount).not.toHaveBeenCalled();
+      expect(predsRepo.addStakeAdjustment).not.toHaveBeenCalled();
+      expect(result.errors).toHaveLength(1);
+      expect(result.errors[0]).toContain("min size $50 exceeds max stake $10");
     });
   });
 });

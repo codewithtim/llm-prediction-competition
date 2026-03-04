@@ -8,7 +8,6 @@ const TERMINAL_CATEGORIES: BetErrorCategory[] = [
   "insufficient_funds",
   "wallet_error",
   "invalid_market",
-  "order_too_small",
 ];
 
 type BetRow = typeof bets.$inferSelect;
@@ -152,6 +151,17 @@ export function betsRepo(db: Database) {
           attempts: update.attempts,
           lastAttemptAt: update.lastAttemptAt,
         })
+        .where(eq(bets.id, id))
+        .run();
+    },
+
+    async updateAmount(id: string, newAmount: number) {
+      const bet = await db.select().from(bets).where(eq(bets.id, id)).get();
+      if (!bet) return;
+      const newShares = newAmount / bet.price;
+      return db
+        .update(bets)
+        .set({ amount: newAmount, shares: newShares })
         .where(eq(bets.id, id))
         .run();
     },

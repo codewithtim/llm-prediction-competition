@@ -126,9 +126,11 @@ const betRetryService = createBetRetryService({
   betsRepo: bets,
   bettingClientFactory,
   auditLog,
+  predictionsRepo: preds,
   walletConfigs,
   maxRetryAttempts: DEFAULT_CONFIG.retry.maxRetryAttempts,
   retryDelayMs: DEFAULT_CONFIG.retry.retryDelayMs,
+  maxStakePerBet: DEFAULT_CONFIG.betting.maxStakePerBet,
 });
 
 // ── Notifications ────────────────────────────────────────────────────

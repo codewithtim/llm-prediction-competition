@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { classifyBetError } from "../../../../src/domain/services/bet-errors";
+import { classifyBetError, extractMinBetSize } from "../../../../src/domain/services/bet-errors";
 
 describe("classifyBetError", () => {
   it('classifies "insufficient balance" as insufficient_funds', () => {
@@ -66,5 +66,28 @@ describe("classifyBetError", () => {
     expect(classifyBetError("string error")).toBe("unknown");
     expect(classifyBetError(42)).toBe("unknown");
     expect(classifyBetError(null)).toBe("unknown");
+  });
+});
+
+describe("extractMinBetSize", () => {
+  it("extracts min size from Polymarket error", () => {
+    expect(
+      extractMinBetSize(
+        new Error("invalid amount for a marketable BUY order ($0.3116), min size: $1"),
+      ),
+    ).toBe(1);
+  });
+
+  it("extracts decimal min size", () => {
+    expect(extractMinBetSize("min size: $5.00")).toBe(5);
+  });
+
+  it("returns null for unrelated error message", () => {
+    expect(extractMinBetSize(new Error("something completely unexpected"))).toBeNull();
+  });
+
+  it("returns null for null/undefined input", () => {
+    expect(extractMinBetSize(null)).toBeNull();
+    expect(extractMinBetSize(undefined)).toBeNull();
   });
 });

@@ -142,6 +142,13 @@ export const predictions = sqliteTable("predictions", {
   stake: real("stake").notNull(),
   reasoning: text("reasoning", { mode: "json" }).notNull().$type<Reasoning>(),
   extractedFeatures: text("extracted_features", { mode: "json" }).$type<Record<string, number>>(),
+  stakeAdjustment: text("stake_adjustment", { mode: "json" }).$type<{
+    originalStake: number;
+    adjustedStake: number;
+    reason: string;
+    minSizeFromError: number;
+    adjustedAt: string;
+  }>(),
   createdAt: integer("created_at", { mode: "timestamp" })
     .notNull()
     .$defaultFn(() => new Date()),

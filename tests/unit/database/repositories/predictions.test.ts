@@ -104,4 +104,37 @@ describe("predictionsRepo", () => {
     const recent = await repo.findRecent(1);
     expect(recent).toHaveLength(1);
   });
+
+  describe("addStakeAdjustment", () => {
+    it("updates the prediction with adjustment JSON", async () => {
+      const repo = predictionsRepo(db);
+      await repo.create(samplePrediction);
+
+      const adjustment = {
+        originalStake: 0.31,
+        adjustedStake: 1,
+        reason: "min_bet_bump",
+        minSizeFromError: 1,
+        adjustedAt: "2026-03-05T00:00:00.000Z",
+      };
+
+      await repo.addStakeAdjustment("market-1", "claude-1", adjustment);
+
+      const results = await repo.findByCompetitor("claude-1");
+      expect(results).toHaveLength(1);
+      expect((results[0] as any).stakeAdjustment).toEqual(adjustment);
+    });
+
+    it("is a no-op on non-existent prediction", async () => {
+      const repo = predictionsRepo(db);
+      await repo.addStakeAdjustment("nonexistent", "nonexistent", {
+        originalStake: 0.31,
+        adjustedStake: 1,
+        reason: "min_bet_bump",
+        minSizeFromError: 1,
+        adjustedAt: "2026-03-05T00:00:00.000Z",
+      });
+      // No error thrown
+    });
+  });
 });

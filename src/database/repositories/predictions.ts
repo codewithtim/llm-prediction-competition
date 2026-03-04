@@ -33,5 +33,23 @@ export function predictionsRepo(db: Database) {
         )
         .all();
     },
+
+    async addStakeAdjustment(
+      marketId: string,
+      competitorId: string,
+      adjustment: {
+        originalStake: number;
+        adjustedStake: number;
+        reason: string;
+        minSizeFromError: number;
+        adjustedAt: string;
+      },
+    ) {
+      return db
+        .update(predictions)
+        .set({ stakeAdjustment: adjustment })
+        .where(and(eq(predictions.marketId, marketId), eq(predictions.competitorId, competitorId)))
+        .run();
+    },
   };
 }

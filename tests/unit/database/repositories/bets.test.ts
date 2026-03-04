@@ -674,6 +674,40 @@ describe("betsRepo", () => {
     });
   });
 
+  describe("updateAmount", () => {
+    it("updates amount and recalculates shares", async () => {
+      const repo = betsRepo(db);
+      await repo.create({ ...sampleBet, id: "bet-ua", orderId: "order-ua", amount: 5, price: 0.5, shares: 10 });
+      await repo.updateAmount("bet-ua", 10);
+      const found = await repo.findById("bet-ua");
+      expect(found?.amount).toBe(10);
+      expect(found?.shares).toBe(20);
+    });
+
+    it("is a no-op for non-existent bet", async () => {
+      const repo = betsRepo(db);
+      await repo.updateAmount("nonexistent", 10);
+      // No error thrown
+    });
+  });
+
+  describe("findRetryableBets with order_too_small", () => {
+    it("returns order_too_small bets (no longer terminal)", async () => {
+      const repo = betsRepo(db);
+      await repo.create({
+        ...sampleBet,
+        id: "bet-ots",
+        orderId: "order-ots",
+        status: "failed",
+        errorCategory: "order_too_small",
+        attempts: 1,
+      });
+      const retryable = await repo.findRetryableBets(3);
+      expect(retryable).toHaveLength(1);
+      expect(retryable[0]?.id).toBe("bet-ots");
+    });
+  });
+
   describe("unique index: idx_bets_active_market_competitor", () => {
     it("rejects duplicate active bet at DB level", async () => {
       const repo = betsRepo(db);

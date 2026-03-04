@@ -1,5 +1,5 @@
 {
-  "name": "llm-betting-competition",
+  "name": "opnly.bet",
   "module": "src/index.ts",
   "type": "module",
   "private": true,

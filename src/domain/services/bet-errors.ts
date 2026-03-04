@@ -15,6 +15,12 @@ const ERROR_PATTERNS: Array<{ pattern: RegExp; category: BetErrorCategory }> = [
   },
 ];
 
+export function extractMinBetSize(error: unknown): number | null {
+  const message = error instanceof Error ? error.message : String(error ?? "");
+  const match = message.match(/min size:\s*\$?([\d.]+)/i);
+  return match?.[1] ? Number.parseFloat(match[1]) : null;
+}
+
 export function classifyBetError(error: unknown): BetErrorCategory {
   const message = error instanceof Error ? error.message : String(error ?? "");
 
