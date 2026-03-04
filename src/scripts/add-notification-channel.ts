@@ -59,12 +59,17 @@ export function parseArgs(args: string[]): ParsedArgs {
 
   if (!type || !name || !configStr) return null;
 
-  let config: Record<string, string>;
+  let parsed: unknown;
   try {
-    config = JSON.parse(configStr);
+    parsed = JSON.parse(configStr);
   } catch {
     return null;
   }
+
+  if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) return null;
+  const entries = Object.entries(parsed as Record<string, unknown>);
+  if (entries.some(([, v]) => typeof v !== "string")) return null;
+  const config = parsed as Record<string, string>;
 
   return { action: "add", name, type, config };
 }

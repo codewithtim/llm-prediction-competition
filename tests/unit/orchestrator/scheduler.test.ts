@@ -488,6 +488,74 @@ describe("createScheduler", () => {
     await new Promise((r) => setTimeout(r, 10));
   });
 
+  test("sends bets_placed notification after prediction run with placed bets", async () => {
+    const notify = mock(() => Promise.resolve());
+    const predictionResult = {
+      ...emptyPredictionResult(),
+      betsPlaced: 1,
+      placedBetDetails: [
+        {
+          competitorId: "baseline",
+          marketId: "m1",
+          fixtureId: 100,
+          side: "YES" as const,
+          amount: 5,
+          price: 0.6,
+          marketQuestion: "Will Team A win?",
+          fixtureLabel: "Team A vs Team B",
+        },
+      ],
+    };
+
+    const deps = buildDeps({
+      predictionPipeline: { run: mock(() => Promise.resolve(predictionResult)) },
+      notificationService: { notify },
+    });
+    scheduler = createScheduler(deps);
+    scheduler.start();
+
+    await new Promise((r) => setTimeout(r, 50));
+
+    expect(notify).toHaveBeenCalled();
+    const event = (notify.mock.calls as unknown[][])[0]?.[0] as { type: string };
+    expect(event.type).toBe("bets_placed");
+  });
+
+  test("sends bets_failed notification after prediction run with failed bets", async () => {
+    const notify = mock(() => Promise.resolve());
+    const predictionResult = {
+      ...emptyPredictionResult(),
+      betsSkipped: 1,
+      failedBetDetails: [
+        {
+          competitorId: "baseline",
+          marketId: "m1",
+          fixtureId: 100,
+          side: "YES" as const,
+          amount: 5,
+          marketQuestion: "Will Team A win?",
+          fixtureLabel: "Team A vs Team B",
+          error: "Insufficient balance",
+        },
+      ],
+    };
+
+    const deps = buildDeps({
+      predictionPipeline: { run: mock(() => Promise.resolve(predictionResult)) },
+      notificationService: { notify },
+    });
+    scheduler = createScheduler(deps);
+    scheduler.start();
+
+    await new Promise((r) => setTimeout(r, 50));
+
+    const calls = notify.mock.calls as unknown[][];
+    const failedCall = calls.find(
+      (c) => (c[0] as { type: string }).type === "bets_failed",
+    );
+    expect(failedCall).toBeDefined();
+  });
+
   test("delays market refresh start when marketRefreshDelayMs is set", async () => {
     const mrp = mockMarketRefreshPipeline();
     const deps = buildDeps({

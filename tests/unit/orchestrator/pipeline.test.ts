@@ -1322,4 +1322,51 @@ describe("createPredictionPipeline", () => {
     expect(findReadyForPrediction).toHaveBeenCalledTimes(1);
     expect(findReadyForPrediction).toHaveBeenCalledWith(DEFAULT_CONFIG.predictionLeadTimeMs);
   });
+
+  test("populates failedBetDetails when placeBet returns failed status", async () => {
+    const { fr, mr } = withFixtureAndMarkets();
+
+    const betting = mockBettingService({
+      status: "failed",
+      error: "Insufficient balance",
+      errorCategory: "insufficient_funds",
+    });
+
+    const deps = buildPredictionDeps({
+      fixturesRepo: fr as unknown as PredictionPipelineDeps["fixturesRepo"],
+      marketsRepo: mr as unknown as PredictionPipelineDeps["marketsRepo"],
+      bettingService: betting,
+    });
+    const pipeline = createPredictionPipeline(deps);
+    const result = await pipeline.run();
+
+    expect(result.betsSkipped).toBe(1);
+    expect(result.failedBetDetails).toHaveLength(1);
+    expect(result.failedBetDetails[0]?.competitorId).toBe("baseline");
+    expect(result.failedBetDetails[0]?.marketId).toBe("market-1");
+    expect(result.failedBetDetails[0]?.error).toBe("Insufficient balance");
+    expect(result.failedBetDetails[0]?.fixtureLabel).toBe("Team A vs Team B");
+    expect(result.failedBetDetails[0]?.side).toBe("YES");
+  });
+
+  test("populates failedBetDetails when placeBet throws", async () => {
+    const { fr, mr } = withFixtureAndMarkets();
+
+    const betting: BettingService = {
+      placeBet: mock(() => Promise.reject(new Error("Network timeout"))),
+    };
+
+    const deps = buildPredictionDeps({
+      fixturesRepo: fr as unknown as PredictionPipelineDeps["fixturesRepo"],
+      marketsRepo: mr as unknown as PredictionPipelineDeps["marketsRepo"],
+      bettingService: betting,
+    });
+    const pipeline = createPredictionPipeline(deps);
+    const result = await pipeline.run();
+
+    expect(result.betsSkipped).toBe(1);
+    expect(result.failedBetDetails).toHaveLength(1);
+    expect(result.failedBetDetails[0]?.error).toBe("Network timeout");
+    expect(result.errors.some((e: string) => e.includes("Network timeout"))).toBe(true);
+  });
 });
