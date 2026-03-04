@@ -42,14 +42,11 @@ jobs:
           TURSO_AUTH_TOKEN: ${{ secrets.TURSO_AUTH_TOKEN }}
           WALLET_ENCRYPTION_KEY: ${{ secrets.WALLET_ENCRYPTION_KEY }}
           BETTERSTACK_SOURCE_TOKEN: ${{ secrets.BETTERSTACK_SOURCE_TOKEN }}
-          DOMAIN: ${{ secrets.DOMAIN }}
-          ORIGIN_CERT: ${{ secrets.ORIGIN_CERT }}
-          ORIGIN_KEY: ${{ secrets.ORIGIN_KEY }}
         with:
           host: ${{ secrets.DROPLET_HOST }}
           username: ${{ secrets.DROPLET_USER }}
           key: ${{ secrets.DROPLET_SSH_KEY }}
-          envs: OPENROUTER_API_KEY,API_SPORTS_KEY,TURSO_DATABASE_URL,TURSO_AUTH_TOKEN,WALLET_ENCRYPTION_KEY,BETTERSTACK_SOURCE_TOKEN,GHCR_TOKEN,DOMAIN,ORIGIN_CERT,ORIGIN_KEY
+          envs: OPENROUTER_API_KEY,API_SPORTS_KEY,TURSO_DATABASE_URL,TURSO_AUTH_TOKEN,WALLET_ENCRYPTION_KEY,BETTERSTACK_SOURCE_TOKEN,GHCR_TOKEN
           script: |
             set -e
 
@@ -65,17 +62,6 @@ jobs:
               > /opt/llm-betting/.env
             chmod 600 /opt/llm-betting/.env
 
-            # Write Cloudflare Origin Certificate
-            mkdir -p /opt/llm-betting/certs
-            printf '%s' "$ORIGIN_CERT" > /opt/llm-betting/certs/cert.pem
-            printf '%s' "$ORIGIN_KEY" > /opt/llm-betting/certs/key.pem
-            chmod 644 /opt/llm-betting/certs/key.pem
-
-            # Caddyfile using Origin Certificate (no ACME needed)
-            # reverse_proxy uses 127.0.0.1 because Caddy runs with --network host
-            printf '{\n\tauto_https off\n}\n\n%s:443 {\n\ttls /etc/caddy/certs/cert.pem /etc/caddy/certs/key.pem\n\treverse_proxy 127.0.0.1:3000\n}\n' \
-              "$DOMAIN" > /opt/llm-betting/Caddyfile
-
             # Install Vector log shipper (idempotent — skips if already running)
             if [ -n "$BETTERSTACK_SOURCE_TOKEN" ] && ! systemctl is-active --quiet vector; then
               curl -sSL "https://telemetry.betterstack.com/setup-vector/docker/$BETTERSTACK_SOURCE_TOKEN" \
@@ -90,22 +76,11 @@ jobs:
             docker pull ghcr.io/${{ github.repository }}:latest
             docker stop llm-betting || true
             docker rm llm-betting || true
-            docker run -d \
-              --name llm-betting \
-              --restart unless-stopped \
-              -p 127.0.0.1:3000:3000 \
-              --env-file /opt/llm-betting/.env \
-              ghcr.io/${{ github.repository }}:latest
-
-            # Caddy — host networking bypasses Docker iptables entirely
-            docker pull caddy:2
             docker stop caddy || true
             docker rm caddy || true
             docker run -d \
-              --name caddy \
+              --name llm-betting \
               --restart unless-stopped \
-              --network host \
-              -v /opt/llm-betting/Caddyfile:/etc/caddy/Caddyfile \
-              -v /opt/llm-betting/certs:/etc/caddy/certs:ro \
-              -v caddy_data:/data \
-              caddy:2
+              -p 80:3000 \
+              --env-file /opt/llm-betting/.env \
+              ghcr.io/${{ github.repository }}:latest
