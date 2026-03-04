@@ -26,11 +26,40 @@ const droplet = new digitalocean.Droplet("llm-betting", {
   userData,
 });
 
+// Cloudflare IPv4 and IPv6 ranges — only these IPs can reach port 3000.
+// See https://www.cloudflare.com/ips/
+const cloudflareIpv4 = [
+  "173.245.48.0/20",
+  "103.21.244.0/22",
+  "103.22.200.0/22",
+  "103.31.4.0/22",
+  "141.101.64.0/18",
+  "108.162.192.0/18",
+  "190.93.240.0/20",
+  "188.114.96.0/20",
+  "197.234.240.0/22",
+  "198.41.128.0/17",
+  "162.158.0.0/15",
+  "104.16.0.0/13",
+  "104.24.0.0/14",
+  "172.64.0.0/13",
+  "131.0.72.0/22",
+];
+const cloudflareIpv6 = [
+  "2400:cb00::/32",
+  "2606:4700::/32",
+  "2803:f800::/32",
+  "2405:b500::/32",
+  "2405:8100::/32",
+  "2a06:98c0::/29",
+  "2c0f:f248::/32",
+];
+
 const _firewall = new digitalocean.Firewall("llm-betting", {
   name: "llm-betting-firewall",
   inboundRules: [
     { protocol: "tcp", portRange: "22", sourceAddresses: ["0.0.0.0/0", "::/0"] },
-    { protocol: "tcp", portRange: "3000", sourceAddresses: ["0.0.0.0/0", "::/0"] },
+    { protocol: "tcp", portRange: "3000", sourceAddresses: [...cloudflareIpv4, ...cloudflareIpv6] },
     { protocol: "icmp", sourceAddresses: ["0.0.0.0/0", "::/0"] },
   ],
   outboundRules: [
@@ -43,7 +72,7 @@ const _firewall = new digitalocean.Firewall("llm-betting", {
 
 const _project = new digitalocean.Project("llm-betting", {
   name: "llm-betting-competition",
-  description: "LLM Betting Competition platform",
+  description: "Opnly.bet",
   purpose: "Web Application",
   environment: "Production",
   resources: [droplet.dropletUrn],
