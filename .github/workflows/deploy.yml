@@ -42,11 +42,12 @@ jobs:
           TURSO_AUTH_TOKEN: ${{ secrets.TURSO_AUTH_TOKEN }}
           WALLET_ENCRYPTION_KEY: ${{ secrets.WALLET_ENCRYPTION_KEY }}
           BETTERSTACK_SOURCE_TOKEN: ${{ secrets.BETTERSTACK_SOURCE_TOKEN }}
+          DOMAIN: ${{ secrets.DOMAIN }}
         with:
           host: ${{ secrets.DROPLET_HOST }}
           username: ${{ secrets.DROPLET_USER }}
           key: ${{ secrets.DROPLET_SSH_KEY }}
-          envs: OPENROUTER_API_KEY,API_SPORTS_KEY,TURSO_DATABASE_URL,TURSO_AUTH_TOKEN,WALLET_ENCRYPTION_KEY,BETTERSTACK_SOURCE_TOKEN,GHCR_TOKEN
+          envs: OPENROUTER_API_KEY,API_SPORTS_KEY,TURSO_DATABASE_URL,TURSO_AUTH_TOKEN,WALLET_ENCRYPTION_KEY,BETTERSTACK_SOURCE_TOKEN,GHCR_TOKEN,DOMAIN
           script: |
             set -e
 
@@ -62,6 +63,13 @@ jobs:
               > /opt/llm-betting/.env
             chmod 600 /opt/llm-betting/.env
 
+            # Caddyfile for TLS reverse proxy
+            cat > /opt/llm-betting/Caddyfile <<'CADDYEOF'
+{$DOMAIN} {
+  reverse_proxy llm-betting:3000
+}
+CADDYEOF
+
             # Install Vector log shipper (idempotent — skips if already running)
             if [ -n "$BETTERSTACK_SOURCE_TOKEN" ] && ! systemctl is-active --quiet vector; then
               curl -sSL "https://telemetry.betterstack.com/setup-vector/docker/$BETTERSTACK_SOURCE_TOKEN" \
@@ -73,12 +81,30 @@ jobs:
             # Authenticate with GHCR on the droplet to pull private images
             echo "$GHCR_TOKEN" | docker login ghcr.io -u github --password-stdin
 
+            # Create shared network
+            docker network create llm-betting-net || true
+
             docker pull ghcr.io/${{ github.repository }}:latest
             docker stop llm-betting || true
             docker rm llm-betting || true
             docker run -d \
               --name llm-betting \
               --restart unless-stopped \
+              --network llm-betting-net \
               --env-file /opt/llm-betting/.env \
-              -p 3000:3000 \
               ghcr.io/${{ github.repository }}:latest
+
+            # Caddy — only recreate if not running or config changed
+            docker pull caddy:2
+            docker stop caddy || true
+            docker rm caddy || true
+            docker run -d \
+              --name caddy \
+              --restart unless-stopped \
+              --network llm-betting-net \
+              -p 80:80 \
+              -p 443:443 \
+              -e DOMAIN=$DOMAIN \
+              -v /opt/llm-betting/Caddyfile:/etc/caddy/Caddyfile \
+              -v caddy_data:/data \
+              caddy:2
