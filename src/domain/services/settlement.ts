@@ -10,6 +10,7 @@ export type SettledBet = {
   side: "YES" | "NO";
   outcome: "won" | "lost";
   profit: number;
+  marketQuestion: string;
 };
 
 export type SettlementResult = {
@@ -58,7 +59,10 @@ export function createSettlementService(deps: {
 
       const marketIds = [...new Set(unsettledBets.map((b) => b.marketId))];
 
-      const resolvedMarkets = new Map<string, [string, string]>();
+      const resolvedMarkets = new Map<
+        string,
+        { outcomePrices: [string, string]; question: string }
+      >();
 
       for (const marketId of marketIds) {
         try {
@@ -71,7 +75,10 @@ export function createSettlementService(deps: {
           if (dbMarket.closed) {
             const outcome = determineWinningOutcome(dbMarket.outcomePrices);
             if (outcome) {
-              resolvedMarkets.set(marketId, dbMarket.outcomePrices);
+              resolvedMarkets.set(marketId, {
+                outcomePrices: dbMarket.outcomePrices,
+                question: dbMarket.question,
+              });
             }
             continue;
           }
@@ -99,7 +106,10 @@ export function createSettlementService(deps: {
             continue;
           }
 
-          resolvedMarkets.set(marketId, mapped.outcomePrices);
+          resolvedMarkets.set(marketId, {
+            outcomePrices: mapped.outcomePrices,
+            question: dbMarket.question,
+          });
 
           await marketsRepo.upsert({
             ...dbMarket,
@@ -115,10 +125,10 @@ export function createSettlementService(deps: {
       }
 
       for (const bet of unsettledBets) {
-        const outcomePrices = resolvedMarkets.get(bet.marketId);
-        if (!outcomePrices) continue;
+        const resolved = resolvedMarkets.get(bet.marketId);
+        if (!resolved) continue;
 
-        const winningOutcome = determineWinningOutcome(outcomePrices);
+        const winningOutcome = determineWinningOutcome(resolved.outcomePrices);
         if (!winningOutcome) continue;
 
         const won = bet.side === winningOutcome;
@@ -139,6 +149,7 @@ export function createSettlementService(deps: {
             side: bet.side as "YES" | "NO",
             outcome: won ? "won" : "lost",
             profit,
+            marketQuestion: resolved.question,
           });
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err);

@@ -59,6 +59,8 @@ function emptyPredictionResult() {
     oddsRefreshed: 0,
     oddsRefreshFailed: 0,
     errors: [],
+    placedBetDetails: [],
+    failedBetDetails: [],
   };
 }
 

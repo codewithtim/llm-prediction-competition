@@ -1,6 +1,7 @@
 import { sql } from "drizzle-orm";
 import { serveStatic } from "hono/bun";
 import { createApi } from "./api/index.ts";
+import { defaultAdapterFactories } from "./apis/notifications/adapter-registry.ts";
 import { createOpenRouterClient } from "./apis/openrouter/client.ts";
 import { createBettingClientFactory } from "./apis/polymarket/betting-client-factory.ts";
 import { createGammaClient } from "./apis/polymarket/gamma-client.ts";
@@ -14,12 +15,14 @@ import { competitorVersionsRepo } from "./database/repositories/competitor-versi
 import { competitorsRepo } from "./database/repositories/competitors.ts";
 import { fixturesRepo } from "./database/repositories/fixtures.ts";
 import { marketsRepo } from "./database/repositories/markets.ts";
+import { notificationChannelsRepo } from "./database/repositories/notification-channels.ts";
 import { predictionsRepo } from "./database/repositories/predictions.ts";
 import { statsCacheRepo } from "./database/repositories/stats-cache.ts";
 import { walletsRepo } from "./database/repositories/wallets.ts";
 import { createBankrollProvider } from "./domain/services/bankroll.ts";
 import { createBetRetryService } from "./domain/services/bet-retry.ts";
 import { createBettingService } from "./domain/services/betting.ts";
+import { createNotificationService } from "./domain/services/notification.ts";
 import { createOrderConfirmationService } from "./domain/services/order-confirmation.ts";
 import { createSettlementService } from "./domain/services/settlement.ts";
 import { DEFAULT_CONFIG } from "./orchestrator/config.ts";
@@ -122,6 +125,13 @@ const betRetryService = createBetRetryService({
   retryDelayMs: DEFAULT_CONFIG.retry.retryDelayMs,
 });
 
+// ── Notifications ────────────────────────────────────────────────────
+const notifChannels = notificationChannelsRepo(db);
+const notificationService = createNotificationService({
+  channelsRepo: notifChannels,
+  adapterFactories: defaultAdapterFactories,
+});
+
 // ── Pipelines & scheduler ────────────────────────────────────────────
 const discoveryPipeline = createDiscoveryPipeline({
   discovery,
@@ -163,6 +173,7 @@ const scheduler = createScheduler({
   marketRefreshPipeline,
   orderConfirmationService,
   betRetryService,
+  notificationService,
   config: DEFAULT_CONFIG,
 });
 

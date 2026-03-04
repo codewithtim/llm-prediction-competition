@@ -250,6 +250,7 @@ describe("createSettlementService", () => {
       expect(result.settled).toHaveLength(1);
       expect(result.settled[0]?.outcome).toBe("won");
       expect(result.settled[0]?.profit).toBeCloseTo(2.6923, 3);
+      expect(result.settled[0]?.marketQuestion).toBe("Will Arsenal win?");
       expect(bets.updateStatus).toHaveBeenCalledTimes(1);
     });
 

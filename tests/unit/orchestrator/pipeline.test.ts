@@ -952,6 +952,13 @@ describe("createPredictionPipeline", () => {
 
     expect(result.betsPlaced).toBe(1);
     expect(result.betsDryRun).toBe(0);
+    expect(result.placedBetDetails).toHaveLength(1);
+    expect(result.placedBetDetails[0]?.competitorId).toBe("baseline");
+    expect(result.placedBetDetails[0]?.marketId).toBe("market-1");
+    expect(result.placedBetDetails[0]?.fixtureId).toBe(100);
+    expect(result.placedBetDetails[0]?.side).toBe("YES");
+    expect(result.placedBetDetails[0]?.marketQuestion).toBe("Will Team A win?");
+    expect(result.placedBetDetails[0]?.fixtureLabel).toBe("Team A vs Team B");
   });
 
   test("counts dry-run bets correctly", async () => {

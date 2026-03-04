@@ -189,6 +189,20 @@ export const bets = sqliteTable("bets", {
   lastAttemptAt: integer("last_attempt_at", { mode: "timestamp" }),
 });
 
+export const notificationChannels = sqliteTable("notification_channels", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  name: text("name").notNull(),
+  type: text("type", { enum: ["discord"] }).notNull(),
+  config: text("config", { mode: "json" }).$type<Record<string, string>>().notNull(),
+  enabled: integer("enabled", { mode: "boolean" }).notNull().default(true),
+  createdAt: integer("created_at", { mode: "timestamp" })
+    .notNull()
+    .$defaultFn(() => new Date()),
+  updatedAt: integer("updated_at", { mode: "timestamp" })
+    .notNull()
+    .$defaultFn(() => new Date()),
+});
+
 export const teamStatsCache = sqliteTable("team_stats_cache", {
   id: text("id").primaryKey(),
   teamId: integer("team_id").notNull(),

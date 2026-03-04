@@ -1,6 +1,8 @@
 import type { BetRetryService } from "../domain/services/bet-retry.ts";
+import type { NotificationService } from "../domain/services/notification.ts";
 import type { OrderConfirmationService } from "../domain/services/order-confirmation.ts";
 import type { SettlementService } from "../domain/services/settlement.ts";
+import type { NotificationEvent } from "../domain/types/notification.ts";
 import { logger } from "../shared/logger.ts";
 import type { PipelineConfig } from "./config.ts";
 import type { DiscoveryPipeline } from "./discovery-pipeline.ts";
@@ -16,6 +18,7 @@ export type SchedulerDeps = {
   marketRefreshPipeline?: MarketRefreshPipeline;
   orderConfirmationService?: OrderConfirmationService;
   betRetryService?: BetRetryService;
+  notificationService?: NotificationService;
   config: PipelineConfig;
 };
 
@@ -28,8 +31,16 @@ export function createScheduler(deps: SchedulerDeps) {
     marketRefreshPipeline,
     orderConfirmationService,
     betRetryService,
+    notificationService,
     config,
   } = deps;
+
+  function sendNotification(event: NotificationEvent, label: string) {
+    notificationService?.notify(event).catch((err) => {
+      const msg = err instanceof Error ? err.message : String(err);
+      logger.warn(`Scheduler: ${label} notification failed`, { error: msg });
+    });
+  }
 
   let discoveryTimer: ReturnType<typeof setInterval> | null = null;
   let predictionTimer: ReturnType<typeof setInterval> | null = null;
@@ -100,6 +111,40 @@ export function createScheduler(deps: SchedulerDeps) {
       for (const error of result.errors) {
         logger.error("Scheduler: prediction error", { message: error });
       }
+
+      if (result.placedBetDetails.length > 0) {
+        sendNotification(
+          {
+            type: "bets_placed",
+            bets: result.placedBetDetails.map((b) => ({
+              competitorId: b.competitorId,
+              marketQuestion: b.marketQuestion,
+              fixtureLabel: b.fixtureLabel,
+              side: b.side,
+              amount: b.amount,
+              price: b.price,
+            })),
+          },
+          "bet placement",
+        );
+      }
+
+      if (result.failedBetDetails.length > 0) {
+        sendNotification(
+          {
+            type: "bets_failed",
+            bets: result.failedBetDetails.map((b) => ({
+              competitorId: b.competitorId,
+              marketQuestion: b.marketQuestion,
+              fixtureLabel: b.fixtureLabel,
+              side: b.side,
+              amount: b.amount,
+              error: b.error,
+            })),
+          },
+          "bet failure",
+        );
+      }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       logger.error("Scheduler: prediction run failed", { error: msg });
@@ -127,6 +172,23 @@ export function createScheduler(deps: SchedulerDeps) {
       });
       for (const error of result.errors) {
         logger.error("Scheduler: settlement error", { message: error });
+      }
+
+      if (result.settled.length > 0) {
+        sendNotification(
+          {
+            type: "bets_settled",
+            bets: result.settled.map((s) => ({
+              betId: s.betId,
+              competitorId: s.competitorId,
+              marketQuestion: s.marketQuestion,
+              side: s.side,
+              outcome: s.outcome,
+              profit: s.profit,
+            })),
+          },
+          "settlement",
+        );
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);

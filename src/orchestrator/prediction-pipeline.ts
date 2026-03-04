@@ -52,6 +52,28 @@ export type PredictionPipelineDeps = {
   config: PipelineConfig;
 };
 
+export type PlacedBetDetail = {
+  competitorId: string;
+  marketId: string;
+  fixtureId: number;
+  side: "YES" | "NO";
+  amount: number;
+  price: number;
+  marketQuestion: string;
+  fixtureLabel: string;
+};
+
+export type FailedBetDetail = {
+  competitorId: string;
+  marketId: string;
+  fixtureId: number;
+  side: "YES" | "NO";
+  amount: number;
+  marketQuestion: string;
+  fixtureLabel: string;
+  error: string;
+};
+
 export type PredictionPipelineResult = {
   fixturesProcessed: number;
   predictionsGenerated: number;
@@ -61,6 +83,8 @@ export type PredictionPipelineResult = {
   oddsRefreshed: number;
   oddsRefreshFailed: number;
   errors: string[];
+  placedBetDetails: PlacedBetDetail[];
+  failedBetDetails: FailedBetDetail[];
 };
 
 type PreFetchedFixtureData = {
@@ -442,6 +466,16 @@ export function createPredictionPipeline(deps: PredictionPipelineDeps) {
           continue;
         }
 
+        const failedBase: Omit<FailedBetDetail, "error"> = {
+          competitorId,
+          marketId: market.id,
+          fixtureId: fixture.id,
+          side: prediction.side,
+          amount: absoluteStake,
+          marketQuestion: market.question,
+          fixtureLabel: data.fixtureLabel,
+        };
+
         try {
           const engineEntry = engines.find((e) => e.competitorId === competitorId);
           const betResult = await bettingService.placeBet({
@@ -455,10 +489,20 @@ export function createPredictionPipeline(deps: PredictionPipelineDeps) {
 
           if (betResult.status === "placed") {
             result.betsPlaced++;
+            result.placedBetDetails.push({
+              ...failedBase,
+              price: Number.parseFloat(
+                prediction.side === "YES" ? market.outcomePrices[0] : market.outcomePrices[1],
+              ),
+            });
           } else if (betResult.status === "dry_run") {
             result.betsDryRun++;
           } else if (betResult.status === "failed") {
             result.betsSkipped++;
+            result.failedBetDetails.push({
+              ...failedBase,
+              error: betResult.error ?? "Unknown error",
+            });
             logger.warn("Prediction: bet failed", {
               competitorId,
               fixtureId: fixture.id,
@@ -479,6 +523,7 @@ export function createPredictionPipeline(deps: PredictionPipelineDeps) {
           const msg = err instanceof Error ? err.message : String(err);
           result.errors.push(`Bet placement failed: ${msg}`);
           result.betsSkipped++;
+          result.failedBetDetails.push({ ...failedBase, error: msg });
         }
       }
     }
@@ -496,6 +541,8 @@ export function createPredictionPipeline(deps: PredictionPipelineDeps) {
         oddsRefreshed: 0,
         oddsRefreshFailed: 0,
         errors: [],
+        placedBetDetails: [],
+        failedBetDetails: [],
       };
 
       const fixtureRows = await fixturesRepo.findReadyForPrediction(config.predictionLeadTimeMs);
