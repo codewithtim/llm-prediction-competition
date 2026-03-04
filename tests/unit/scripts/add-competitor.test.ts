@@ -2,9 +2,9 @@ import { beforeEach, describe, expect, it } from "bun:test";
 import { createClient } from "@libsql/client";
 import { drizzle } from "drizzle-orm/libsql";
 import { migrate } from "drizzle-orm/libsql/migrator";
-import type { Database } from "../../../src/infrastructure/database/client";
-import { competitorsRepo } from "../../../src/infrastructure/database/repositories/competitors";
-import * as schema from "../../../src/infrastructure/database/schema";
+import type { Database } from "../../../src/database/client";
+import { competitorsRepo } from "../../../src/database/repositories/competitors";
+import * as schema from "../../../src/database/schema";
 import { addCompetitor, parseAddCompetitorArgs } from "../../../src/scripts/add-competitor";
 
 let db: Database;

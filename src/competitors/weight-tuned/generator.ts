@@ -1,4 +1,4 @@
-import type { OpenRouterClient } from "../../infrastructure/openrouter/client";
+import type { OpenRouterClient } from "../../apis/openrouter/client";
 import { FEATURE_REGISTRY } from "./features";
 import { WEIGHT_JSON_SCHEMA, WEIGHT_OUTPUT_JSON_SCHEMA } from "./types";
 

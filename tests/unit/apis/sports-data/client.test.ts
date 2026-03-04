@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, mock, test } from "bun:test";
-import { createFootballClient } from "../../../../src/infrastructure/sports-data/client.ts";
+import { createFootballClient } from "../../../../src/apis/sports-data/client.ts";
 
 const originalFetch = globalThis.fetch;
 let fetchMock: ReturnType<typeof mock>;

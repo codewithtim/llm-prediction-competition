@@ -1,5 +1,5 @@
 import { eq } from "drizzle-orm";
-import type { CompetitorStatus } from "../../../domain/types/competitor";
+import type { CompetitorStatus } from "../../domain/types/competitor";
 import type { Database } from "../client";
 import { competitors } from "../schema";
 

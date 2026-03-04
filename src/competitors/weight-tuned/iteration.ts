@@ -1,9 +1,9 @@
+import type { betsRepo } from "../../database/repositories/bets";
+import type { competitorVersionsRepo } from "../../database/repositories/competitor-versions";
+import type { competitorsRepo } from "../../database/repositories/competitors";
+import type { marketsRepo } from "../../database/repositories/markets";
+import type { predictionsRepo } from "../../database/repositories/predictions";
 import type { CompetitorStatus } from "../../domain/types/competitor";
-import type { betsRepo } from "../../infrastructure/database/repositories/bets";
-import type { competitorVersionsRepo } from "../../infrastructure/database/repositories/competitor-versions";
-import type { competitorsRepo } from "../../infrastructure/database/repositories/competitors";
-import type { marketsRepo } from "../../infrastructure/database/repositories/markets";
-import type { predictionsRepo } from "../../infrastructure/database/repositories/predictions";
 import type { CompetitorRegistry } from "../registry";
 import {
   buildWeightFeedbackPrompt,

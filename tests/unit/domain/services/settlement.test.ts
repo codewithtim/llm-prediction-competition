@@ -4,10 +4,10 @@ import {
   createSettlementService,
   determineWinningOutcome,
 } from "../../../../src/domain/services/settlement";
-import type { betsRepo as betsRepoFactory } from "../../../../src/infrastructure/database/repositories/bets";
-import type { marketsRepo as marketsRepoFactory } from "../../../../src/infrastructure/database/repositories/markets";
-import type { GammaClient } from "../../../../src/infrastructure/polymarket/gamma-client";
-import type { GammaMarket } from "../../../../src/infrastructure/polymarket/types";
+import type { betsRepo as betsRepoFactory } from "../../../../src/database/repositories/bets";
+import type { marketsRepo as marketsRepoFactory } from "../../../../src/database/repositories/markets";
+import type { GammaClient } from "../../../../src/apis/polymarket/gamma-client";
+import type { GammaMarket } from "../../../../src/apis/polymarket/types";
 
 type BetsRepo = ReturnType<typeof betsRepoFactory>;
 type MarketsRepo = ReturnType<typeof marketsRepoFactory>;

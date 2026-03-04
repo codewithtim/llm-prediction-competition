@@ -1,7 +1,7 @@
+import type { competitorVersionsRepo } from "../database/repositories/competitor-versions";
+import type { CompetitorsRepo } from "../database/repositories/competitors";
+import type { WalletsRepo } from "../database/repositories/wallets";
 import type { RegisteredEngine } from "../engine/types";
-import type { competitorVersionsRepo } from "../infrastructure/database/repositories/competitor-versions";
-import type { CompetitorsRepo } from "../infrastructure/database/repositories/competitors";
-import type { WalletsRepo } from "../infrastructure/database/repositories/wallets";
 import { logger } from "../shared/logger";
 import { createWeightedEngine } from "./weight-tuned/engine";
 import { DEFAULT_STAKE_CONFIG, DEFAULT_WEIGHTS, weightConfigSchema } from "./weight-tuned/types";

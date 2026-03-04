@@ -1,5 +1,5 @@
 import { describe, expect, it, mock } from "bun:test";
-import type { BettingClientConfig } from "../../../../src/infrastructure/polymarket/betting-client";
+import type { BettingClientConfig } from "../../../../src/apis/polymarket/betting-client";
 
 const mockClobInstance = {
   createAndPostOrder: mock(() => Promise.resolve({ orderID: "order-123" })),
@@ -27,7 +27,7 @@ mock.module("@ethersproject/wallet", () => ({
 }));
 
 const { createBettingClient } = await import(
-  "../../../../src/infrastructure/polymarket/betting-client"
+  "../../../../src/apis/polymarket/betting-client"
 );
 
 const testConfig: BettingClientConfig = {

@@ -1,5 +1,5 @@
 import { eq } from "drizzle-orm";
-import type { PlayerSeasonStats, TeamSeasonStats } from "../../../domain/contracts/statistics.ts";
+import type { PlayerSeasonStats, TeamSeasonStats } from "../../domain/contracts/statistics.ts";
 import type { Database } from "../client";
 import { playerStatsCache, teamStatsCache } from "../schema";
 

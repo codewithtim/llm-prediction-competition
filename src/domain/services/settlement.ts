@@ -1,7 +1,7 @@
-import type { betsRepo as betsRepoFactory } from "../../infrastructure/database/repositories/bets";
-import type { marketsRepo as marketsRepoFactory } from "../../infrastructure/database/repositories/markets";
-import type { GammaClient } from "../../infrastructure/polymarket/gamma-client";
-import { mapGammaMarketToMarket } from "../../infrastructure/polymarket/mappers";
+import type { GammaClient } from "../../apis/polymarket/gamma-client";
+import { mapGammaMarketToMarket } from "../../apis/polymarket/mappers";
+import type { betsRepo as betsRepoFactory } from "../../database/repositories/bets";
+import type { marketsRepo as marketsRepoFactory } from "../../database/repositories/markets";
 
 export type SettledBet = {
   betId: string;

@@ -4,17 +4,17 @@ import type { PredictionOutput } from "../../../src/domain/contracts/prediction.
 import type { Market } from "../../../src/domain/models/market.ts";
 import type { BankrollProvider } from "../../../src/domain/services/bankroll.ts";
 import type { BettingService, PlaceBetResult } from "../../../src/domain/services/betting.ts";
-import type { GammaClient } from "../../../src/infrastructure/polymarket/gamma-client.ts";
-import type { MarketDiscovery } from "../../../src/infrastructure/polymarket/market-discovery.ts";
-import type { GammaMarket } from "../../../src/infrastructure/polymarket/types.ts";
-import type { FootballClient } from "../../../src/infrastructure/sports-data/client.ts";
+import type { GammaClient } from "../../../src/apis/polymarket/gamma-client.ts";
+import type { MarketDiscovery } from "../../../src/apis/polymarket/market-discovery.ts";
+import type { GammaMarket } from "../../../src/apis/polymarket/types.ts";
+import type { FootballClient } from "../../../src/apis/sports-data/client.ts";
 import type {
   ApiFixture,
   ApiLeagueResponse,
   ApiResponse,
   ApiStandingsResponse,
   ApiTeamStatisticsResponse,
-} from "../../../src/infrastructure/sports-data/types.ts";
+} from "../../../src/apis/sports-data/types.ts";
 import type { TeamSeasonStats } from "../../../src/domain/contracts/statistics.ts";
 import { DEFAULT_CONFIG } from "../../../src/orchestrator/config.ts";
 import {

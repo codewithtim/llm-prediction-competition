@@ -8,7 +8,7 @@
  *   bun run discover:tags
  */
 
-import { createGammaClient } from "../infrastructure/polymarket/gamma-client.ts";
+import { createGammaClient } from "../apis/polymarket/gamma-client.ts";
 
 async function main() {
   const gamma = createGammaClient();

@@ -14,9 +14,9 @@
  */
 
 import { readdirSync, readFileSync } from "node:fs";
-import { createDb } from "../infrastructure/database/client.ts";
-import { competitorsRepo } from "../infrastructure/database/repositories/competitors.ts";
-import { walletsRepo } from "../infrastructure/database/repositories/wallets.ts";
+import { createDb } from "../database/client.ts";
+import { competitorsRepo } from "../database/repositories/competitors.ts";
+import { walletsRepo } from "../database/repositories/wallets.ts";
 import { env } from "../shared/env.ts";
 
 const WALLETS_DIR = "data/wallets";

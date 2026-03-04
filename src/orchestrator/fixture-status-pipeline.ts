@@ -1,6 +1,6 @@
-import type { fixturesRepo as fixturesRepoFactory } from "../infrastructure/database/repositories/fixtures.ts";
-import type { FootballClient } from "../infrastructure/sports-data/client.ts";
-import { mapFixtureStatus } from "../infrastructure/sports-data/mappers.ts";
+import type { FootballClient } from "../apis/sports-data/client.ts";
+import { mapFixtureStatus } from "../apis/sports-data/mappers.ts";
+import type { fixturesRepo as fixturesRepoFactory } from "../database/repositories/fixtures.ts";
 import { logger } from "../shared/logger.ts";
 
 export type FixtureStatusPipelineResult = {

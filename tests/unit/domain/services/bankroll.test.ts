@@ -1,6 +1,6 @@
 import { describe, expect, it, mock } from "bun:test";
 import { createBankrollProvider } from "../../../../src/domain/services/bankroll";
-import type { betsRepo as betsRepoFactory } from "../../../../src/infrastructure/database/repositories/bets";
+import type { betsRepo as betsRepoFactory } from "../../../../src/database/repositories/bets";
 
 type BetsRepo = ReturnType<typeof betsRepoFactory>;
 

@@ -3,10 +3,10 @@ import { createClient } from "@libsql/client";
 import { drizzle } from "drizzle-orm/libsql";
 import { migrate } from "drizzle-orm/libsql/migrator";
 import { loadCompetitors } from "../../../src/competitors/loader";
-import type { Database } from "../../../src/infrastructure/database/client";
-import { competitorsRepo } from "../../../src/infrastructure/database/repositories/competitors";
-import { walletsRepo } from "../../../src/infrastructure/database/repositories/wallets";
-import * as schema from "../../../src/infrastructure/database/schema";
+import type { Database } from "../../../src/database/client";
+import { competitorsRepo } from "../../../src/database/repositories/competitors";
+import { walletsRepo } from "../../../src/database/repositories/wallets";
+import * as schema from "../../../src/database/schema";
 
 let db: Database;
 

@@ -1,4 +1,4 @@
-import type { bets } from "../infrastructure/database/schema";
+import type { bets } from "../database/schema";
 import type { BetSummary } from "../shared/api-types";
 
 type BetRow = typeof bets.$inferSelect;

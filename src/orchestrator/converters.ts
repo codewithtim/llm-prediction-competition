@@ -1,10 +1,7 @@
+import type { fixtures as fixturesTable, markets as marketsTable } from "../database/schema.ts";
 import type { Fixture } from "../domain/models/fixture.ts";
 import type { Market } from "../domain/models/market.ts";
 import type { MatchResult } from "../domain/services/market-matching.ts";
-import type {
-  fixtures as fixturesTable,
-  markets as marketsTable,
-} from "../infrastructure/database/schema.ts";
 
 export type FixtureRow = typeof fixturesTable.$inferSelect;
 export type MarketRow = typeof marketsTable.$inferSelect;

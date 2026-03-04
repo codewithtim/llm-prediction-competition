@@ -1,7 +1,7 @@
+import type { MarketDiscovery } from "../apis/polymarket/market-discovery.ts";
+import type { fixturesRepo as fixturesRepoFactory } from "../database/repositories/fixtures.ts";
+import type { marketsRepo as marketsRepoFactory } from "../database/repositories/markets.ts";
 import { matchEventsToFixtures } from "../domain/services/market-matching.ts";
-import type { fixturesRepo as fixturesRepoFactory } from "../infrastructure/database/repositories/fixtures.ts";
-import type { marketsRepo as marketsRepoFactory } from "../infrastructure/database/repositories/markets.ts";
-import type { MarketDiscovery } from "../infrastructure/polymarket/market-discovery.ts";
 import { logger } from "../shared/logger.ts";
 import { collectMarketRows, dbRowToFixture } from "./converters.ts";
 

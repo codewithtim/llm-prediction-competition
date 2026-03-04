@@ -10,6 +10,14 @@
  * Only requires API_SPORTS_KEY. Polymarket Gamma API is public (no auth).
  */
 
+import { createGammaClient } from "../apis/polymarket/gamma-client.ts";
+import { createMarketDiscovery } from "../apis/polymarket/market-discovery.ts";
+import { createFootballClient } from "../apis/sports-data/client.ts";
+import {
+  mapApiFixtureToFixture,
+  mapH2hFixturesToH2H,
+  mapStandingToTeamStats,
+} from "../apis/sports-data/mappers.ts";
 import { createWeightedEngine } from "../competitors/weight-tuned/engine.ts";
 import { DEFAULT_STAKE_CONFIG, DEFAULT_WEIGHTS } from "../competitors/weight-tuned/types.ts";
 import type { MarketContext, Statistics } from "../domain/contracts/statistics.ts";
@@ -18,14 +26,6 @@ import type { Event, Market } from "../domain/models/market.ts";
 import type { MatchedFixture } from "../domain/services/market-matching.ts";
 import { matchEventsToFixtures } from "../domain/services/market-matching.ts";
 import { runEngine } from "../engine/runner.ts";
-import { createGammaClient } from "../infrastructure/polymarket/gamma-client.ts";
-import { createMarketDiscovery } from "../infrastructure/polymarket/market-discovery.ts";
-import { createFootballClient } from "../infrastructure/sports-data/client.ts";
-import {
-  mapApiFixtureToFixture,
-  mapH2hFixturesToH2H,
-  mapStandingToTeamStats,
-} from "../infrastructure/sports-data/mappers.ts";
 
 // Top European leagues (API-Football IDs + Polymarket tag IDs)
 const LEAGUES = [

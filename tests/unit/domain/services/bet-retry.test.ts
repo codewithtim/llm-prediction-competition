@@ -1,8 +1,8 @@
 import { describe, expect, it, mock } from "bun:test";
 import { createBetRetryService } from "../../../../src/domain/services/bet-retry";
-import type { betsRepo as betsRepoFactory } from "../../../../src/infrastructure/database/repositories/bets";
-import type { BettingClient } from "../../../../src/infrastructure/polymarket/betting-client";
-import type { BettingClientFactory } from "../../../../src/infrastructure/polymarket/betting-client-factory";
+import type { betsRepo as betsRepoFactory } from "../../../../src/database/repositories/bets";
+import type { BettingClient } from "../../../../src/apis/polymarket/betting-client";
+import type { BettingClientFactory } from "../../../../src/apis/polymarket/betting-client-factory";
 
 type BetsRepo = ReturnType<typeof betsRepoFactory>;
 

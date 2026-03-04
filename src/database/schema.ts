@@ -1,7 +1,7 @@
 import { integer, real, sqliteTable, text } from "drizzle-orm/sqlite-core";
-import type { ChangelogEntry } from "../../competitors/weight-tuned/types.ts";
-import type { Reasoning } from "../../domain/contracts/prediction.ts";
-import type { PlayerSeasonStats, TeamSeasonStats } from "../../domain/contracts/statistics.ts";
+import type { ChangelogEntry } from "../competitors/weight-tuned/types.ts";
+import type { Reasoning } from "../domain/contracts/prediction.ts";
+import type { PlayerSeasonStats, TeamSeasonStats } from "../domain/contracts/statistics.ts";
 
 export const markets = sqliteTable("markets", {
   id: text("id").primaryKey(),

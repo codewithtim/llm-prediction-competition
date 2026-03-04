@@ -33,7 +33,7 @@ All services must use factory functions with injected deps — not classes, not 
 export function createBettingService(deps: { bettingClient: ..., betsRepo: ... }) { ... }
 
 // WRONG — direct import of infrastructure in domain
-import { db } from "@infrastructure/database/client";
+import { db } from "@database/client";
 ```
 
 Domain services must not import from `@infrastructure/*` directly. Infrastructure is injected via factory args.
@@ -55,7 +55,7 @@ Internal domain-to-domain function calls do not need Zod — TypeScript is suffi
 ## Repository Pattern Compliance
 
 - Repos must take `db` as a parameter (dependency injection) — never import `db` globally inside a repo file
-- New DB tables need a corresponding repo file in `src/infrastructure/database/repositories/`
+- New DB tables need a corresponding repo file in `src/database/repositories/`
 - Batch operations should use `bulkUpsert` — no N+1 insert loops
 - Check that `onConflictDoUpdate` sets correct `target` columns
 
@@ -63,7 +63,7 @@ Internal domain-to-domain function calls do not need Zod — TypeScript is suffi
 
 ## Database Schema Changes
 
-If the diff includes changes to `src/infrastructure/database/schema.ts`:
+If the diff includes changes to `src/database/schema.ts`:
 - There must be a new migration file in `drizzle/`
 - The migration must have been generated with `bunx drizzle-kit generate` (not hand-written SQL unless trivial)
 - Check that existing nullable fields default sensibly and won't break existing rows

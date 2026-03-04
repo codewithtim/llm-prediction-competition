@@ -15,9 +15,9 @@
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { Wallet } from "@ethersproject/wallet";
 import { ClobClient } from "@polymarket/clob-client";
-import { createDb } from "../infrastructure/database/client.ts";
-import { competitorsRepo } from "../infrastructure/database/repositories/competitors.ts";
-import { walletsRepo } from "../infrastructure/database/repositories/wallets.ts";
+import { createDb } from "../database/client.ts";
+import { competitorsRepo } from "../database/repositories/competitors.ts";
+import { walletsRepo } from "../database/repositories/wallets.ts";
 import { env } from "../shared/env.ts";
 
 const CLOB_BASE_URL = "https://clob.polymarket.com";

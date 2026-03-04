@@ -1,11 +1,11 @@
+import type { MarketDiscovery } from "../apis/polymarket/market-discovery.ts";
+import type { FootballClient } from "../apis/sports-data/client.ts";
+import { mapApiFixtureToFixture } from "../apis/sports-data/mappers.ts";
+import type { fixturesRepo as fixturesRepoFactory } from "../database/repositories/fixtures.ts";
+import type { marketsRepo as marketsRepoFactory } from "../database/repositories/markets.ts";
 import type { Fixture } from "../domain/models/fixture.ts";
 import type { Event } from "../domain/models/market.ts";
 import { matchEventsToFixtures } from "../domain/services/market-matching.ts";
-import type { fixturesRepo as fixturesRepoFactory } from "../infrastructure/database/repositories/fixtures.ts";
-import type { marketsRepo as marketsRepoFactory } from "../infrastructure/database/repositories/markets.ts";
-import type { MarketDiscovery } from "../infrastructure/polymarket/market-discovery.ts";
-import type { FootballClient } from "../infrastructure/sports-data/client.ts";
-import { mapApiFixtureToFixture } from "../infrastructure/sports-data/mappers.ts";
 import { logger } from "../shared/logger.ts";
 import type { PipelineConfig } from "./config.ts";
 import { collectMarketRows } from "./converters.ts";

@@ -7,14 +7,14 @@ import {
   mapFixtureStatus,
   mapH2hFixturesToH2H,
   mapStandingToTeamStats,
-} from "../../../../src/infrastructure/sports-data/mappers.ts";
+} from "../../../../src/apis/sports-data/mappers.ts";
 import type {
   ApiFixture,
   ApiInjury,
   ApiPlayerResponse,
   ApiStandingEntry,
   ApiTeamStatisticsResponse,
-} from "../../../../src/infrastructure/sports-data/types.ts";
+} from "../../../../src/apis/sports-data/types.ts";
 
 function makeApiFixture(
   overrides: {

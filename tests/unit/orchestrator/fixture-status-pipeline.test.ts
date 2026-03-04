@@ -1,6 +1,6 @@
 import { describe, expect, mock, test } from "bun:test";
-import type { FootballClient } from "../../../src/infrastructure/sports-data/client.ts";
-import type { ApiFixture, ApiResponse } from "../../../src/infrastructure/sports-data/types.ts";
+import type { FootballClient } from "../../../src/apis/sports-data/client.ts";
+import type { ApiFixture, ApiResponse } from "../../../src/apis/sports-data/types.ts";
 import {
   createFixtureStatusPipeline,
   type FixtureStatusPipelineDeps,

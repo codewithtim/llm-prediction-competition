@@ -13,7 +13,8 @@
     "allowImportingTsExtensions": true,
     "paths": {
       "@domain/*": ["./src/domain/*"],
-      "@infrastructure/*": ["./src/infrastructure/*"],
+      "@database/*": ["./src/database/*"],
+      "@apis/*": ["./src/apis/*"],
       "@engine/*": ["./src/engine/*"],
       "@competitors/*": ["./src/competitors/*"],
       "@orchestrator/*": ["./src/orchestrator/*"],

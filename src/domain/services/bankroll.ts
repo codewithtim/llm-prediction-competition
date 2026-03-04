@@ -1,4 +1,4 @@
-import type { betsRepo as betsRepoFactory } from "../../infrastructure/database/repositories/bets";
+import type { betsRepo as betsRepoFactory } from "../../database/repositories/bets";
 
 export type BankrollProvider = {
   getBankroll(competitorId: string): Promise<number>;

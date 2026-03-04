@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
-import type { WalletConfig } from "../../../domain/types/competitor";
-import { decrypt, encrypt } from "../../../shared/crypto";
+import type { WalletConfig } from "../../domain/types/competitor";
+import { decrypt, encrypt } from "../../shared/crypto";
 import type { Database } from "../client";
 import { competitorWallets } from "../schema";
 

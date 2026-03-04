@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import type { GammaClient } from "../../../../src/infrastructure/polymarket/gamma-client.ts";
+import type { GammaClient } from "../../../../src/apis/polymarket/gamma-client.ts";
 import {
   collectSeriesSlugs,
   collectTagIds,
@@ -7,8 +7,8 @@ import {
   filterBySeriesSlug,
   filterToMoneylineMarkets,
   type MarketDiscoveryConfig,
-} from "../../../../src/infrastructure/polymarket/market-discovery.ts";
-import type { GammaEvent, GammaMarket } from "../../../../src/infrastructure/polymarket/types.ts";
+} from "../../../../src/apis/polymarket/market-discovery.ts";
+import type { GammaEvent, GammaMarket } from "../../../../src/apis/polymarket/types.ts";
 
 function makeGammaMarket(overrides: Partial<GammaMarket> = {}): GammaMarket {
   return {

@@ -1,10 +1,10 @@
 import { afterEach, describe, expect, mock, test } from "bun:test";
-import { createGammaClient } from "../../../../src/infrastructure/polymarket/gamma-client.ts";
+import { createGammaClient } from "../../../../src/apis/polymarket/gamma-client.ts";
 import type {
   GammaEvent,
   GammaMarket,
   GammaSport,
-} from "../../../../src/infrastructure/polymarket/types.ts";
+} from "../../../../src/apis/polymarket/types.ts";
 
 const originalFetch = globalThis.fetch;
 let fetchMock: ReturnType<typeof mock>;

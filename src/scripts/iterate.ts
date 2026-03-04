@@ -9,17 +9,17 @@
  *   bun run iterate --competitor <id>            # iterate a specific competitor
  */
 
+import { createOpenRouterClient } from "../apis/openrouter/client.ts";
 import { createRegistry } from "../competitors/registry.ts";
 import { createWeightGenerator } from "../competitors/weight-tuned/generator.ts";
 import { createWeightIterationService } from "../competitors/weight-tuned/iteration.ts";
 import { DEFAULT_STAKE_CONFIG } from "../competitors/weight-tuned/types.ts";
-import { createDb } from "../infrastructure/database/client.ts";
-import { betsRepo } from "../infrastructure/database/repositories/bets.ts";
-import { competitorVersionsRepo } from "../infrastructure/database/repositories/competitor-versions.ts";
-import { competitorsRepo } from "../infrastructure/database/repositories/competitors.ts";
-import { marketsRepo } from "../infrastructure/database/repositories/markets.ts";
-import { predictionsRepo } from "../infrastructure/database/repositories/predictions.ts";
-import { createOpenRouterClient } from "../infrastructure/openrouter/client.ts";
+import { createDb } from "../database/client.ts";
+import { betsRepo } from "../database/repositories/bets.ts";
+import { competitorVersionsRepo } from "../database/repositories/competitor-versions.ts";
+import { competitorsRepo } from "../database/repositories/competitors.ts";
+import { marketsRepo } from "../database/repositories/markets.ts";
+import { predictionsRepo } from "../database/repositories/predictions.ts";
 import { env } from "../shared/env.ts";
 
 function parseArgs(): { competitorId?: string } {

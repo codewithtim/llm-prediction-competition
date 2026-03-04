@@ -1,6 +1,6 @@
 import { and, desc, eq, inArray, lt, notInArray, sql } from "drizzle-orm";
-import type { BetErrorCategory, BetStatus } from "../../../domain/models/prediction.ts";
-import { ACTIVE_BET_STATUSES } from "../../../domain/models/prediction.ts";
+import type { BetErrorCategory, BetStatus } from "../../domain/models/prediction.ts";
+import { ACTIVE_BET_STATUSES } from "../../domain/models/prediction.ts";
 import type { Database } from "../client";
 import { bets } from "../schema";
 

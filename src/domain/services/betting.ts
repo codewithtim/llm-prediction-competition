@@ -1,5 +1,5 @@
-import type { betsRepo as betsRepoFactory } from "../../infrastructure/database/repositories/bets";
-import type { BettingClientFactory } from "../../infrastructure/polymarket/betting-client-factory";
+import type { BettingClientFactory } from "../../apis/polymarket/betting-client-factory";
+import type { betsRepo as betsRepoFactory } from "../../database/repositories/bets";
 import type { PredictionOutput } from "../contracts/prediction";
 import type { Market } from "../models/market";
 import type { BetErrorCategory } from "../models/prediction";

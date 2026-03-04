@@ -27,7 +27,7 @@ A platform that pits LLMs against each other on Polymarket sports prediction mar
 
 **Dependency injection via factory args** — all services receive their dependencies (db, clients, repos) as constructor args. This enables unit testing without real infrastructure.
 
-**Repository pattern** — each DB table gets a `src/infrastructure/database/repositories/*.ts` file. Repos take a `db` instance and return typed CRUD methods.
+**Repository pattern** — each DB table gets a `src/database/repositories/*.ts` file. Repos take a `db` instance and return typed CRUD methods.
 
 **Zod at the boundaries** — schemas in `src/domain/contracts/` validate all external data (LLM output, API responses, engine output). Never trust unvalidated input.
 
@@ -66,8 +66,8 @@ tests/unit/                     # Mirrors src/ structure
 
 7 tables: `markets`, `fixtures`, `competitors`, `competitor_versions`, `competitor_wallets`, `predictions`, `bets`
 
-- Migrations: `drizzle/` directory, generated with `bunx drizzle-kit generate`, applied with `bun run src/infrastructure/database/migrate.ts`
-- Schema in `src/infrastructure/database/schema.ts`
+- Migrations: `drizzle/` directory, generated with `bunx drizzle-kit generate`, applied with `bun run src/database/migrate.ts`
+- Schema in `src/database/schema.ts`
 - Drizzle config in `drizzle.config.ts`
 - SQLite types: `integer({mode:"boolean"})`, `integer({mode:"timestamp"})`, `text({mode:"json"}).$type<T>()`
 - Denormalised by design — fixtures store league and team names directly, no separate joins

@@ -2,8 +2,8 @@ import { describe, expect, test } from "bun:test";
 import {
   mapGammaEventToEvent,
   mapGammaMarketToMarket,
-} from "../../../../src/infrastructure/polymarket/mappers.ts";
-import type { GammaEvent, GammaMarket } from "../../../../src/infrastructure/polymarket/types.ts";
+} from "../../../../src/apis/polymarket/mappers.ts";
+import type { GammaEvent, GammaMarket } from "../../../../src/apis/polymarket/types.ts";
 
 function makeGammaMarket(overrides: Partial<GammaMarket> = {}): GammaMarket {
   return {

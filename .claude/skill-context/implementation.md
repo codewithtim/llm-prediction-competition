@@ -16,7 +16,7 @@ bun run build:ui                  # Build UI to ui/dist/
 bunx biome check src/             # Lint + format check
 bunx biome check --write src/     # Lint + format fix
 bunx drizzle-kit generate         # Generate DB migration after schema change
-bun run src/infrastructure/database/migrate.ts  # Apply migrations
+bun run src/database/migrate.ts  # Apply migrations
 ```
 
 **Type check:** Run `bunx tsc --noEmit` to check types. Fix all type errors before considering a task complete.
@@ -56,12 +56,12 @@ Never use classes. Always use factory functions with typed dep objects.
 
 ```typescript
 // Always inject db — never import it directly
-import { betsRepo } from "@infrastructure/database/repositories/bets";
+import { betsRepo } from "@database/repositories/bets";
 const repo = betsRepo(db);
 const bets = await repo.findByStatus("pending");
 ```
 
-- Repos are in `src/infrastructure/database/repositories/`
+- Repos are in `src/database/repositories/`
 - Each repo file exports one factory function named after the table
 - Use `bulkUpsert` for batch writes, `upsert` for single rows with conflict handling
 
@@ -119,7 +119,7 @@ import { describe, it, expect, mock, beforeEach } from "bun:test";
 const mockFn = mock(() => Promise.resolve({ status: "placed" }));
 
 // Mock a module
-mock.module("@infrastructure/polymarket/betting-client", () => ({
+mock.module("@apis/polymarket/betting-client", () => ({
   createBettingClient: mock(() => ({ placeOrder: mockFn }))
 }));
 
@@ -142,7 +142,7 @@ Use path aliases — never use relative `../../` imports across module boundarie
 ```typescript
 import { Market } from "@domain/models/market";
 import { env } from "@shared/env";
-import { betsRepo } from "@infrastructure/database/repositories/bets";
+import { betsRepo } from "@database/repositories/bets";
 import { runAllEngines } from "@engine/runner";
 import { createWeightedEngine } from "@competitors/weight-tuned/engine";
 import { createScheduler } from "@orchestrator/scheduler";

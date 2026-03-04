@@ -1,11 +1,11 @@
 import { Hono } from "hono";
-import type { betsRepo } from "../infrastructure/database/repositories/bets";
-import type { competitorVersionsRepo } from "../infrastructure/database/repositories/competitor-versions";
-import type { competitorsRepo } from "../infrastructure/database/repositories/competitors";
-import type { fixturesRepo } from "../infrastructure/database/repositories/fixtures";
-import type { marketsRepo } from "../infrastructure/database/repositories/markets";
-import type { predictionsRepo } from "../infrastructure/database/repositories/predictions";
-import type { walletsRepo } from "../infrastructure/database/repositories/wallets";
+import type { betsRepo } from "../database/repositories/bets";
+import type { competitorVersionsRepo } from "../database/repositories/competitor-versions";
+import type { competitorsRepo } from "../database/repositories/competitors";
+import type { fixturesRepo } from "../database/repositories/fixtures";
+import type { marketsRepo } from "../database/repositories/markets";
+import type { predictionsRepo } from "../database/repositories/predictions";
+import type { walletsRepo } from "../database/repositories/wallets";
 import { betsRoutes } from "./routes/bets";
 import { competitorsRoutes } from "./routes/competitors";
 import { dashboardRoutes } from "./routes/dashboard";

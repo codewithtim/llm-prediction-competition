@@ -11,7 +11,7 @@
  *   bun run iterate --competitor <id>
  */
 
-import type { CompetitorsRepo } from "../infrastructure/database/repositories/competitors";
+import type { CompetitorsRepo } from "../database/repositories/competitors";
 
 type AddCompetitorParams = {
   id: string;
@@ -75,8 +75,8 @@ async function main() {
     process.exit(1);
   }
 
-  const { createDb } = await import("../infrastructure/database/client");
-  const { competitorsRepo } = await import("../infrastructure/database/repositories/competitors");
+  const { createDb } = await import("../database/client");
+  const { competitorsRepo } = await import("../database/repositories/competitors");
   const { env } = await import("../shared/env");
 
   const db = createDb(env.TURSO_DATABASE_URL, env.TURSO_AUTH_TOKEN);

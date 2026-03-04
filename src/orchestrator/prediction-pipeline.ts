@@ -1,4 +1,18 @@
+import type { GammaClient } from "../apis/polymarket/gamma-client.ts";
+import { mapGammaMarketToMarket } from "../apis/polymarket/mappers.ts";
+import type { FootballClient } from "../apis/sports-data/client.ts";
+import {
+  mapApiInjuries,
+  mapApiPlayerToPlayerStats,
+  mapApiTeamStatistics,
+  mapH2hFixturesToH2H,
+  mapStandingToTeamStats,
+} from "../apis/sports-data/mappers.ts";
 import type { CompetitorRegistry } from "../competitors/registry.ts";
+import type { fixturesRepo as fixturesRepoFactory } from "../database/repositories/fixtures.ts";
+import type { marketsRepo as marketsRepoFactory } from "../database/repositories/markets.ts";
+import type { predictionsRepo as predictionsRepoFactory } from "../database/repositories/predictions.ts";
+import type { statsCacheRepo as statsCacheRepoFactory } from "../database/repositories/stats-cache.ts";
 import type {
   H2H,
   Injury,
@@ -15,20 +29,6 @@ import type { BettingService } from "../domain/services/betting.ts";
 import { validateStake } from "../domain/services/stake-validator.ts";
 import { runAllEngines } from "../engine/runner.ts";
 import type { EngineResult } from "../engine/types.ts";
-import type { fixturesRepo as fixturesRepoFactory } from "../infrastructure/database/repositories/fixtures.ts";
-import type { marketsRepo as marketsRepoFactory } from "../infrastructure/database/repositories/markets.ts";
-import type { predictionsRepo as predictionsRepoFactory } from "../infrastructure/database/repositories/predictions.ts";
-import type { statsCacheRepo as statsCacheRepoFactory } from "../infrastructure/database/repositories/stats-cache.ts";
-import type { GammaClient } from "../infrastructure/polymarket/gamma-client.ts";
-import { mapGammaMarketToMarket } from "../infrastructure/polymarket/mappers.ts";
-import type { FootballClient } from "../infrastructure/sports-data/client.ts";
-import {
-  mapApiInjuries,
-  mapApiPlayerToPlayerStats,
-  mapApiTeamStatistics,
-  mapH2hFixturesToH2H,
-  mapStandingToTeamStats,
-} from "../infrastructure/sports-data/mappers.ts";
 import { logger } from "../shared/logger.ts";
 import type { PipelineConfig } from "./config.ts";
 import {

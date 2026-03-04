@@ -2,10 +2,10 @@ import { beforeEach, describe, expect, it } from "bun:test";
 import { createClient } from "@libsql/client";
 import { drizzle } from "drizzle-orm/libsql";
 import { migrate } from "drizzle-orm/libsql/migrator";
-import type { PlayerSeasonStats, TeamSeasonStats } from "../../../../../src/domain/contracts/statistics";
-import type { Database } from "../../../../../src/infrastructure/database/client";
-import { statsCacheRepo } from "../../../../../src/infrastructure/database/repositories/stats-cache";
-import * as schema from "../../../../../src/infrastructure/database/schema";
+import type { PlayerSeasonStats, TeamSeasonStats } from "../../../../src/domain/contracts/statistics";
+import type { Database } from "../../../../src/database/client";
+import { statsCacheRepo } from "../../../../src/database/repositories/stats-cache";
+import * as schema from "../../../../src/database/schema";
 
 let db: Database;
 
