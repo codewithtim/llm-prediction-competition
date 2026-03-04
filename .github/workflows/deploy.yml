@@ -76,8 +76,6 @@ jobs:
             docker pull ghcr.io/${{ github.repository }}:latest
             docker stop llm-betting || true
             docker rm llm-betting || true
-            docker stop caddy || true
-            docker rm caddy || true
             docker run -d \
               --name llm-betting \
               --restart unless-stopped \
