@@ -88,6 +88,7 @@ describe("createGammaClient", () => {
           score: "",
           elapsed: "",
           period: "",
+          gameId: null,
           markets: [],
         },
       ];

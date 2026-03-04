@@ -52,6 +52,7 @@ function makeGammaEvent(overrides: Partial<GammaEvent> = {}): GammaEvent {
     score: "",
     elapsed: "",
     period: "",
+    gameId: null,
     markets: [makeGammaMarket()],
     ...overrides,
   };

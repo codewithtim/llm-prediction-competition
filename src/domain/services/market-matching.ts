@@ -1,3 +1,4 @@
+import { logger } from "@shared/logger.ts";
 import type { Fixture } from "../models/fixture.ts";
 import type { Event, Market } from "../models/market.ts";
 import { parseEventTitle, sameDateUTC } from "./event-parser.ts";
@@ -29,7 +30,13 @@ function matchByGameId(market: Market, fixtureIndex: Map<number, Fixture>): Fixt
 
 function matchByTeamNameAndDate(event: Event, fixtures: Fixture[]): Fixture | null {
   const parsed = parseEventTitle(event.title);
-  if (!parsed) return null;
+  if (!parsed) {
+    logger.debug("Matching: event title unparseable", {
+      eventId: event.id,
+      title: event.title,
+    });
+    return null;
+  }
 
   for (const fixture of fixtures) {
     const homeMatch =
@@ -44,6 +51,15 @@ function matchByTeamNameAndDate(event: Event, fixtures: Fixture[]): Fixture | nu
     const dateMatch = sameDateUTC(event.startDate, fixture.date);
     if (dateMatch) return fixture;
   }
+
+  logger.debug("Matching: no fixture found for event", {
+    eventId: event.id,
+    title: event.title,
+    parsedHome: parsed.homeTeam,
+    parsedAway: parsed.awayTeam,
+    eventDate: event.startDate,
+    fixtureCount: fixtures.length,
+  });
 
   return null;
 }

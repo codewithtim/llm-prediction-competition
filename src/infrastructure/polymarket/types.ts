@@ -47,6 +47,7 @@ export type GammaEvent = {
   score: string;
   elapsed: string;
   period: string;
+  gameId: number | string | null;
   markets: GammaMarket[];
 };
 

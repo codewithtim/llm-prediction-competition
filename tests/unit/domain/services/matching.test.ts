@@ -177,6 +177,72 @@ describe("team name + date fallback matching", () => {
 
     expect(result.matched).toHaveLength(1);
   });
+
+  test("matches Manchester City FC vs. Nottingham Forest FC event to fixture", () => {
+    const event = makeEvent({
+      title: "Manchester City FC vs. Nottingham Forest FC",
+      startDate: "2026-03-04T19:30:00Z",
+      markets: [
+        makeMarket({ id: "1396101", gameId: null, slug: "epl-mac-not-2026-03-04-mac", question: "Will Manchester City FC win on 2026-03-04?" }),
+        makeMarket({ id: "1396102", gameId: null, slug: "epl-mac-not-2026-03-04-draw", question: "Will Manchester City FC vs. Nottingham Forest FC end in a draw?" }),
+        makeMarket({ id: "1396103", gameId: null, slug: "epl-mac-not-2026-03-04-not", question: "Will Nottingham Forest FC win on 2026-03-04?" }),
+      ],
+    });
+    const fixture = makeFixture({
+      homeTeam: { id: 50, name: "Manchester City", logo: null },
+      awayTeam: { id: 65, name: "Nottingham Forest", logo: null },
+      date: "2026-03-04T19:30:00Z",
+    });
+
+    const result = matchEventsToFixtures([event], [fixture]);
+
+    expect(result.matched).toHaveLength(1);
+    expect(result.matched[0]?.markets).toHaveLength(3);
+  });
+
+  test("matches Nottingham Forest FC vs. Fulham FC event to fixture", () => {
+    const event = makeEvent({
+      title: "Nottingham Forest FC vs. Fulham FC",
+      startDate: "2026-03-15T15:00:00Z",
+      markets: [
+        makeMarket({ id: "1480740", gameId: null, slug: "epl-not-ful-2026-03-15-not", question: "Will Nottingham Forest FC win on 2026-03-15?" }),
+        makeMarket({ id: "1480742", gameId: null, slug: "epl-not-ful-2026-03-15-draw", question: "Will Nottingham Forest FC vs. Fulham FC end in a draw?" }),
+        makeMarket({ id: "1480744", gameId: null, slug: "epl-not-ful-2026-03-15-ful", question: "Will Fulham FC win on 2026-03-15?" }),
+      ],
+    });
+    const fixture = makeFixture({
+      homeTeam: { id: 65, name: "Nottingham Forest", logo: null },
+      awayTeam: { id: 36, name: "Fulham", logo: null },
+      date: "2026-03-15T15:00:00Z",
+    });
+
+    const result = matchEventsToFixtures([event], [fixture]);
+
+    expect(result.matched).toHaveLength(1);
+    expect(result.matched[0]?.markets).toHaveLength(3);
+  });
+
+  test("matches Brentford FC vs. Wolverhampton Wanderers FC event to fixture (API-Football uses Wolves)", () => {
+    const event = makeEvent({
+      title: "Brentford FC vs. Wolverhampton Wanderers FC",
+      startDate: "2026-03-16T14:00:00Z",
+      markets: [
+        makeMarket({ id: "1488887", gameId: null, slug: "epl-bre-wol-2026-03-16-bre", question: "Will Brentford FC win on 2026-03-16?" }),
+        makeMarket({ id: "1488892", gameId: null, slug: "epl-bre-wol-2026-03-16-draw", question: "Will Brentford FC vs. Wolverhampton Wanderers FC end in a draw?" }),
+        makeMarket({ id: "1488895", gameId: null, slug: "epl-bre-wol-2026-03-16-wol", question: "Will Wolverhampton Wanderers FC win on 2026-03-16?" }),
+      ],
+    });
+    const fixture = makeFixture({
+      homeTeam: { id: 55, name: "Brentford", logo: null },
+      awayTeam: { id: 76, name: "Wolves", logo: null },
+      date: "2026-03-16T14:00:00Z",
+    });
+
+    const result = matchEventsToFixtures([event], [fixture]);
+
+    expect(result.matched).toHaveLength(1);
+    expect(result.matched[0]?.markets).toHaveLength(3);
+  });
 });
 
 describe("two-events-per-match grouping", () => {

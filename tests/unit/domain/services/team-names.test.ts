@@ -36,16 +36,26 @@ describe("normalizeTeamName", () => {
 });
 
 describe("resolveTeamName", () => {
-  test("applies alias for known team", () => {
-    expect(resolveTeamName("Tottenham Hotspur FC")).toBe("tottenham");
+  test("resolves to canonical name for known team", () => {
+    expect(resolveTeamName("Tottenham Hotspur FC")).toBe("tottenham hotspur");
+    expect(resolveTeamName("Tottenham")).toBe("tottenham hotspur");
+    expect(resolveTeamName("Spurs")).toBe("tottenham hotspur");
   });
 
   test("falls through for unknown team", () => {
     expect(resolveTeamName("Brentford FC")).toBe("brentford");
   });
 
-  test("applies alias for Inter Milan", () => {
-    expect(resolveTeamName("Inter Milan")).toBe("inter");
+  test("resolves all variations of same team to same canonical", () => {
+    expect(resolveTeamName("Inter Milan")).toBe("inter milan");
+    expect(resolveTeamName("Inter")).toBe("inter milan");
+    expect(resolveTeamName("Internazionale")).toBe("inter milan");
+  });
+
+  test("resolves Wolves variations to same canonical", () => {
+    expect(resolveTeamName("Wolverhampton Wanderers FC")).toBe("wolverhampton wanderers");
+    expect(resolveTeamName("Wolverhampton")).toBe("wolverhampton wanderers");
+    expect(resolveTeamName("Wolves")).toBe("wolverhampton wanderers");
   });
 });
 
@@ -72,5 +82,46 @@ describe("teamNamesMatch", () => {
 
   test("rejects partial collisions between Manchester City and Manchester United", () => {
     expect(teamNamesMatch("Manchester City FC", "Manchester United")).toBe(false);
+  });
+
+  test("matches Nottingham Forest via symmetric alias resolution", () => {
+    expect(teamNamesMatch("Nottingham Forest FC", "Nottingham Forest")).toBe(true);
+  });
+
+  test("matches Sheffield United via symmetric alias resolution", () => {
+    expect(teamNamesMatch("Sheffield United FC", "Sheffield United")).toBe(true);
+  });
+
+  test("matches Athletic Bilbao to Athletic Club and vice versa", () => {
+    expect(teamNamesMatch("Athletic Bilbao", "Athletic Club")).toBe(true);
+    expect(teamNamesMatch("Athletic Club", "Athletic Bilbao")).toBe(true);
+  });
+
+  test("matches Manchester City FC from Polymarket to Manchester City from API-Football", () => {
+    expect(teamNamesMatch("Manchester City FC", "Manchester City")).toBe(true);
+  });
+
+  test("matches Fulham FC from Polymarket to Fulham from API-Football", () => {
+    expect(teamNamesMatch("Fulham FC", "Fulham")).toBe(true);
+  });
+
+  test("matches Brentford FC from Polymarket to Brentford from API-Football", () => {
+    expect(teamNamesMatch("Brentford FC", "Brentford")).toBe(true);
+  });
+
+  test("matches Wolverhampton Wanderers FC from Polymarket to Wolverhampton from API-Football", () => {
+    expect(teamNamesMatch("Wolverhampton Wanderers FC", "Wolverhampton")).toBe(true);
+  });
+
+  test("matches Wolverhampton Wanderers FC from Polymarket to Wolves from API-Football", () => {
+    expect(teamNamesMatch("Wolverhampton Wanderers FC", "Wolves")).toBe(true);
+  });
+
+  test("matches Wolves to Wolverhampton", () => {
+    expect(teamNamesMatch("Wolves", "Wolverhampton")).toBe(true);
+  });
+
+  test("matches Spurs to Tottenham Hotspur", () => {
+    expect(teamNamesMatch("Spurs", "Tottenham Hotspur")).toBe(true);
   });
 });

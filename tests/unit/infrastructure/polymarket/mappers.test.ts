@@ -47,6 +47,7 @@ function makeGammaEvent(overrides: Partial<GammaEvent> = {}): GammaEvent {
     score: "",
     elapsed: "",
     period: "",
+    gameId: 90091280,
     markets: [makeGammaMarket()],
     ...overrides,
   };
@@ -170,5 +171,38 @@ describe("mapGammaEventToEvent", () => {
     expect(result.markets[0]?.question).toBe("Will Team A win?");
     expect(result.markets[1]?.question).toBe("Will Team B win?");
     expect(result.markets[2]?.question).toBe("Will it draw?");
+  });
+
+  test("propagates event-level gameId to markets lacking their own", () => {
+    const result = mapGammaEventToEvent(
+      makeGammaEvent({
+        gameId: 90091278,
+        markets: [makeGammaMarket({ gameId: null })],
+      }),
+    );
+
+    expect(result.markets[0]?.gameId).toBe("90091278");
+  });
+
+  test("market-level gameId takes precedence over event-level", () => {
+    const result = mapGammaEventToEvent(
+      makeGammaEvent({
+        gameId: 90091278,
+        markets: [makeGammaMarket({ gameId: "12345" })],
+      }),
+    );
+
+    expect(result.markets[0]?.gameId).toBe("12345");
+  });
+
+  test("handles null event-level gameId", () => {
+    const result = mapGammaEventToEvent(
+      makeGammaEvent({
+        gameId: null,
+        markets: [makeGammaMarket({ gameId: null })],
+      }),
+    );
+
+    expect(result.markets[0]?.gameId).toBeNull();
   });
 });

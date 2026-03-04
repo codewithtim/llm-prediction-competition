@@ -29,10 +29,12 @@ export function mapGammaMarketToMarket(raw: GammaMarket): Market | null {
 
 export function mapGammaEventToEvent(raw: GammaEvent): Event {
   const polymarketUrl = `https://polymarket.com/sports/${raw.seriesSlug}/${raw.slug}`;
+  const eventGameId = raw.gameId != null ? String(raw.gameId) : null;
+
   const markets = raw.markets
     .map(mapGammaMarketToMarket)
     .filter((m): m is Market => m !== null)
-    .map((m) => ({ ...m, polymarketUrl }));
+    .map((m) => ({ ...m, polymarketUrl, gameId: m.gameId ?? eventGameId }));
 
   return {
     id: raw.id,
