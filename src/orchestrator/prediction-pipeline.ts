@@ -483,6 +483,7 @@ export function createPredictionPipeline(deps: PredictionPipelineDeps) {
             confidence: prediction.confidence,
             stake: absoluteStake,
             reasoning: prediction.reasoning,
+            extractedFeatures: prediction.extractedFeatures ?? null,
           });
           result.predictionsGenerated++;
         } catch (err) {

@@ -92,6 +92,7 @@ export function createWeightIterationService(deps: WeightIterationDeps) {
         stake: pred.stake,
         result,
         profit,
+        extractedFeatures: pred.extractedFeatures ?? undefined,
       });
     }
 

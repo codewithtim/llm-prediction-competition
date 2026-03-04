@@ -48,14 +48,8 @@ export function createWeightedEngine(
     );
   }
 
-  const activeSignals = new Set(
-    Object.entries(weights.signals)
-      .filter(([, w]) => w > 0)
-      .map(([name]) => name),
-  );
-
   return (statistics: Statistics): PredictionOutput[] => {
-    const features = extractFeatures(statistics, activeSignals);
+    const features = extractFeatures(statistics);
 
     // Compute weighted home strength
     let weightedSum = 0;
@@ -199,6 +193,7 @@ export function createWeightedEngine(
         confidence: clamp(best.confidence, 0, 1),
         stake: stakeFraction,
         reasoning,
+        extractedFeatures: features,
       },
     ];
   };

@@ -677,6 +677,49 @@ describe("createPredictionPipeline", () => {
     expect(pr.create).toHaveBeenCalledTimes(1);
   });
 
+  test("stores extractedFeatures when saving prediction", async () => {
+    const features = { homeWinRate: 0.9, formDiff: 0.6 };
+    const { fr, mr } = withFixtureAndMarkets();
+    const pr = mockPredictionsRepo();
+    const registry = mockRegistry([makePrediction({ extractedFeatures: features })]);
+
+    const deps = buildPredictionDeps({
+      fixturesRepo: fr as unknown as PredictionPipelineDeps["fixturesRepo"],
+      marketsRepo: mr as unknown as PredictionPipelineDeps["marketsRepo"],
+      predictionsRepo: pr as unknown as PredictionPipelineDeps["predictionsRepo"],
+      registry,
+    });
+    const pipeline = createPredictionPipeline(deps);
+    await pipeline.run();
+
+    expect(pr.create).toHaveBeenCalledTimes(1);
+    const createArg = (pr.create as ReturnType<typeof mock>).mock.calls[0]?.[0] as Record<
+      string,
+      unknown
+    >;
+    expect(createArg?.extractedFeatures).toEqual(features);
+  });
+
+  test("stores null extractedFeatures when engine omits them", async () => {
+    const { fr, mr } = withFixtureAndMarkets();
+    const pr = mockPredictionsRepo();
+
+    const deps = buildPredictionDeps({
+      fixturesRepo: fr as unknown as PredictionPipelineDeps["fixturesRepo"],
+      marketsRepo: mr as unknown as PredictionPipelineDeps["marketsRepo"],
+      predictionsRepo: pr as unknown as PredictionPipelineDeps["predictionsRepo"],
+    });
+    const pipeline = createPredictionPipeline(deps);
+    await pipeline.run();
+
+    expect(pr.create).toHaveBeenCalledTimes(1);
+    const createArg = (pr.create as ReturnType<typeof mock>).mock.calls[0]?.[0] as Record<
+      string,
+      unknown
+    >;
+    expect(createArg?.extractedFeatures).toBeNull();
+  });
+
   test("skips fixtures with no markets", async () => {
     const fr = mockFixturesRepo({
       findReadyForPrediction: mock(() => Promise.resolve([makeFixtureRow()])),

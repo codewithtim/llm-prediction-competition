@@ -366,13 +366,9 @@ export function getMissingSignals(signals: Record<string, number>): string[] {
   return FEATURE_NAMES.filter((name) => !(name in signals));
 }
 
-export function extractFeatures(
-  statistics: Statistics,
-  activeSignals?: Set<string>,
-): Record<string, number> {
+export function extractFeatures(statistics: Statistics): Record<string, number> {
   const features: Record<string, number> = {};
   for (const [name, entry] of Object.entries(FEATURE_REGISTRY)) {
-    if (activeSignals && !activeSignals.has(name)) continue;
     features[name] = entry.extract(statistics);
   }
   return features;

@@ -3,6 +3,7 @@ import {
   classifyMarket,
   createWeightedEngine,
 } from "../../../../src/competitors/weight-tuned/engine";
+import { FEATURE_NAMES } from "../../../../src/competitors/weight-tuned/features";
 import { SAMPLE_STATISTICS_MULTI_MARKET } from "../../../../src/competitors/weight-tuned/sample-statistics";
 import {
   DEFAULT_STAKE_CONFIG,
@@ -346,6 +347,26 @@ describe("createWeightedEngine", () => {
     expect(() => createWeightedEngine(incompleteWeights, DEFAULT_STAKE_CONFIG)).toThrow(
       /injuryImpact/,
     );
+  });
+
+  it("includes extractedFeatures in output", () => {
+    const predictions = run(DEFAULT_WEIGHTS, DEFAULT_STAKE_CONFIG, makeStatistics());
+    expect(predictions[0]?.extractedFeatures).toBeDefined();
+    const features = predictions[0]!.extractedFeatures!;
+    for (const name of FEATURE_NAMES) {
+      expect(features[name]).toBeDefined();
+      expect(features[name]).toBeGreaterThanOrEqual(0);
+      expect(features[name]).toBeLessThanOrEqual(1);
+    }
+  });
+
+  it("extractedFeatures includes zero-weight features", () => {
+    const predictions = run(DEFAULT_WEIGHTS, DEFAULT_STAKE_CONFIG, makeStatistics());
+    const features = predictions[0]!.extractedFeatures!;
+    // DEFAULT_WEIGHTS has zero weight for these but they should still appear
+    expect(features.defensiveStrength).toBeDefined();
+    expect(features.injuryImpact).toBeDefined();
+    expect(features.squadRating).toBeDefined();
   });
 
   it("balanced teams produce higher draw probability", () => {

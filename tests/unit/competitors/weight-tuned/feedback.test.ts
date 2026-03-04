@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import {
   buildWeightFeedbackPrompt,
+  formatOutcomeFeatures,
   type LeaderboardEntry,
   type PredictionOutcome,
 } from "../../../../src/competitors/weight-tuned/feedback";
@@ -112,5 +113,85 @@ describe("buildWeightFeedbackPrompt", () => {
     const prompt = buildWeightFeedbackPrompt(makeInput());
 
     expect(prompt).not.toContain("## Your Current Engine Code");
+  });
+
+  test("includes features for settled outcomes", () => {
+    const outcomes: PredictionOutcome[] = [
+      {
+        marketQuestion: "Will Arsenal win?",
+        side: "YES",
+        confidence: 0.75,
+        stake: 3.5,
+        result: "won",
+        profit: 2.1,
+        extractedFeatures: { homeWinRate: 0.9, formDiff: 0.6, h2h: 0.6 },
+      },
+      {
+        marketQuestion: "Will Chelsea win?",
+        side: "NO",
+        confidence: 0.55,
+        stake: 1.0,
+        result: "pending",
+        profit: null,
+        extractedFeatures: { homeWinRate: 0.4, formDiff: 0.5, h2h: 0.3 },
+      },
+    ];
+    const prompt = buildWeightFeedbackPrompt(makeInput({ recentOutcomes: outcomes }));
+
+    // Settled outcome (won) should show features
+    expect(prompt).toContain("Features:");
+    expect(prompt).toContain("homeWinRate=90%");
+    // Pending outcome should NOT show features
+    const pendingIdx = prompt.indexOf("Will Chelsea win?");
+    const afterPending = prompt.slice(pendingIdx);
+    expect(afterPending).not.toContain("Features:");
+  });
+
+  test("handles outcomes without extractedFeatures", () => {
+    const outcomes: PredictionOutcome[] = [
+      {
+        marketQuestion: "Will Arsenal win?",
+        side: "YES",
+        confidence: 0.75,
+        stake: 3.5,
+        result: "lost",
+        profit: -3.5,
+      },
+    ];
+    const prompt = buildWeightFeedbackPrompt(makeInput({ recentOutcomes: outcomes }));
+
+    expect(prompt).toContain("Will Arsenal win?");
+    expect(prompt).toContain("LOSS");
+    expect(prompt).not.toContain("Features:");
+  });
+
+  test("includes feature analysis instruction", () => {
+    const prompt = buildWeightFeedbackPrompt(makeInput());
+
+    expect(prompt).toContain("Feature values that correlated with wins vs losses");
+  });
+});
+
+describe("formatOutcomeFeatures", () => {
+  test("shows active features with weights", () => {
+    const features = { homeWinRate: 0.9, formDiff: 0.6, h2h: 0.15, defensiveStrength: 0.82 };
+    const weights = { homeWinRate: 0.4, formDiff: 0.3, h2h: 0.3, defensiveStrength: 0 };
+
+    const result = formatOutcomeFeatures(features, weights);
+
+    expect(result).toContain("homeWinRate=90%");
+    expect(result).toContain("w=0.40");
+    expect(result).toContain("formDiff=60%");
+    expect(result).toContain("h2h=15%");
+    expect(result).not.toContain("defensiveStrength");
+  });
+
+  test("returns empty string when no active features", () => {
+    const features = { homeWinRate: 0.9 };
+    const weights = { homeWinRate: 0 };
+
+    const result = formatOutcomeFeatures(features, weights);
+
+    expect(result).toBe("");
   });
 });

@@ -19,6 +19,7 @@ export const predictionOutputSchema = z.object({
   confidence: z.number().min(0).max(1),
   stake: z.number().min(0).max(1),
   reasoning: reasoningSchema,
+  extractedFeatures: z.record(z.string(), z.number()).optional(),
 });
 
 export type PredictionOutput = z.infer<typeof predictionOutputSchema>;

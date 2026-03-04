@@ -213,6 +213,93 @@ describe("createWeightIterationService", () => {
       expect(deps.generator.generateWeights).not.toHaveBeenCalled();
     });
 
+    test("feedback prompt includes extractedFeatures from predictions", async () => {
+      const deps = createMockDeps({
+        versionsRepo: {
+          create: mock(() => Promise.resolve()),
+          findByCompetitor: mock(() => Promise.resolve([])),
+          findLatest: mock(() =>
+            Promise.resolve({
+              id: 1,
+              competitorId: "wt-test",
+              version: 1,
+              code: JSON.stringify(VALID_WEIGHTS),
+              enginePath: "",
+              model: "openai/gpt-4o",
+              performanceSnapshot: null,
+              generatedAt: new Date(),
+            }),
+          ),
+          findByVersion: mock(() => Promise.resolve(undefined)),
+        } as unknown as WeightIterationDeps["versionsRepo"],
+        predictionsRepo: {
+          create: mock(() => Promise.resolve()),
+          findByCompetitor: mock(() =>
+            Promise.resolve([
+              {
+                id: 1,
+                marketId: "m1",
+                fixtureId: 100,
+                competitorId: "wt-test",
+                side: "YES" as const,
+                confidence: 0.72,
+                stake: 3.0,
+                reasoning: { summary: "test", sections: [{ label: "x", content: "y" }] },
+                extractedFeatures: { homeWinRate: 0.9, formDiff: 0.6, h2h: 0.6 },
+                createdAt: new Date(),
+              },
+            ]),
+          ),
+          findByMarket: mock(() => Promise.resolve([])),
+          findByFixtureAndCompetitor: mock(() => Promise.resolve([])),
+        } as unknown as WeightIterationDeps["predictionsRepo"],
+        betsRepo: {
+          create: mock(() => Promise.resolve()),
+          findById: mock(() => Promise.resolve(undefined)),
+          findByCompetitor: mock(() =>
+            Promise.resolve([
+              {
+                id: "b1",
+                marketId: "m1",
+                fixtureId: 100,
+                competitorId: "wt-test",
+                tokenId: "t1",
+                side: "YES" as const,
+                amount: 3.0,
+                price: 0.65,
+                shares: 4.6,
+                status: "settled_won" as const,
+                placedAt: new Date(),
+                settledAt: new Date(),
+                profit: 1.6,
+                errorMessage: null,
+                errorCategory: null,
+                attempts: 1,
+                lastAttemptAt: null,
+                orderId: null,
+              },
+            ]),
+          ),
+          findByStatus: mock(() => Promise.resolve([])),
+          updateStatus: mock(() => Promise.resolve()),
+          getPerformanceStats: mock(() => Promise.resolve(EMPTY_STATS)),
+        } as unknown as WeightIterationDeps["betsRepo"],
+        marketsRepo: {
+          findById: mock(() =>
+            Promise.resolve({ id: "m1", question: "Will Arsenal win?" }),
+          ),
+        } as unknown as WeightIterationDeps["marketsRepo"],
+      });
+      const service = createWeightIterationService(deps);
+
+      await service.iterateCompetitor("wt-test");
+
+      const call = (deps.generator.generateWithFeedback as ReturnType<typeof mock>).mock.calls[0];
+      const feedbackPrompt = (call?.[0] as { feedbackPrompt: string })?.feedbackPrompt;
+      expect(feedbackPrompt).toContain("Features:");
+      expect(feedbackPrompt).toContain("homeWinRate=90%");
+    });
+
     test("increments version number", async () => {
       const deps = createMockDeps({
         versionsRepo: {

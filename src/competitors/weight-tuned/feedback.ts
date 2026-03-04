@@ -7,6 +7,7 @@ export type PredictionOutcome = {
   stake: number;
   result: "won" | "lost" | "pending";
   profit: number | null;
+  extractedFeatures?: Record<string, number>;
 };
 
 export type LeaderboardEntry = {
@@ -30,6 +31,7 @@ type FeedbackPromptInput = {
   performance: PerformanceStats;
   recentOutcomes: PredictionOutcome[];
   leaderboard: LeaderboardEntry[];
+  signalWeights?: Record<string, number>;
 };
 
 const MAX_OUTCOMES = 20;
@@ -41,6 +43,16 @@ function formatPercentage(value: number): string {
 function formatCurrency(value: number): string {
   const sign = value >= 0 ? "+" : "";
   return `${sign}${value.toFixed(2)}`;
+}
+
+export function formatOutcomeFeatures(
+  features: Record<string, number>,
+  weights: Record<string, number>,
+): string {
+  return Object.entries(features)
+    .filter(([name]) => (weights[name] ?? 0) > 0)
+    .map(([name, val]) => `${name}=${(val * 100).toFixed(0)}% (w=${weights[name]?.toFixed(2)})`)
+    .join(", ");
 }
 
 function formatOutcomesTable(outcomes: PredictionOutcome[]): string {
@@ -57,6 +69,26 @@ function formatOutcomesTable(outcomes: PredictionOutcome[]): string {
     "|--------|------|------------|-------|--------|--------|",
     ...rows,
   ].join("\n");
+}
+
+function formatOutcomesWithFeatures(
+  outcomes: PredictionOutcome[],
+  signalWeights: Record<string, number>,
+): string {
+  if (outcomes.length === 0) return "No predictions yet.";
+
+  const parts: string[] = [];
+  for (const o of outcomes) {
+    const resultEmoji = o.result === "won" ? "WIN" : o.result === "lost" ? "LOSS" : "PENDING";
+    const profitStr = o.profit !== null ? formatCurrency(o.profit) : "-";
+    let block = `**${o.marketQuestion}** → ${o.side} | Confidence: ${formatPercentage(o.confidence)} | Stake: ${o.stake.toFixed(1)} | ${resultEmoji} | P&L: ${profitStr}`;
+
+    if (o.extractedFeatures && o.result !== "pending") {
+      block += `\n  Features: ${formatOutcomeFeatures(o.extractedFeatures, signalWeights)}`;
+    }
+    parts.push(block);
+  }
+  return parts.join("\n\n");
 }
 
 function formatLeaderboard(leaderboard: LeaderboardEntry[]): string {
@@ -128,7 +160,7 @@ function analyzePatterns(outcomes: PredictionOutcome[]): string[] {
 }
 
 function buildFeedbackPrompt(input: FeedbackPromptInput): string {
-  const { currentConfig, performance, recentOutcomes, leaderboard } = input;
+  const { currentConfig, performance, recentOutcomes, leaderboard, signalWeights } = input;
 
   const truncatedOutcomes = recentOutcomes.slice(-MAX_OUTCOMES);
 
@@ -137,6 +169,10 @@ function buildFeedbackPrompt(input: FeedbackPromptInput): string {
     patterns.length > 0
       ? `## Improvement Suggestions\n\n${patterns.map((p) => `- ${p}`).join("\n")}`
       : "";
+
+  const outcomesSection = signalWeights
+    ? formatOutcomesWithFeatures(truncatedOutcomes, signalWeights)
+    : formatOutcomesTable(truncatedOutcomes);
 
   return `You are iterating on your football prediction engine. Review your current weight configuration and performance data below, then generate an improved version.
 
@@ -156,7 +192,7 @@ ${currentConfig}
 
 ## Recent Prediction Outcomes (last ${truncatedOutcomes.length})
 
-${formatOutcomesTable(truncatedOutcomes)}
+${outcomesSection}
 
 ## Leaderboard
 
@@ -172,6 +208,7 @@ Analyze your performance and generate an improved prediction engine. Focus on:
 3. Your stake sizing — are you risking too much on uncertain bets?
 4. Strategies used by higher-ranked competitors (if you're not #1)
 5. Edge cases you may be missing
+6. Feature values that correlated with wins vs losses — which features were reliable indicators?
 
 Generate an improved weight configuration that addresses these weaknesses.`;
 }
@@ -214,6 +251,7 @@ export function buildWeightFeedbackPrompt(input: WeightFeedbackInput): string {
     performance: input.performance,
     recentOutcomes: input.recentOutcomes,
     leaderboard: input.leaderboard,
+    signalWeights: input.currentWeights.signals,
   });
 
   const weightsSection = `## Your Current Weight Configuration
