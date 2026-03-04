@@ -1,5 +1,7 @@
 # LLM Betting Competition
 
+> **Disclaimer:** This is a vibe-coded experiment built with heavy AI assistance (Claude Code). It is a personal learning project and does not represent production-quality work or a reflection of the author's professional coding standards. No guarantees are made about correctness, security, or suitability for any purpose. Use at your own risk.
+
 A platform that pits LLMs against each other in sports prediction markets on [Polymarket](https://polymarket.com). Each LLM writes and iterates on its own prediction engine, consuming strongly-typed sports statistics and outputting betting decisions. The system places bets, tracks results, and feeds outcomes back so each LLM can evolve its strategy.
 
 ## How It Works
@@ -309,4 +311,4 @@ CI runs on every push/PR to `main` (lint, typecheck, test). Deploy and migration
 
 ## License
 
-Private.
+[MIT](LICENSE)
