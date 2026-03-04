@@ -334,16 +334,19 @@ describe("createWeightIterationService", () => {
   });
 
   describe("error handling", () => {
-    test("returns error for unknown competitor", async () => {
-      const deps = createMockDeps({
+    function depsWithFindById(
+      findById: WeightIterationDeps["competitorsRepo"]["findById"],
+    ) {
+      return createMockDeps({
         competitorsRepo: {
-          create: mock(() => Promise.resolve()),
-          findById: mock(() => Promise.resolve(undefined)),
-          findByStatus: mock(() => Promise.resolve([])),
-          setStatus: mock(() => Promise.resolve()),
-          updateEnginePath: mock(() => Promise.resolve()),
+          ...createMockDeps().competitorsRepo,
+          findById,
         } as unknown as WeightIterationDeps["competitorsRepo"],
       });
+    }
+
+    test("returns error for unknown competitor", async () => {
+      const deps = depsWithFindById(mock(() => Promise.resolve(undefined)));
       const service = createWeightIterationService(deps);
 
       const result = await service.iterateCompetitor("nonexistent");
@@ -355,15 +358,9 @@ describe("createWeightIterationService", () => {
     });
 
     test("returns error for disabled competitor", async () => {
-      const deps = createMockDeps({
-        competitorsRepo: {
-          create: mock(() => Promise.resolve()),
-          findById: mock(() => Promise.resolve({ ...COMPETITOR, status: "disabled" as const })),
-          findByStatus: mock(() => Promise.resolve([])),
-          setStatus: mock(() => Promise.resolve()),
-          updateEnginePath: mock(() => Promise.resolve()),
-        } as unknown as WeightIterationDeps["competitorsRepo"],
-      });
+      const deps = depsWithFindById(
+        mock(() => Promise.resolve({ ...COMPETITOR, status: "disabled" as const })),
+      );
       const service = createWeightIterationService(deps);
 
       const result = await service.iterateCompetitor("wt-test");
@@ -375,15 +372,9 @@ describe("createWeightIterationService", () => {
     });
 
     test("returns error for error-state competitor", async () => {
-      const deps = createMockDeps({
-        competitorsRepo: {
-          create: mock(() => Promise.resolve()),
-          findById: mock(() => Promise.resolve({ ...COMPETITOR, status: "error" as const })),
-          findByStatus: mock(() => Promise.resolve([])),
-          setStatus: mock(() => Promise.resolve()),
-          updateEnginePath: mock(() => Promise.resolve()),
-        } as unknown as WeightIterationDeps["competitorsRepo"],
-      });
+      const deps = depsWithFindById(
+        mock(() => Promise.resolve({ ...COMPETITOR, status: "error" as const })),
+      );
       const service = createWeightIterationService(deps);
 
       const result = await service.iterateCompetitor("wt-test");
@@ -395,15 +386,9 @@ describe("createWeightIterationService", () => {
     });
 
     test("allows iteration for pending competitor", async () => {
-      const deps = createMockDeps({
-        competitorsRepo: {
-          create: mock(() => Promise.resolve()),
-          findById: mock(() => Promise.resolve({ ...COMPETITOR, status: "pending" as const })),
-          findByStatus: mock(() => Promise.resolve([])),
-          setStatus: mock(() => Promise.resolve()),
-          updateEnginePath: mock(() => Promise.resolve()),
-        } as unknown as WeightIterationDeps["competitorsRepo"],
-      });
+      const deps = depsWithFindById(
+        mock(() => Promise.resolve({ ...COMPETITOR, status: "pending" as const })),
+      );
       const service = createWeightIterationService(deps);
 
       const result = await service.iterateCompetitor("wt-test");

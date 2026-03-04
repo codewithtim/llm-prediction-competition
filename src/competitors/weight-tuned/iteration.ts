@@ -1,3 +1,4 @@
+import type { CompetitorStatus } from "../../domain/types/competitor";
 import type { betsRepo } from "../../infrastructure/database/repositories/bets";
 import type { competitorVersionsRepo } from "../../infrastructure/database/repositories/competitor-versions";
 import type { competitorsRepo } from "../../infrastructure/database/repositories/competitors";
@@ -12,6 +13,8 @@ import {
 import type { createWeightGenerator } from "./generator";
 import { DEFAULT_WEIGHTS, type StakeConfig, type WeightConfig, weightConfigSchema } from "./types";
 import { validateWeights } from "./validator";
+
+const ITERABLE_STATUSES: CompetitorStatus[] = ["active", "pending"];
 
 export type WeightIterationDeps = {
   generator: ReturnType<typeof createWeightGenerator>;
@@ -109,15 +112,13 @@ export function createWeightIterationService(deps: WeightIterationDeps) {
     }
   }
 
-  const ITERABLE_STATUSES = new Set(["active", "pending"]);
-
   async function iterateCompetitor(competitorId: string): Promise<WeightIterationResult> {
     const competitor = await competitors.findById(competitorId);
     if (!competitor) {
       return { success: false, competitorId, error: `Competitor ${competitorId} not found` };
     }
 
-    if (!ITERABLE_STATUSES.has(competitor.status)) {
+    if (!ITERABLE_STATUSES.includes(competitor.status as CompetitorStatus)) {
       return {
         success: false,
         competitorId,
@@ -214,12 +215,10 @@ export function createWeightIterationService(deps: WeightIterationDeps) {
   }
 
   async function iterateAll(): Promise<WeightIterationResult[]> {
-    const [active, pending] = await Promise.all([
-      competitors.findByStatus("active"),
-      competitors.findByStatus("pending"),
-    ]);
-    const all = [...active, ...pending];
-    const weightTuned = all.filter((c) => c.type === "weight-tuned");
+    const groups = await Promise.all(
+      [...ITERABLE_STATUSES].map((s) => competitors.findByStatus(s)),
+    );
+    const weightTuned = groups.flat().filter((c) => c.type === "weight-tuned");
 
     const results: WeightIterationResult[] = [];
     for (const competitor of weightTuned) {
