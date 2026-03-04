@@ -45,7 +45,7 @@ function fixtureToDbRow(fixture: Fixture) {
   };
 }
 
-function marketToDbRow(market: Market, fixtureId: number | null) {
+export function marketToDbRow(market: Market, fixtureId: number | null) {
   return {
     id: market.id,
     conditionId: market.conditionId,

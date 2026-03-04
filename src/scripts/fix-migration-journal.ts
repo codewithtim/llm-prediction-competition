@@ -12,8 +12,8 @@
  *   bun run src/scripts/fix-migration-journal.ts
  */
 
-import { readFileSync, writeFileSync } from "fs";
-import { resolve } from "path";
+import { readFileSync, writeFileSync } from "node:fs";
+import { resolve } from "node:path";
 
 const JOURNAL_PATH = resolve(import.meta.dirname, "../../drizzle/meta/_journal.json");
 
@@ -38,8 +38,8 @@ function main() {
   let changed = false;
 
   for (let i = 1; i < journal.entries.length; i++) {
-    const prev = journal.entries[i - 1]!;
-    const curr = journal.entries[i]!;
+    const prev = journal.entries[i - 1] as JournalEntry;
+    const curr = journal.entries[i] as JournalEntry;
 
     if (curr.when <= prev.when) {
       const fixed = prev.when + 1000;
@@ -50,7 +50,7 @@ function main() {
   }
 
   if (changed) {
-    writeFileSync(JOURNAL_PATH, JSON.stringify(journal, null, 2) + "\n");
+    writeFileSync(JOURNAL_PATH, `${JSON.stringify(journal, null, 2)}\n`);
     console.log("Journal timestamps fixed.");
   } else {
     console.log("Journal timestamps already in order.");

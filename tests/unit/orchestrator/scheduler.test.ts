@@ -2,6 +2,7 @@ import { afterEach, describe, expect, mock, test } from "bun:test";
 import type { PipelineConfig } from "../../../src/orchestrator/config.ts";
 import type { DiscoveryPipeline } from "../../../src/orchestrator/discovery-pipeline.ts";
 import type { FixtureStatusPipeline } from "../../../src/orchestrator/fixture-status-pipeline.ts";
+import type { MarketRefreshPipeline } from "../../../src/orchestrator/market-refresh-pipeline.ts";
 import type { PredictionPipeline } from "../../../src/orchestrator/prediction-pipeline.ts";
 import { createScheduler, type SchedulerDeps } from "../../../src/orchestrator/scheduler.ts";
 
@@ -14,6 +15,7 @@ function makeConfig(overrides: Partial<PipelineConfig> = {}): PipelineConfig {
     predictionIntervalMs: 100,
     settlementIntervalMs: 100,
     fixtureStatusIntervalMs: 100,
+    marketRefreshIntervalMs: 100,
     predictionLeadTimeMs: 30 * 60 * 1000,
     betting: {
       maxStakePerBet: 10,
@@ -89,6 +91,20 @@ function emptyFixtureStatusResult() {
 function mockFixtureStatusPipeline(): FixtureStatusPipeline {
   return {
     run: mock(() => Promise.resolve(emptyFixtureStatusResult())),
+  };
+}
+
+function emptyMarketRefreshResult() {
+  return {
+    eventsDiscovered: 0,
+    marketsUpserted: 0,
+    errors: [],
+  };
+}
+
+function mockMarketRefreshPipeline(): MarketRefreshPipeline {
+  return {
+    run: mock(() => Promise.resolve(emptyMarketRefreshResult())),
   };
 }
 
@@ -414,5 +430,75 @@ describe("createScheduler", () => {
 
     expect((confirmOrders as ReturnType<typeof mock>).mock.calls.length).toBe(confirmCalls);
     expect((retryFailedBets as ReturnType<typeof mock>).mock.calls.length).toBe(retryCalls);
+  });
+
+  test("start() runs market refresh immediately when provided", async () => {
+    const mrp = mockMarketRefreshPipeline();
+    const deps = buildDeps({ marketRefreshPipeline: mrp });
+    scheduler = createScheduler(deps);
+    scheduler.start();
+
+    await new Promise((r) => setTimeout(r, 20));
+
+    expect(mrp.run).toHaveBeenCalled();
+  });
+
+  test("stop() clears market refresh timer", async () => {
+    const mrp = mockMarketRefreshPipeline();
+    const deps = buildDeps({
+      marketRefreshPipeline: mrp,
+      config: makeConfig({ marketRefreshIntervalMs: 50 }),
+    });
+    scheduler = createScheduler(deps);
+    scheduler.start();
+
+    await new Promise((r) => setTimeout(r, 20));
+    scheduler.stop();
+
+    const calls = (mrp.run as ReturnType<typeof mock>).mock.calls.length;
+
+    await new Promise((r) => setTimeout(r, 100));
+
+    expect((mrp.run as ReturnType<typeof mock>).mock.calls.length).toBe(calls);
+  });
+
+  test("overlap guard prevents concurrent market refresh runs", async () => {
+    let resolveFirst: () => void = () => {};
+    const slowRefresh = mock(
+      () =>
+        new Promise<ReturnType<typeof emptyMarketRefreshResult>>((resolve) => {
+          resolveFirst = () => resolve(emptyMarketRefreshResult());
+        }),
+    );
+
+    const deps = buildDeps({
+      marketRefreshPipeline: { run: slowRefresh },
+      config: makeConfig({ marketRefreshIntervalMs: 30 }),
+    });
+    scheduler = createScheduler(deps);
+    scheduler.start();
+
+    await new Promise((r) => setTimeout(r, 60));
+
+    expect(slowRefresh.mock.calls.length).toBe(1);
+
+    resolveFirst();
+    await new Promise((r) => setTimeout(r, 10));
+  });
+
+  test("delays market refresh start when marketRefreshDelayMs is set", async () => {
+    const mrp = mockMarketRefreshPipeline();
+    const deps = buildDeps({
+      marketRefreshPipeline: mrp,
+      config: makeConfig({ marketRefreshDelayMs: 80 }),
+    });
+    scheduler = createScheduler(deps);
+    scheduler.start();
+
+    await new Promise((r) => setTimeout(r, 20));
+    expect(mrp.run).not.toHaveBeenCalled();
+
+    await new Promise((r) => setTimeout(r, 100));
+    expect(mrp.run).toHaveBeenCalled();
   });
 });

@@ -31,6 +31,8 @@ export type PipelineConfig = {
   discoveryDelayMs?: number;
   predictionDelayMs?: number;
   settlementDelayMs?: number;
+  marketRefreshIntervalMs: number;
+  marketRefreshDelayMs?: number;
   betting: BettingConfig;
   orderConfirmation: OrderConfirmationConfig;
   retry: RetryConfig;
@@ -53,6 +55,7 @@ export const DEFAULT_CONFIG: PipelineConfig = {
   predictionIntervalMs: 15 * 60 * 1000, // 15 minutes
   settlementIntervalMs: 2 * 60 * 60 * 1000, // 2 hours
   fixtureStatusIntervalMs: 15 * 60 * 1000, // 15 minutes
+  marketRefreshIntervalMs: 15 * 60 * 1000, // 15 minutes
   predictionLeadTimeMs: 30 * 60 * 1000, // 30 minutes before kickoff
   predictionDelayMs: 30_000,
   betting: {

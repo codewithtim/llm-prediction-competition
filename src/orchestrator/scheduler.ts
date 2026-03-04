@@ -5,6 +5,7 @@ import { logger } from "../shared/logger.ts";
 import type { PipelineConfig } from "./config.ts";
 import type { DiscoveryPipeline } from "./discovery-pipeline.ts";
 import type { FixtureStatusPipeline } from "./fixture-status-pipeline.ts";
+import type { MarketRefreshPipeline } from "./market-refresh-pipeline.ts";
 import type { PredictionPipeline } from "./prediction-pipeline.ts";
 
 export type SchedulerDeps = {
@@ -12,6 +13,7 @@ export type SchedulerDeps = {
   predictionPipeline: PredictionPipeline;
   settlementService: SettlementService;
   fixtureStatusPipeline: FixtureStatusPipeline;
+  marketRefreshPipeline?: MarketRefreshPipeline;
   orderConfirmationService?: OrderConfirmationService;
   betRetryService?: BetRetryService;
   config: PipelineConfig;
@@ -23,6 +25,7 @@ export function createScheduler(deps: SchedulerDeps) {
     predictionPipeline,
     settlementService,
     fixtureStatusPipeline,
+    marketRefreshPipeline,
     orderConfirmationService,
     betRetryService,
     config,
@@ -34,15 +37,18 @@ export function createScheduler(deps: SchedulerDeps) {
   let fixtureStatusTimer: ReturnType<typeof setInterval> | null = null;
   let orderConfirmationTimer: ReturnType<typeof setInterval> | null = null;
   let betRetryTimer: ReturnType<typeof setInterval> | null = null;
+  let marketRefreshTimer: ReturnType<typeof setInterval> | null = null;
   let discoveryDelayTimer: ReturnType<typeof setTimeout> | null = null;
   let predictionDelayTimer: ReturnType<typeof setTimeout> | null = null;
   let settlementDelayTimer: ReturnType<typeof setTimeout> | null = null;
+  let marketRefreshDelayTimer: ReturnType<typeof setTimeout> | null = null;
   let discoveryRunning = false;
   let predictionRunning = false;
   let settlementRunning = false;
   let fixtureStatusRunning = false;
   let orderConfirmationRunning = false;
   let betRetryRunning = false;
+  let marketRefreshRunning = false;
 
   async function runDiscovery() {
     if (discoveryRunning) {
@@ -219,6 +225,35 @@ export function createScheduler(deps: SchedulerDeps) {
     }
   }
 
+  async function runMarketRefresh() {
+    if (!marketRefreshPipeline) return;
+    if (marketRefreshRunning) {
+      logger.warn("Scheduler: market refresh skipped (previous run still in progress)");
+      return;
+    }
+    marketRefreshRunning = true;
+    const start = Date.now();
+    try {
+      logger.info("Scheduler: starting market refresh run");
+      const result = await marketRefreshPipeline.run();
+      const durationMs = Date.now() - start;
+      logger.info("Scheduler: market refresh run complete", {
+        durationMs,
+        eventsDiscovered: result.eventsDiscovered,
+        marketsUpserted: result.marketsUpserted,
+        errors: result.errors.length,
+      });
+      for (const error of result.errors) {
+        logger.error("Scheduler: market refresh error", { message: error });
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      logger.error("Scheduler: market refresh run failed", { error: msg });
+    } finally {
+      marketRefreshRunning = false;
+    }
+  }
+
   return {
     start() {
       logger.info("Scheduler: starting", {
@@ -226,6 +261,7 @@ export function createScheduler(deps: SchedulerDeps) {
         predictionIntervalMs: config.predictionIntervalMs,
         settlementIntervalMs: config.settlementIntervalMs,
         fixtureStatusIntervalMs: config.fixtureStatusIntervalMs,
+        marketRefreshIntervalMs: config.marketRefreshIntervalMs,
         orderConfirmationIntervalMs: config.orderConfirmation.intervalMs,
         retryIntervalMs: config.retry.intervalMs,
       });
@@ -281,6 +317,21 @@ export function createScheduler(deps: SchedulerDeps) {
         runBetRetry();
         betRetryTimer = setInterval(runBetRetry, config.retry.intervalMs);
       }
+
+      if (marketRefreshPipeline) {
+        if (config.marketRefreshDelayMs) {
+          logger.info("Scheduler: delaying market refresh start", {
+            delayMs: config.marketRefreshDelayMs,
+          });
+          marketRefreshDelayTimer = setTimeout(() => {
+            runMarketRefresh();
+            marketRefreshTimer = setInterval(runMarketRefresh, config.marketRefreshIntervalMs);
+          }, config.marketRefreshDelayMs);
+        } else {
+          runMarketRefresh();
+          marketRefreshTimer = setInterval(runMarketRefresh, config.marketRefreshIntervalMs);
+        }
+      }
     },
 
     stop() {
@@ -320,6 +371,14 @@ export function createScheduler(deps: SchedulerDeps) {
       if (betRetryTimer) {
         clearInterval(betRetryTimer);
         betRetryTimer = null;
+      }
+      if (marketRefreshDelayTimer) {
+        clearTimeout(marketRefreshDelayTimer);
+        marketRefreshDelayTimer = null;
+      }
+      if (marketRefreshTimer) {
+        clearInterval(marketRefreshTimer);
+        marketRefreshTimer = null;
       }
     },
   };
