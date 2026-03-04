@@ -34,14 +34,18 @@ jobs:
 
       - name: Deploy to Droplet
         uses: appleboy/ssh-action@v1
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           host: ${{ secrets.DROPLET_HOST }}
           username: ${{ secrets.DROPLET_USER }}
           key: ${{ secrets.DROPLET_SSH_KEY }}
-          envs: OPENROUTER_API_KEY,API_SPORTS_KEY,TURSO_DATABASE_URL,TURSO_AUTH_TOKEN,WALLET_ENCRYPTION_KEY
+          envs: OPENROUTER_API_KEY,API_SPORTS_KEY,TURSO_DATABASE_URL,TURSO_AUTH_TOKEN,WALLET_ENCRYPTION_KEY,BETTERSTACK_SOURCE_TOKEN,GHCR_TOKEN
           script: |
+            set -e
+
             mkdir -p /opt/llm-betting
-            cat > /opt/llm-betting/.env << EOF
+            cat > /opt/llm-betting/.env <<EOF
             OPENROUTER_API_KEY=$OPENROUTER_API_KEY
             API_SPORTS_KEY=$API_SPORTS_KEY
             TURSO_DATABASE_URL=$TURSO_DATABASE_URL
@@ -51,6 +55,18 @@ jobs:
             PORT=3000
             EOF
             chmod 600 /opt/llm-betting/.env
+
+            # Install Vector log shipper (idempotent — skips if already running)
+            if [ -n "$BETTERSTACK_SOURCE_TOKEN" ] && ! systemctl is-active --quiet vector; then
+              curl -sSL "https://telemetry.betterstack.com/setup-vector/docker/$BETTERSTACK_SOURCE_TOKEN" \
+                -o /tmp/setup-vector.sh && bash /tmp/setup-vector.sh
+              usermod -aG docker vector || true
+              systemctl restart vector
+            fi
+
+            # Authenticate with GHCR on the droplet to pull private images
+            echo "$GHCR_TOKEN" | docker login ghcr.io -u github --password-stdin
+
             docker pull ghcr.io/${{ github.repository }}:latest
             docker stop llm-betting || true
             docker rm llm-betting || true
