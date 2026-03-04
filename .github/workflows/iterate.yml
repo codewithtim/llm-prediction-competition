@@ -1,0 +1,35 @@
+name: Iterate Weights
+
+on:
+  workflow_dispatch:
+    inputs:
+      competitor:
+        description: "Competitor ID to iterate (leave empty for all)"
+        required: false
+
+jobs:
+  iterate:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - run: bun install --frozen-lockfile
+
+      - name: Iterate weights
+        run: |
+          if [ -n "${{ github.event.inputs.competitor }}" ]; then
+            bun run iterate --competitor "${{ github.event.inputs.competitor }}"
+          else
+            bun run iterate
+          fi
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          TURSO_DATABASE_URL: ${{ secrets.TURSO_DATABASE_URL }}
+          TURSO_AUTH_TOKEN: ${{ secrets.TURSO_AUTH_TOKEN }}
+          API_SPORTS_KEY: ${{ secrets.API_SPORTS_KEY }}
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
