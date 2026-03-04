@@ -52,7 +52,7 @@ describe("createGammaClient", () => {
       mockFetch({ ok: false, status: 500, body: {} });
       const client = createGammaClient();
 
-      expect(client.getSports()).rejects.toThrow("Gamma /sports failed: 500");
+      expect(client.getSports()).rejects.toThrow("Gamma /sports failed (HTTP 500)");
     });
   });
 
@@ -104,7 +104,7 @@ describe("createGammaClient", () => {
       mockFetch({ ok: false, status: 404, body: {} });
       const client = createGammaClient();
 
-      expect(client.getEvents({ tag_id: 82 })).rejects.toThrow("Gamma /events failed: 404");
+      expect(client.getEvents({ tag_id: 82 })).rejects.toThrow("Gamma /events?tag_id=82 failed (HTTP 404)");
     });
 
     test("omits undefined params from query string", async () => {
@@ -170,7 +170,7 @@ describe("createGammaClient", () => {
       mockFetch({ ok: false, status: 500, body: {} });
       const client = createGammaClient();
 
-      expect(client.getMarketById("market-123")).rejects.toThrow("Gamma /markets failed: 500");
+      expect(client.getMarketById("market-123")).rejects.toThrow("Gamma /markets?id=market-123 failed (HTTP 500)");
     });
   });
 });

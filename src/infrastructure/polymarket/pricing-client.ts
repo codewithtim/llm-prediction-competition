@@ -8,19 +8,43 @@ export function createPricingClient() {
 
   return {
     async getOrderBook(tokenId: string) {
-      return clob.getOrderBook(tokenId);
+      try {
+        return await clob.getOrderBook(tokenId);
+      } catch (err) {
+        throw new Error(
+          `Polymarket getOrderBook failed (tokenId: ${tokenId}): ${err instanceof Error ? err.message : String(err)}`,
+        );
+      }
     },
 
     async getMidpoint(tokenId: string) {
-      return clob.getMidpoint(tokenId);
+      try {
+        return await clob.getMidpoint(tokenId);
+      } catch (err) {
+        throw new Error(
+          `Polymarket getMidpoint failed (tokenId: ${tokenId}): ${err instanceof Error ? err.message : String(err)}`,
+        );
+      }
     },
 
     async getPrice(tokenId: string, side: "BUY" | "SELL") {
-      return clob.getPrice(tokenId, side);
+      try {
+        return await clob.getPrice(tokenId, side);
+      } catch (err) {
+        throw new Error(
+          `Polymarket getPrice failed (tokenId: ${tokenId}, side: ${side}): ${err instanceof Error ? err.message : String(err)}`,
+        );
+      }
     },
 
     async getSpread(tokenId: string) {
-      return clob.getSpread(tokenId);
+      try {
+        return await clob.getSpread(tokenId);
+      } catch (err) {
+        throw new Error(
+          `Polymarket getSpread failed (tokenId: ${tokenId}): ${err instanceof Error ? err.message : String(err)}`,
+        );
+      }
     },
 
     async getPricesHistory(params: {
@@ -29,7 +53,13 @@ export function createPricingClient() {
       endTs?: number;
       fidelity?: number;
     }) {
-      return clob.getPricesHistory(params);
+      try {
+        return await clob.getPricesHistory(params);
+      } catch (err) {
+        throw new Error(
+          `Polymarket getPricesHistory failed: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      }
     },
   };
 }

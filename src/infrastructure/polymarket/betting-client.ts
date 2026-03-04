@@ -65,23 +65,53 @@ export function createBettingClient(config: BettingClientConfig) {
     },
 
     async cancelOrder(orderId: string): Promise<void> {
-      await clob.cancelOrder({ orderID: orderId });
+      try {
+        await clob.cancelOrder({ orderID: orderId });
+      } catch (err) {
+        throw new Error(
+          `Polymarket cancelOrder failed (orderId: ${orderId}): ${err instanceof Error ? err.message : String(err)}`,
+        );
+      }
     },
 
     async cancelAll(): Promise<void> {
-      await clob.cancelAll();
+      try {
+        await clob.cancelAll();
+      } catch (err) {
+        throw new Error(
+          `Polymarket cancelAll failed: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      }
     },
 
     async getOpenOrders() {
-      return clob.getOpenOrders();
+      try {
+        return await clob.getOpenOrders();
+      } catch (err) {
+        throw new Error(
+          `Polymarket getOpenOrders failed: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      }
     },
 
     async getTickSize(tokenId: string): Promise<TickSize> {
-      return clob.getTickSize(tokenId);
+      try {
+        return await clob.getTickSize(tokenId);
+      } catch (err) {
+        throw new Error(
+          `Polymarket getTickSize failed (tokenId: ${tokenId}): ${err instanceof Error ? err.message : String(err)}`,
+        );
+      }
     },
 
     async getNegRisk(tokenId: string): Promise<boolean> {
-      return clob.getNegRisk(tokenId);
+      try {
+        return await clob.getNegRisk(tokenId);
+      } catch (err) {
+        throw new Error(
+          `Polymarket getNegRisk failed (tokenId: ${tokenId}): ${err instanceof Error ? err.message : String(err)}`,
+        );
+      }
     },
   };
 }

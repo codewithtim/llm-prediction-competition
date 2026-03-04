@@ -25,7 +25,14 @@ export function createFootballClient(apiKey: string) {
     const res = await fetch(url, {
       headers: { "x-apisports-key": apiKey },
     });
-    if (!res.ok) throw new Error(`API-Football ${path} failed: ${res.status}`);
+    if (!res.ok) {
+      let detail = "";
+      try {
+        const body = await res.json();
+        detail = body?.errors ? `: ${JSON.stringify(body.errors)}` : "";
+      } catch {}
+      throw new Error(`API-Football ${path} failed (HTTP ${res.status})${detail}`);
+    }
     return res.json();
   }
 

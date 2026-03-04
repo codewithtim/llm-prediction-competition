@@ -2,11 +2,23 @@ import type { GammaEvent, GammaEventParams, GammaMarket, GammaSport, GammaTag } 
 
 const GAMMA_BASE_URL = "https://gamma-api.polymarket.com";
 
+async function gammaFetch(endpoint: string): Promise<Response> {
+  const res = await fetch(`${GAMMA_BASE_URL}${endpoint}`);
+  if (!res.ok) {
+    let detail = "";
+    try {
+      const body = await res.text();
+      if (body) detail = `: ${body}`;
+    } catch {}
+    throw new Error(`Gamma ${endpoint} failed (HTTP ${res.status})${detail}`);
+  }
+  return res;
+}
+
 export function createGammaClient() {
   return {
     async getSports(): Promise<GammaSport[]> {
-      const res = await fetch(`${GAMMA_BASE_URL}/sports`);
-      if (!res.ok) throw new Error(`Gamma /sports failed: ${res.status}`);
+      const res = await gammaFetch("/sports");
       return res.json();
     },
 
@@ -15,21 +27,17 @@ export function createGammaClient() {
       for (const [key, value] of Object.entries(params)) {
         if (value !== undefined) qs.set(key, String(value));
       }
-      const url = `${GAMMA_BASE_URL}/events?${qs}`;
-      const res = await fetch(url);
-      if (!res.ok) throw new Error(`Gamma /events failed: ${res.status}`);
+      const res = await gammaFetch(`/events?${qs}`);
       return res.json();
     },
 
     async getTags(): Promise<GammaTag[]> {
-      const res = await fetch(`${GAMMA_BASE_URL}/tags`);
-      if (!res.ok) throw new Error(`Gamma /tags failed: ${res.status}`);
+      const res = await gammaFetch("/tags");
       return res.json();
     },
 
     async getMarketById(marketId: string): Promise<GammaMarket | null> {
-      const res = await fetch(`${GAMMA_BASE_URL}/markets?id=${marketId}`);
-      if (!res.ok) throw new Error(`Gamma /markets failed: ${res.status}`);
+      const res = await gammaFetch(`/markets?id=${marketId}`);
       const data: GammaMarket[] = await res.json();
       return data.length > 0 ? (data[0] ?? null) : null;
     },

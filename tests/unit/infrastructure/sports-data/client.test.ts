@@ -182,7 +182,7 @@ describe("createFootballClient", () => {
       const client = createFootballClient("test-api-key");
 
       expect(client.getFixtures({ league: 39 })).rejects.toThrow(
-        "API-Football /fixtures failed: 500",
+        "API-Football /fixtures failed (HTTP 500)",
       );
     });
 
@@ -190,7 +190,7 @@ describe("createFootballClient", () => {
       mockFetch({ ok: false, status: 403, body: {} });
       const client = createFootballClient("test-api-key");
 
-      expect(client.getStandings(39, 2024)).rejects.toThrow("API-Football /standings failed: 403");
+      expect(client.getStandings(39, 2024)).rejects.toThrow("API-Football /standings failed (HTTP 403)");
     });
   });
 });

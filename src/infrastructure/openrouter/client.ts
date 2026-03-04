@@ -22,28 +22,60 @@ export function createOpenRouterClient(apiKey: string): OpenRouterClient {
 
   return {
     async chat(params: ChatParams): Promise<string> {
-      const response = (await sdk.chat.send({
-        chatGenerationParams: {
-          model: params.model,
-          messages: [
-            { role: "system", content: params.systemPrompt },
-            { role: "user", content: params.userPrompt },
-          ],
-          temperature: params.temperature ?? 0.7,
-          maxTokens: params.maxTokens,
-          responseFormat: params.jsonSchema
-            ? {
-                type: "json_schema",
-                jsonSchema: {
-                  name: params.jsonSchema.name,
-                  schema: params.jsonSchema.schema,
-                  strict: false,
-                },
+      let response: ChatResponse;
+      try {
+        response = (await sdk.chat.send({
+          chatGenerationParams: {
+            model: params.model,
+            messages: [
+              { role: "system", content: params.systemPrompt },
+              { role: "user", content: params.userPrompt },
+            ],
+            temperature: params.temperature ?? 0.7,
+            maxTokens: params.maxTokens,
+            responseFormat: params.jsonSchema
+              ? {
+                  type: "json_schema",
+                  jsonSchema: {
+                    name: params.jsonSchema.name,
+                    schema: params.jsonSchema.schema,
+                    strict: false,
+                  },
+                }
+              : undefined,
+            stream: false,
+          },
+        })) as ChatResponse;
+      } catch (err) {
+        if (err instanceof Error && "statusCode" in err) {
+          const sdkErr = err as { statusCode: number; body?: string };
+          let detail = err.message;
+          if (sdkErr.body) {
+            try {
+              const parsed = JSON.parse(sdkErr.body);
+              const meta = parsed?.error?.metadata;
+              if (meta?.raw) {
+                // Upstream provider error is JSON-encoded in metadata.raw
+                try {
+                  const upstream = JSON.parse(meta.raw);
+                  const providerMsg = upstream?.error?.message ?? meta.raw;
+                  detail = `[${meta.provider_name ?? "provider"}] ${providerMsg}`;
+                } catch {
+                  detail = meta.raw;
+                }
+              } else {
+                detail = parsed?.error?.message ?? sdkErr.body;
               }
-            : undefined,
-          stream: false,
-        },
-      })) as ChatResponse;
+            } catch {
+              detail = sdkErr.body;
+            }
+          }
+          throw new Error(
+            `OpenRouter API error (HTTP ${sdkErr.statusCode}, model: ${params.model}): ${detail}`,
+          );
+        }
+        throw err;
+      }
 
       const content = response.choices[0]?.message?.content;
       if (typeof content !== "string") {

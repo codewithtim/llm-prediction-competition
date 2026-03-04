@@ -53,7 +53,9 @@ export const WEIGHT_JSON_SCHEMA = {
       signals: {
         type: "object",
         description: `Feature signal weights (0-1). Keys: ${FEATURE_NAMES.join(", ")}`,
-        additionalProperties: { type: "number" },
+        properties: Object.fromEntries(FEATURE_NAMES.map((name) => [name, { type: "number" }])),
+        required: FEATURE_NAMES,
+        additionalProperties: false,
       },
       drawBaseline: {
         type: "number",
