@@ -43,11 +43,13 @@ jobs:
           WALLET_ENCRYPTION_KEY: ${{ secrets.WALLET_ENCRYPTION_KEY }}
           BETTERSTACK_SOURCE_TOKEN: ${{ secrets.BETTERSTACK_SOURCE_TOKEN }}
           DOMAIN: ${{ secrets.DOMAIN }}
+          ORIGIN_CERT: ${{ secrets.ORIGIN_CERT }}
+          ORIGIN_KEY: ${{ secrets.ORIGIN_KEY }}
         with:
           host: ${{ secrets.DROPLET_HOST }}
           username: ${{ secrets.DROPLET_USER }}
           key: ${{ secrets.DROPLET_SSH_KEY }}
-          envs: OPENROUTER_API_KEY,API_SPORTS_KEY,TURSO_DATABASE_URL,TURSO_AUTH_TOKEN,WALLET_ENCRYPTION_KEY,BETTERSTACK_SOURCE_TOKEN,GHCR_TOKEN,DOMAIN
+          envs: OPENROUTER_API_KEY,API_SPORTS_KEY,TURSO_DATABASE_URL,TURSO_AUTH_TOKEN,WALLET_ENCRYPTION_KEY,BETTERSTACK_SOURCE_TOKEN,GHCR_TOKEN,DOMAIN,ORIGIN_CERT,ORIGIN_KEY
           script: |
             set -e
 
@@ -63,8 +65,19 @@ jobs:
               > /opt/llm-betting/.env
             chmod 600 /opt/llm-betting/.env
 
-            # Caddyfile for TLS reverse proxy
-            printf '%s\n' '{$DOMAIN} {' '  reverse_proxy llm-betting:3000' '}' > /opt/llm-betting/Caddyfile
+            # Write Cloudflare Origin Certificate
+            mkdir -p /opt/llm-betting/certs
+            printf '%s' "$ORIGIN_CERT" > /opt/llm-betting/certs/cert.pem
+            printf '%s' "$ORIGIN_KEY" > /opt/llm-betting/certs/key.pem
+            chmod 600 /opt/llm-betting/certs/key.pem
+
+            # Caddyfile using Origin Certificate (no ACME needed)
+            cat > /opt/llm-betting/Caddyfile <<'CADDYEOF'
+{$DOMAIN} {
+  tls /etc/caddy/certs/cert.pem /etc/caddy/certs/key.pem
+  reverse_proxy llm-betting:3000
+}
+CADDYEOF
 
             # Install Vector log shipper (idempotent — skips if already running)
             if [ -n "$BETTERSTACK_SOURCE_TOKEN" ] && ! systemctl is-active --quiet vector; then
@@ -102,5 +115,6 @@ jobs:
               -p 443:443 \
               -e DOMAIN=$DOMAIN \
               -v /opt/llm-betting/Caddyfile:/etc/caddy/Caddyfile \
+              -v /opt/llm-betting/certs:/etc/caddy/certs:ro \
               -v caddy_data:/data \
               caddy:2
