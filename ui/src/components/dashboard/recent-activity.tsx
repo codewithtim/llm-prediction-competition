@@ -50,6 +50,7 @@ export function RecentActivity({ bets }: { bets: BetSummary[] }) {
                       to="/bets/$id"
                       params={{ id: bet.id }}
                       className="text-zinc-100 hover:text-emerald-400 transition-colors"
+                      onClick={(e) => e.stopPropagation()}
                     >
                       {bet.marketQuestion}
                     </Link>

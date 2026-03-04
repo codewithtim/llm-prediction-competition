@@ -58,26 +58,23 @@ export function betsRoutes(deps: ApiDeps) {
       (p) => p.competitorId === bet.competitorId && p.side === bet.side,
     );
 
+    const lookups = {
+      competitorMap: new Map(competitor ? [[competitor.id, competitor.name]] : []),
+      marketById: new Map(market ? [[market.id, market]] : []),
+      predictionMap: new Map(
+        prediction
+          ? [
+              [
+                `${prediction.competitorId}:${prediction.marketId}:${prediction.side}`,
+                prediction.confidence,
+              ],
+            ]
+          : [],
+      ),
+    };
+
     return c.json({
-      id: bet.id,
-      competitorId: bet.competitorId,
-      competitorName: competitor?.name ?? "Unknown",
-      marketId: bet.marketId,
-      marketQuestion: market?.question ?? "Unknown",
-      polymarketUrl: market?.polymarketUrl ?? null,
-      fixtureId: bet.fixtureId,
-      side: bet.side,
-      amount: bet.amount,
-      price: bet.price,
-      shares: bet.shares,
-      status: bet.status,
-      placedAt: bet.placedAt?.toISOString() ?? "",
-      settledAt: bet.settledAt?.toISOString() ?? null,
-      profit: bet.profit,
-      confidence: prediction?.confidence ?? null,
-      errorMessage: bet.errorMessage ?? null,
-      errorCategory: bet.errorCategory ?? null,
-      attempts: bet.attempts ?? 0,
+      ...toBetSummary(bet, lookups),
       fixtureSummary: fixture ? `${fixture.homeTeamName} vs ${fixture.awayTeamName}` : null,
       fixtureDate: fixture?.date ?? null,
       fixtureStatus: fixture?.status ?? null,

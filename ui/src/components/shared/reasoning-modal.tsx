@@ -1,5 +1,6 @@
 import type { ReasoningDTO } from "@shared/api-types";
-import { Fragment, useState } from "react";
+import { useState } from "react";
+import { ReasoningSections } from "@/components/shared/reasoning-sections";
 import {
   Dialog,
   DialogContent,
@@ -8,7 +9,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Separator } from "@/components/ui/separator";
 
 export function ReasoningCell({
   reasoning,
@@ -38,29 +38,8 @@ export function ReasoningCell({
             {market && <DialogDescription className="text-zinc-400">{market}</DialogDescription>}
           </DialogHeader>
           <ScrollArea className="max-h-[60vh]">
-            <div className="space-y-4 pr-4">
-              {reasoning.sections.map((section, i) => (
-                <Fragment key={section.label}>
-                  {i > 0 && <Separator className="bg-zinc-800" />}
-                  <div>
-                    <h4 className="text-sm font-medium text-zinc-200 mb-1">{section.label}</h4>
-                    {section.data && Object.keys(section.data).length > 0 ? (
-                      <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-xs font-mono">
-                        {Object.entries(section.data).map(([k, v]) => (
-                          <Fragment key={k}>
-                            <span className="text-zinc-500">{k}</span>
-                            <span className="text-zinc-300">
-                              {typeof v === "number" ? v.toFixed(4) : String(v)}
-                            </span>
-                          </Fragment>
-                        ))}
-                      </div>
-                    ) : (
-                      <p className="text-sm text-zinc-400 leading-relaxed">{section.content}</p>
-                    )}
-                  </div>
-                </Fragment>
-              ))}
+            <div className="pr-4">
+              <ReasoningSections reasoning={reasoning} />
             </div>
           </ScrollArea>
         </DialogContent>
