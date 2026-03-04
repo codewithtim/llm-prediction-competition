@@ -45,15 +45,15 @@ jobs:
             set -e
 
             mkdir -p /opt/llm-betting
-            cat > /opt/llm-betting/.env <<EOF
-            OPENROUTER_API_KEY=$OPENROUTER_API_KEY
-            API_SPORTS_KEY=$API_SPORTS_KEY
-            TURSO_DATABASE_URL=$TURSO_DATABASE_URL
-            TURSO_AUTH_TOKEN=$TURSO_AUTH_TOKEN
-            WALLET_ENCRYPTION_KEY=$WALLET_ENCRYPTION_KEY
-            NODE_ENV=production
-            PORT=3000
-            EOF
+            printf '%s\n' \
+              "OPENROUTER_API_KEY=$OPENROUTER_API_KEY" \
+              "API_SPORTS_KEY=$API_SPORTS_KEY" \
+              "TURSO_DATABASE_URL=$TURSO_DATABASE_URL" \
+              "TURSO_AUTH_TOKEN=$TURSO_AUTH_TOKEN" \
+              "WALLET_ENCRYPTION_KEY=$WALLET_ENCRYPTION_KEY" \
+              "NODE_ENV=production" \
+              "PORT=3000" \
+              > /opt/llm-betting/.env
             chmod 600 /opt/llm-betting/.env
 
             # Install Vector log shipper (idempotent — skips if already running)
