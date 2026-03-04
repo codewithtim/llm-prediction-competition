@@ -199,4 +199,6 @@ const json = await res.json();
 API types are in `src/shared/api-types.ts` — imported by both routes and UI. Always use `satisfies` or explicit return typing to keep them in sync.
 
 
+**YOU MUST FOLLOW TDD AND RED GREEN REFACTOR**
 **YOU MUST RUN ALL TESTS AND LINTING etc BEFORE RESOLVING**
+**No N+1 queries** — never call a repository method inside a loop. Fetch data in bulk (using `inArray`, `findAll`, or a dedicated batch method), build a Map, then look up in memory. If a batch method doesn't exist, add one to the repo before using it in a loop.
