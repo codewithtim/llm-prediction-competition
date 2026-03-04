@@ -61,7 +61,7 @@ export const DEFAULT_CONFIG: PipelineConfig = {
     maxTotalExposure: 100,
     initialBankroll: 100,
     minBetAmount: 0.01,
-    dryRun: true,
+    dryRun: false,
   },
   orderConfirmation: {
     intervalMs: 5 * 60 * 1000, // 5 minutes
