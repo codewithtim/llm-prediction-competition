@@ -31,7 +31,13 @@ import {
 } from "../infrastructure/sports-data/mappers.ts";
 import { logger } from "../shared/logger.ts";
 import type { PipelineConfig } from "./config.ts";
-import { dbRowToFixture, dbRowToMarket } from "./converters.ts";
+import {
+  dbRowToFixture,
+  dbRowToMarket,
+  type FixtureRow,
+  type MarketRow,
+  marketToDbRow,
+} from "./converters.ts";
 
 export type PredictionPipelineDeps = {
   gammaClient: GammaClient;
@@ -99,27 +105,6 @@ export function summarisePlayerStats(
     }
   }
   return top;
-}
-
-function marketToDbRow(market: Market) {
-  return {
-    id: market.id,
-    conditionId: market.conditionId,
-    slug: market.slug,
-    question: market.question,
-    outcomes: market.outcomes,
-    outcomePrices: market.outcomePrices,
-    tokenIds: market.tokenIds,
-    active: market.active,
-    closed: market.closed,
-    acceptingOrders: market.acceptingOrders,
-    liquidity: market.liquidity,
-    volume: market.volume,
-    gameId: market.gameId,
-    sportsMarketType: market.sportsMarketType,
-    line: market.line,
-    polymarketUrl: market.polymarketUrl,
-  };
 }
 
 async function fetchTeamSeasonStats(
@@ -339,7 +324,7 @@ export function createPredictionPipeline(deps: PredictionPipelineDeps) {
               oldPrices: market.outcomePrices,
               newPrices: freshMarket.outcomePrices,
             });
-            await marketsRepo.upsert(marketToDbRow(freshMarket));
+            await marketsRepo.upsert(marketToDbRow(freshMarket, row.fixtureId));
             market = freshMarket;
             result.oddsRefreshed++;
           }

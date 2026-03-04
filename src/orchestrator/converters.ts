@@ -6,8 +6,8 @@ import type {
   markets as marketsTable,
 } from "../infrastructure/database/schema.ts";
 
-type FixtureRow = typeof fixturesTable.$inferSelect;
-type MarketRow = typeof marketsTable.$inferSelect;
+export type FixtureRow = typeof fixturesTable.$inferSelect;
+export type MarketRow = typeof marketsTable.$inferSelect;
 
 export function dbRowToFixture(row: FixtureRow): Fixture {
   return {

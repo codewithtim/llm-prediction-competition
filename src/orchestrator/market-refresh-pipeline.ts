@@ -49,8 +49,19 @@ export function createMarketRefreshPipeline(deps: MarketRefreshPipelineDeps) {
       result.eventsDiscovered = events.length;
       logger.info("MarketRefresh: events discovered", { count: events.length });
 
-      const fixtures =
-        dbFixtures.status === "fulfilled" ? dbFixtures.value.map(dbRowToFixture) : [];
+      let fixtures: ReturnType<typeof dbRowToFixture>[] = [];
+      if (dbFixtures.status === "fulfilled") {
+        fixtures = dbFixtures.value.map(dbRowToFixture);
+      } else {
+        const msg =
+          dbFixtures.reason instanceof Error
+            ? dbFixtures.reason.message
+            : String(dbFixtures.reason);
+        logger.warn("MarketRefresh: fixtures fetch failed, matching will be skipped", {
+          error: msg,
+        });
+        result.errors.push(`Fixtures fetch failed: ${msg}`);
+      }
 
       const matchResult = matchEventsToFixtures(events, fixtures);
       logger.info("MarketRefresh: matching complete", {
