@@ -3,7 +3,7 @@ import {
   DEFAULT_STAKE_CONFIG,
   DEFAULT_WEIGHTS,
 } from "../../../../src/competitors/weight-tuned/types";
-import { validateWeights } from "../../../../src/competitors/weight-tuned/validator";
+import { validateWeightOutput, validateWeights } from "../../../../src/competitors/weight-tuned/validator";
 import { validateStake } from "../../../../src/domain/services/stake-validator";
 
 describe("validateWeights", () => {
@@ -124,6 +124,70 @@ describe("validateWeights", () => {
   it("rejects edgeMultiplier out of range", () => {
     const weights = { ...DEFAULT_WEIGHTS, edgeMultiplier: 10 };
     const result = validateWeights(weights, DEFAULT_STAKE_CONFIG);
+    expect(result.valid).toBe(false);
+  });
+});
+
+describe("validateWeightOutput", () => {
+  const VALID_ENVELOPE = {
+    weights: DEFAULT_WEIGHTS,
+    changelog: [
+      { parameter: "signals.h2h", previous: 0.3, new: 0.1, reason: "H2H unreliable" },
+    ],
+    overallAssessment: "Reduced H2H weight due to poor correlation with wins.",
+  };
+
+  it("accepts valid envelope", () => {
+    const result = validateWeightOutput(VALID_ENVELOPE, DEFAULT_STAKE_CONFIG);
+    expect(result.valid).toBe(true);
+    if (result.valid) {
+      expect(result.weights).toEqual(DEFAULT_WEIGHTS);
+      expect(result.changelog).toHaveLength(1);
+      expect(result.changelog[0]?.parameter).toBe("signals.h2h");
+      expect(result.overallAssessment).toContain("Reduced H2H");
+    }
+  });
+
+  it("accepts envelope with empty changelog", () => {
+    const envelope = { ...VALID_ENVELOPE, changelog: [] };
+    const result = validateWeightOutput(envelope, DEFAULT_STAKE_CONFIG);
+    expect(result.valid).toBe(true);
+  });
+
+  it("rejects envelope with invalid weights", () => {
+    const envelope = {
+      ...VALID_ENVELOPE,
+      weights: { ...DEFAULT_WEIGHTS, drawBaseline: 0.8 },
+    };
+    const result = validateWeightOutput(envelope, DEFAULT_STAKE_CONFIG);
+    expect(result.valid).toBe(false);
+  });
+
+  it("rejects envelope with missing changelog", () => {
+    const envelope = { weights: DEFAULT_WEIGHTS, overallAssessment: "test" };
+    const result = validateWeightOutput(envelope, DEFAULT_STAKE_CONFIG);
+    expect(result.valid).toBe(false);
+    if (!result.valid) {
+      expect(result.error).toContain("Schema validation failed");
+    }
+  });
+
+  it("rejects envelope with missing overallAssessment", () => {
+    const envelope = { weights: DEFAULT_WEIGHTS, changelog: [] };
+    const result = validateWeightOutput(envelope, DEFAULT_STAKE_CONFIG);
+    expect(result.valid).toBe(false);
+    if (!result.valid) {
+      expect(result.error).toContain("Schema validation failed");
+    }
+  });
+
+  it("rejects non-object input", () => {
+    const result = validateWeightOutput("not an object", DEFAULT_STAKE_CONFIG);
+    expect(result.valid).toBe(false);
+  });
+
+  it("rejects null input", () => {
+    const result = validateWeightOutput(null, DEFAULT_STAKE_CONFIG);
     expect(result.valid).toBe(false);
   });
 });

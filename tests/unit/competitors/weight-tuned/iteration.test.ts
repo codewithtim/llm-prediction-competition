@@ -7,6 +7,11 @@ import { DEFAULT_STAKE_CONFIG } from "../../../../src/competitors/weight-tuned/t
 
 // ─── Helpers ────────────────────────────────────────────────────────────
 
+const VALID_CHANGELOG = [
+  { parameter: "signals.h2h", previous: 0.3, new: 0.1, reason: "H2H unreliable" },
+];
+const VALID_ASSESSMENT = "Reduced H2H weight due to poor correlation.";
+
 const VALID_WEIGHTS = {
   signals: {
     homeWinRate: 0.5,
@@ -66,13 +71,20 @@ const EMPTY_STATS = {
   roi: 0,
 };
 
+const VALID_ENVELOPE = {
+  weights: VALID_WEIGHTS,
+  changelog: VALID_CHANGELOG,
+  overallAssessment: VALID_ASSESSMENT,
+};
+
 function createMockDeps(overrides: Partial<WeightIterationDeps> = {}): WeightIterationDeps {
   const RAW_RESPONSE = JSON.stringify(VALID_WEIGHTS);
+  const RAW_ENVELOPE_RESPONSE = JSON.stringify(VALID_ENVELOPE);
 
   const generateWeightsFn = mock(() =>
     Promise.resolve({
       competitorId: "wt-test",
-      weights: VALID_WEIGHTS,
+      parsed: VALID_WEIGHTS,
       model: "openai/gpt-4o",
       rawResponse: RAW_RESPONSE,
     }),
@@ -81,9 +93,9 @@ function createMockDeps(overrides: Partial<WeightIterationDeps> = {}): WeightIte
   const generateWithFeedbackFn = mock(() =>
     Promise.resolve({
       competitorId: "wt-test",
-      weights: VALID_WEIGHTS,
+      parsed: VALID_ENVELOPE,
       model: "openai/gpt-4o",
-      rawResponse: RAW_RESPONSE,
+      rawResponse: RAW_ENVELOPE_RESPONSE,
     }),
   );
 
@@ -185,6 +197,17 @@ describe("createWeightIterationService", () => {
       const versionRecord = createCall?.[0] as Record<string, unknown>;
       expect(versionRecord?.rawLlmOutput).toBe(JSON.stringify(VALID_WEIGHTS));
     });
+
+    test("does not persist reasoning on cold start", async () => {
+      const deps = createMockDeps();
+      const service = createWeightIterationService(deps);
+
+      await service.iterateCompetitor("wt-test");
+
+      const createCall = (deps.versionsRepo.create as ReturnType<typeof mock>).mock.calls[0];
+      const versionRecord = createCall?.[0] as Record<string, unknown>;
+      expect(versionRecord?.reasoning).toBeNull();
+    });
   });
 
   describe("iteration (existing version)", () => {
@@ -202,6 +225,7 @@ describe("createWeightIterationService", () => {
               enginePath: "",
               model: "openai/gpt-4o",
               performanceSnapshot: null,
+              reasoning: null,
               generatedAt: new Date(),
             }),
           ),
@@ -231,6 +255,7 @@ describe("createWeightIterationService", () => {
               enginePath: "",
               model: "openai/gpt-4o",
               performanceSnapshot: null,
+              reasoning: null,
               generatedAt: new Date(),
             }),
           ),
@@ -322,6 +347,7 @@ describe("createWeightIterationService", () => {
               enginePath: "",
               model: "openai/gpt-4o",
               performanceSnapshot: null,
+              reasoning: null,
               generatedAt: new Date(),
             }),
           ),
@@ -336,6 +362,237 @@ describe("createWeightIterationService", () => {
       if (result.success) {
         expect(result.version).toBe(4);
       }
+    });
+
+    test("persists reasoning when feedback generation succeeds", async () => {
+      const deps = createMockDeps({
+        versionsRepo: {
+          create: mock(() => Promise.resolve()),
+          findByCompetitor: mock(() => Promise.resolve([])),
+          findLatest: mock(() =>
+            Promise.resolve({
+              id: 1,
+              competitorId: "wt-test",
+              version: 1,
+              code: JSON.stringify(VALID_WEIGHTS),
+              enginePath: "",
+              model: "openai/gpt-4o",
+              performanceSnapshot: null,
+              reasoning: null,
+              generatedAt: new Date(),
+            }),
+          ),
+          findByVersion: mock(() => Promise.resolve(undefined)),
+        } as unknown as WeightIterationDeps["versionsRepo"],
+      });
+      const service = createWeightIterationService(deps);
+
+      await service.iterateCompetitor("wt-test");
+
+      const createCall = (deps.versionsRepo.create as ReturnType<typeof mock>).mock.calls[0];
+      const versionRecord = createCall?.[0] as Record<string, unknown>;
+      const reasoning = versionRecord?.reasoning as {
+        changelog: unknown[];
+        overallAssessment: string;
+      };
+      expect(reasoning).toBeDefined();
+      expect(reasoning.changelog).toHaveLength(1);
+      expect(reasoning.overallAssessment).toBe(VALID_ASSESSMENT);
+    });
+
+    test("passes previous reasoning to feedback prompt", async () => {
+      const previousReasoning = {
+        changelog: VALID_CHANGELOG,
+        overallAssessment: VALID_ASSESSMENT,
+      };
+      const deps = createMockDeps({
+        versionsRepo: {
+          create: mock(() => Promise.resolve()),
+          findByCompetitor: mock(() => Promise.resolve([])),
+          findLatest: mock(() =>
+            Promise.resolve({
+              id: 1,
+              competitorId: "wt-test",
+              version: 1,
+              code: JSON.stringify(VALID_WEIGHTS),
+              enginePath: "",
+              model: "openai/gpt-4o",
+              performanceSnapshot: null,
+              reasoning: previousReasoning,
+              generatedAt: new Date(),
+            }),
+          ),
+          findByVersion: mock(() => Promise.resolve(undefined)),
+        } as unknown as WeightIterationDeps["versionsRepo"],
+      });
+      const service = createWeightIterationService(deps);
+
+      await service.iterateCompetitor("wt-test");
+
+      const call = (deps.generator.generateWithFeedback as ReturnType<typeof mock>).mock.calls[0];
+      const feedbackPrompt = (call?.[0] as { feedbackPrompt: string })?.feedbackPrompt;
+      expect(feedbackPrompt).toContain("Previous Assessment");
+      expect(feedbackPrompt).toContain(VALID_ASSESSMENT);
+    });
+  });
+
+  describe("round-level snapshots", () => {
+    test("computes round-level deltas in snapshot", async () => {
+      const prevSnapshot = {
+        totalBets: 10,
+        wins: 6,
+        losses: 4,
+        accuracy: 0.6,
+        roi: 0.1,
+        profitLoss: 5.0,
+        lockedAmount: 0,
+        totalStaked: 50,
+        totalReturned: 55,
+      };
+      const deps = createMockDeps({
+        versionsRepo: {
+          create: mock(() => Promise.resolve()),
+          findByCompetitor: mock(() => Promise.resolve([])),
+          findLatest: mock(() =>
+            Promise.resolve({
+              id: 1,
+              competitorId: "wt-test",
+              version: 1,
+              code: JSON.stringify(VALID_WEIGHTS),
+              enginePath: "",
+              model: "openai/gpt-4o",
+              performanceSnapshot: prevSnapshot,
+              reasoning: null,
+              generatedAt: new Date("2026-03-01"),
+            }),
+          ),
+          findByVersion: mock(() => Promise.resolve(undefined)),
+        } as unknown as WeightIterationDeps["versionsRepo"],
+        betsRepo: {
+          create: mock(() => Promise.resolve()),
+          findById: mock(() => Promise.resolve(undefined)),
+          findByCompetitor: mock(() => Promise.resolve([])),
+          findByStatus: mock(() => Promise.resolve([])),
+          updateStatus: mock(() => Promise.resolve()),
+          getPerformanceStats: mock(() =>
+            Promise.resolve({
+              ...EMPTY_STATS,
+              totalBets: 15,
+              wins: 9,
+              losses: 6,
+              profitLoss: 8.0,
+              totalStaked: 75,
+              totalReturned: 83,
+              accuracy: 0.6,
+              roi: 0.107,
+            }),
+          ),
+          getAllPerformanceStats: mock(() => Promise.resolve(new Map())),
+        } as unknown as WeightIterationDeps["betsRepo"],
+      });
+      const service = createWeightIterationService(deps);
+
+      await service.iterateCompetitor("wt-test");
+
+      const createCall = (deps.versionsRepo.create as ReturnType<typeof mock>).mock.calls[0];
+      const versionRecord = createCall?.[0] as Record<string, unknown>;
+      const snap = versionRecord?.performanceSnapshot as Record<string, unknown>;
+      expect(snap.roundWins).toBe(3);
+      expect(snap.roundLosses).toBe(2);
+      expect(snap.roundPnl).toBe(3.0);
+    });
+
+    test("computes signal correlations from outcomes", async () => {
+      const deps = createMockDeps({
+        versionsRepo: {
+          create: mock(() => Promise.resolve()),
+          findByCompetitor: mock(() => Promise.resolve([])),
+          findLatest: mock(() =>
+            Promise.resolve({
+              id: 1,
+              competitorId: "wt-test",
+              version: 1,
+              code: JSON.stringify(VALID_WEIGHTS),
+              enginePath: "",
+              model: "openai/gpt-4o",
+              performanceSnapshot: null,
+              reasoning: null,
+              generatedAt: new Date(),
+            }),
+          ),
+          findByVersion: mock(() => Promise.resolve(undefined)),
+        } as unknown as WeightIterationDeps["versionsRepo"],
+        predictionsRepo: {
+          create: mock(() => Promise.resolve()),
+          findByCompetitor: mock(() =>
+            Promise.resolve([
+              {
+                id: 1,
+                marketId: "m1",
+                fixtureId: 100,
+                competitorId: "wt-test",
+                side: "YES" as const,
+                confidence: 0.72,
+                stake: 3.0,
+                reasoning: { summary: "test", sections: [{ label: "x", content: "y" }] },
+                extractedFeatures: { homeWinRate: 0.9, formDiff: 0.6 },
+                createdAt: new Date(),
+              },
+            ]),
+          ),
+          findByMarket: mock(() => Promise.resolve([])),
+          findByFixtureAndCompetitor: mock(() => Promise.resolve([])),
+        } as unknown as WeightIterationDeps["predictionsRepo"],
+        betsRepo: {
+          create: mock(() => Promise.resolve()),
+          findById: mock(() => Promise.resolve(undefined)),
+          findByCompetitor: mock(() =>
+            Promise.resolve([
+              {
+                id: "b1",
+                marketId: "m1",
+                fixtureId: 100,
+                competitorId: "wt-test",
+                tokenId: "t1",
+                side: "YES" as const,
+                amount: 3.0,
+                price: 0.65,
+                shares: 4.6,
+                status: "settled_won" as const,
+                placedAt: new Date(),
+                settledAt: new Date(),
+                profit: 1.6,
+                errorMessage: null,
+                errorCategory: null,
+                attempts: 1,
+                lastAttemptAt: null,
+                orderId: null,
+              },
+            ]),
+          ),
+          findByStatus: mock(() => Promise.resolve([])),
+          updateStatus: mock(() => Promise.resolve()),
+          getPerformanceStats: mock(() =>
+            Promise.resolve({ ...EMPTY_STATS, totalBets: 1, wins: 1, profitLoss: 1.6 }),
+          ),
+          getAllPerformanceStats: mock(() => Promise.resolve(new Map())),
+        } as unknown as WeightIterationDeps["betsRepo"],
+        marketsRepo: {
+          findById: mock(() => Promise.resolve({ id: "m1", question: "Will Arsenal win?" })),
+          findByIds: mock(() =>
+            Promise.resolve([{ id: "m1", question: "Will Arsenal win?" }]),
+          ),
+        } as unknown as WeightIterationDeps["marketsRepo"],
+      });
+      const service = createWeightIterationService(deps);
+
+      await service.iterateCompetitor("wt-test");
+
+      const createCall = (deps.versionsRepo.create as ReturnType<typeof mock>).mock.calls[0];
+      const versionRecord = createCall?.[0] as Record<string, unknown>;
+      const snap = versionRecord?.performanceSnapshot as Record<string, unknown>;
+      expect(snap.winningSignals).toBeDefined();
+      expect(Array.isArray(snap.winningSignals)).toBe(true);
     });
   });
 

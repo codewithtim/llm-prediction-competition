@@ -1,9 +1,13 @@
 import { describe, expect, test } from "bun:test";
 import {
   buildWeightFeedbackPrompt,
+  computeSignalCorrelations,
   formatOutcomeFeatures,
+  formatPerformanceHistory,
   type LeaderboardEntry,
+  type PerformanceRound,
   type PredictionOutcome,
+  type WeightFeedbackInput,
 } from "../../../../src/competitors/weight-tuned/feedback";
 import { DEFAULT_WEIGHTS, type WeightConfig } from "../../../../src/competitors/weight-tuned/types";
 
@@ -15,8 +19,11 @@ function makeInput(
     losses?: number;
     recentOutcomes?: PredictionOutcome[];
     leaderboard?: LeaderboardEntry[];
+    performanceHistory?: PerformanceRound[];
+    signalCorrelations?: { winningSignals: string[]; losingSignals: string[] };
+    previousReasoning?: WeightFeedbackInput["previousReasoning"];
   } = {},
-) {
+): WeightFeedbackInput {
   return {
     currentWeights: overrides.currentWeights ?? DEFAULT_WEIGHTS,
     performance: {
@@ -32,6 +39,12 @@ function makeInput(
     },
     recentOutcomes: overrides.recentOutcomes ?? [],
     leaderboard: overrides.leaderboard ?? [],
+    performanceHistory: overrides.performanceHistory ?? [],
+    signalCorrelations: overrides.signalCorrelations ?? {
+      winningSignals: [],
+      losingSignals: [],
+    },
+    previousReasoning: overrides.previousReasoning,
   };
 }
 
@@ -141,10 +154,8 @@ describe("buildWeightFeedbackPrompt", () => {
     ];
     const prompt = buildWeightFeedbackPrompt(makeInput({ recentOutcomes: outcomes }));
 
-    // Settled outcome (won) should show features
     expect(prompt).toContain("Features:");
     expect(prompt).toContain("homeWinRate=90%");
-    // Pending outcome should NOT show features
     const pendingIdx = prompt.indexOf("Will Chelsea win?");
     const afterPending = prompt.slice(pendingIdx);
     expect(afterPending).not.toContain("Features:");
@@ -181,6 +192,102 @@ describe("buildWeightFeedbackPrompt", () => {
 
     expect(prompt).toContain("Feature values that correlated with wins vs losses");
   });
+
+  test("includes performance history section", () => {
+    const history: PerformanceRound[] = [
+      {
+        version: 1,
+        dateFrom: "2026-02-20",
+        dateTo: "2026-02-25",
+        betsSettled: 8,
+        wins: 5,
+        losses: 3,
+        pnl: 2.5,
+        avgEdge: 0.08,
+        winningSignals: ["formDiff", "homeWinRate"],
+        losingSignals: ["h2h"],
+      },
+      {
+        version: 2,
+        dateFrom: "2026-02-25",
+        dateTo: "2026-03-01",
+        betsSettled: 12,
+        wins: 7,
+        losses: 5,
+        pnl: 1.8,
+        avgEdge: 0.06,
+        winningSignals: ["homeWinRate"],
+        losingSignals: ["formDiff", "h2h"],
+      },
+    ];
+    const prompt = buildWeightFeedbackPrompt(makeInput({ performanceHistory: history }));
+
+    expect(prompt).toContain("## Performance History");
+    expect(prompt).toContain("Round 1");
+    expect(prompt).toContain("2026-02-20");
+    expect(prompt).toContain("8 bets settled");
+    expect(prompt).toContain("5W / 3L");
+    expect(prompt).toContain("Round 2");
+    expect(prompt).toContain("12 bets settled");
+  });
+
+  test("includes Rules section", () => {
+    const prompt = buildWeightFeedbackPrompt(makeInput());
+
+    expect(prompt).toContain("## Rules");
+    expect(prompt).toContain("Do NOT overreact to a single bad matchday");
+    expect(prompt).toContain("Small incremental adjustments");
+    expect(prompt).toContain("fewer than 10 settled bets");
+  });
+
+  test("includes signal correlations in instructions", () => {
+    const prompt = buildWeightFeedbackPrompt(
+      makeInput({
+        signalCorrelations: {
+          winningSignals: ["formDiff", "homeWinRate"],
+          losingSignals: ["h2h"],
+        },
+      }),
+    );
+
+    expect(prompt).toContain("wins driven by: formDiff, homeWinRate");
+    expect(prompt).toContain("losses driven by: h2h");
+  });
+
+  test("shows no performance history when empty", () => {
+    const prompt = buildWeightFeedbackPrompt(makeInput({ performanceHistory: [] }));
+
+    expect(prompt).toContain("No performance history yet.");
+  });
+
+  test("includes previous reasoning when provided", () => {
+    const prompt = buildWeightFeedbackPrompt(
+      makeInput({
+        previousReasoning: {
+          changelog: [
+            { parameter: "signals.h2h", previous: 0.3, new: 0.1, reason: "H2H was unreliable" },
+            { parameter: "minEdge", previous: 0.05, new: 0.08, reason: "Be more selective" },
+          ],
+          overallAssessment: "Shifted focus away from H2H signal and increased selectivity.",
+        },
+      }),
+    );
+
+    expect(prompt).toContain("## Previous Assessment");
+    expect(prompt).toContain("Shifted focus away from H2H signal and increased selectivity.");
+    expect(prompt).toContain("signals.h2h");
+    expect(prompt).toContain("0.3 → 0.1");
+    expect(prompt).toContain("H2H was unreliable");
+    expect(prompt).toContain("minEdge");
+    expect(prompt).toContain("Be more selective");
+  });
+
+  test("omits previous reasoning when not provided", () => {
+    const prompt = buildWeightFeedbackPrompt(makeInput());
+
+    expect(prompt).not.toContain("## Previous Assessment");
+    expect(prompt).not.toContain("Changes Made Last Round");
+  });
 });
 
 describe("formatOutcomeFeatures", () => {
@@ -204,5 +311,151 @@ describe("formatOutcomeFeatures", () => {
     const result = formatOutcomeFeatures(features, weights);
 
     expect(result).toBe("");
+  });
+});
+
+describe("computeSignalCorrelations", () => {
+  test("returns top signals for wins and losses", () => {
+    const outcomes: PredictionOutcome[] = [
+      {
+        marketQuestion: "Q1",
+        side: "YES",
+        confidence: 0.7,
+        stake: 2,
+        result: "won",
+        profit: 1,
+        extractedFeatures: { formDiff: 0.9, homeWinRate: 0.8, h2h: 0.3 },
+      },
+      {
+        marketQuestion: "Q2",
+        side: "YES",
+        confidence: 0.6,
+        stake: 2,
+        result: "won",
+        profit: 1,
+        extractedFeatures: { formDiff: 0.85, homeWinRate: 0.75, h2h: 0.2 },
+      },
+      {
+        marketQuestion: "Q3",
+        side: "NO",
+        confidence: 0.6,
+        stake: 2,
+        result: "lost",
+        profit: -2,
+        extractedFeatures: { formDiff: 0.3, homeWinRate: 0.4, h2h: 0.8 },
+      },
+    ];
+    const weights = { formDiff: 0.3, homeWinRate: 0.4, h2h: 0.3 };
+
+    const result = computeSignalCorrelations(outcomes, weights);
+
+    expect(result.winningSignals[0]).toBe("homeWinRate");
+    expect(result.winningSignals).toContain("formDiff");
+    expect(result.losingSignals).toContain("h2h");
+  });
+
+  test("handles no settled bets", () => {
+    const outcomes: PredictionOutcome[] = [
+      {
+        marketQuestion: "Q1",
+        side: "YES",
+        confidence: 0.7,
+        stake: 2,
+        result: "pending",
+        profit: null,
+        extractedFeatures: { formDiff: 0.9 },
+      },
+    ];
+
+    const result = computeSignalCorrelations(outcomes, { formDiff: 0.3 });
+
+    expect(result.winningSignals).toEqual([]);
+    expect(result.losingSignals).toEqual([]);
+  });
+
+  test("excludes zero-weight signals", () => {
+    const outcomes: PredictionOutcome[] = [
+      {
+        marketQuestion: "Q1",
+        side: "YES",
+        confidence: 0.7,
+        stake: 2,
+        result: "won",
+        profit: 1,
+        extractedFeatures: { formDiff: 0.9, h2h: 0.95 },
+      },
+    ];
+    const weights = { formDiff: 0.5, h2h: 0 };
+
+    const result = computeSignalCorrelations(outcomes, weights);
+
+    expect(result.winningSignals).toContain("formDiff");
+    expect(result.winningSignals).not.toContain("h2h");
+  });
+});
+
+describe("formatPerformanceHistory", () => {
+  test("formats rounds chronologically", () => {
+    const rounds: PerformanceRound[] = [
+      {
+        version: 1,
+        dateFrom: "2026-02-20",
+        dateTo: "2026-02-25",
+        betsSettled: 5,
+        wins: 3,
+        losses: 2,
+        pnl: 1.5,
+        avgEdge: 0.07,
+        winningSignals: ["formDiff"],
+        losingSignals: ["h2h"],
+      },
+      {
+        version: 2,
+        dateFrom: "2026-02-25",
+        dateTo: "2026-03-01",
+        betsSettled: 8,
+        wins: 5,
+        losses: 3,
+        pnl: 2.0,
+        avgEdge: 0.09,
+        winningSignals: ["homeWinRate", "formDiff"],
+        losingSignals: [],
+      },
+      {
+        version: 3,
+        dateFrom: "2026-03-01",
+        dateTo: "2026-03-04",
+        betsSettled: 3,
+        wins: 1,
+        losses: 2,
+        pnl: -0.8,
+        avgEdge: 0.04,
+        winningSignals: [],
+        losingSignals: ["homeWinRate"],
+      },
+    ];
+
+    const result = formatPerformanceHistory(rounds);
+
+    expect(result).toContain("Round 1");
+    expect(result).toContain("Round 2");
+    expect(result).toContain("Round 3");
+    expect(result).toContain("5 bets settled");
+    expect(result).toContain("3W / 2L");
+    expect(result).toContain("2026-02-20");
+    expect(result).toContain("2026-02-25");
+    expect(result).toContain("insufficient data");
+
+    const round1Pos = result.indexOf("Round 1");
+    const round2Pos = result.indexOf("Round 2");
+    const round3Pos = result.indexOf("Round 3");
+    expect(round1Pos).toBeLessThan(round2Pos);
+    expect(round2Pos).toBeLessThan(round3Pos);
+  });
+
+  test("returns message for empty history", () => {
+    const result = formatPerformanceHistory([]);
+
+    expect(result).toBe("No performance history yet.");
   });
 });

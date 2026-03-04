@@ -1,10 +1,10 @@
 import type { OpenRouterClient } from "../../infrastructure/openrouter/client";
 import { FEATURE_REGISTRY } from "./features";
-import { WEIGHT_JSON_SCHEMA } from "./types";
+import { WEIGHT_JSON_SCHEMA, WEIGHT_OUTPUT_JSON_SCHEMA } from "./types";
 
 export type GeneratedWeights = {
   competitorId: string;
-  weights: unknown;
+  parsed: unknown;
   model: string;
   rawResponse: string;
 };
@@ -25,7 +25,7 @@ function buildFeatureDescriptions(): string {
     .join("\n");
 }
 
-export const WEIGHT_SYSTEM_PROMPT = `You are a football betting strategist tuning a prediction engine via weight configuration.
+export const WEIGHT_SYSTEM_PROMPT = `You are optimizing a weight configuration for a football prediction engine. You never see individual matches — only aggregate results from how your weights performed.
 
 ## How The Engine Works
 
@@ -35,13 +35,16 @@ The engine computes a home-strength score as a weighted average of feature signa
 
 ${buildFeatureDescriptions()}
 
-## Required Output JSON Schema
+## Output Format
 
-You MUST respond with ONLY a valid JSON object matching this exact schema — no markdown, no code fences, no explanation:
+When given performance feedback, respond with a JSON object containing:
+1. **weights**: Your updated weight configuration
+2. **changelog**: An array of changes you made, each with the parameter path, previous value, new value, and your reasoning
+3. **overallAssessment**: A 2-4 sentence strategic summary of your analysis
 
-\`\`\`json
-${JSON.stringify(WEIGHT_JSON_SCHEMA.schema, null, 2)}
-\`\`\`
+When generating an initial configuration (no feedback), respond with just the weight configuration directly.
+
+You MUST respond with ONLY valid JSON — no markdown, no code fences, no explanation.
 
 ## Strategy Guidance
 
@@ -55,7 +58,7 @@ ${JSON.stringify(WEIGHT_JSON_SCHEMA.schema, null, 2)}
 - confidenceThreshold prevents large bets on uncertain predictions
 - Use a mix of signals for robustness; don't rely on just one
 
-Generate a weight configuration that you believe will perform well for football match prediction.`;
+Generate an improved weight configuration based on the performance data provided.`;
 
 export function createWeightGenerator(deps: { client: OpenRouterClient }) {
   const { client } = deps;
@@ -74,11 +77,11 @@ export function createWeightGenerator(deps: { client: OpenRouterClient }) {
         temperature: 0.8,
       });
 
-      const weights: unknown = JSON.parse(stripMarkdownFences(response));
+      const parsed: unknown = JSON.parse(stripMarkdownFences(response));
 
       return {
         competitorId: params.competitorId,
-        weights,
+        parsed,
         model: params.model,
         rawResponse: response,
       };
@@ -93,15 +96,15 @@ export function createWeightGenerator(deps: { client: OpenRouterClient }) {
         model: params.model,
         systemPrompt: WEIGHT_SYSTEM_PROMPT,
         userPrompt: params.feedbackPrompt,
-        jsonSchema: WEIGHT_JSON_SCHEMA,
+        jsonSchema: WEIGHT_OUTPUT_JSON_SCHEMA,
         temperature: 0.8,
       });
 
-      const weights: unknown = JSON.parse(stripMarkdownFences(response));
+      const parsed: unknown = JSON.parse(stripMarkdownFences(response));
 
       return {
         competitorId: params.competitorId,
-        weights,
+        parsed,
         model: params.model,
         rawResponse: response,
       };

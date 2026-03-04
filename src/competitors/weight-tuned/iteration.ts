@@ -7,12 +7,20 @@ import type { predictionsRepo } from "../../infrastructure/database/repositories
 import type { CompetitorRegistry } from "../registry";
 import {
   buildWeightFeedbackPrompt,
+  computeSignalCorrelations,
   type LeaderboardEntry,
+  type PerformanceRound,
   type PredictionOutcome,
 } from "./feedback";
 import type { createWeightGenerator } from "./generator";
-import { DEFAULT_WEIGHTS, type StakeConfig, type WeightConfig, weightConfigSchema } from "./types";
-import { validateWeights } from "./validator";
+import {
+  type ChangelogEntry,
+  DEFAULT_WEIGHTS,
+  type StakeConfig,
+  type WeightConfig,
+  weightConfigSchema,
+} from "./types";
+import { validateWeightOutput, validateWeights } from "./validator";
 
 const ITERABLE_STATUSES: CompetitorStatus[] = ["active", "pending"];
 
@@ -106,6 +114,35 @@ export function createWeightIterationService(deps: WeightIterationDeps) {
     return outcomes;
   }
 
+  async function buildPerformanceHistory(competitorId: string): Promise<PerformanceRound[]> {
+    const allVersions = await versions.findByCompetitor(competitorId);
+    const recent = allVersions.slice(0, 11);
+    const rounds: PerformanceRound[] = [];
+
+    for (let i = 0; i < recent.length - 1; i++) {
+      const v = recent[i];
+      const prev = recent[i + 1];
+      if (!v || !prev) continue;
+      const snap = v.performanceSnapshot;
+      if (!snap || snap.roundWins === undefined) continue;
+
+      rounds.push({
+        version: v.version,
+        dateFrom: prev.generatedAt.toISOString().split("T")[0] ?? "",
+        dateTo: v.generatedAt.toISOString().split("T")[0] ?? "",
+        betsSettled: (snap.roundWins ?? 0) + (snap.roundLosses ?? 0),
+        wins: snap.roundWins ?? 0,
+        losses: snap.roundLosses ?? 0,
+        pnl: snap.roundPnl ?? 0,
+        avgEdge: snap.avgEdgeAtBet ?? 0,
+        winningSignals: snap.winningSignals ?? [],
+        losingSignals: snap.losingSignals ?? [],
+      });
+    }
+
+    return rounds.reverse();
+  }
+
   function parseCurrentWeights(code: string | null | undefined): WeightConfig {
     if (!code) return DEFAULT_WEIGHTS;
     try {
@@ -141,13 +178,34 @@ export function createWeightIterationService(deps: WeightIterationDeps) {
       const recentOutcomes = await buildRecentOutcomes(competitorId);
       const leaderboard = precomputedLeaderboard ?? (await buildLeaderboard());
 
+      const signalCorrelations = computeSignalCorrelations(recentOutcomes, currentWeights.signals);
+      const performanceHistory = await buildPerformanceHistory(competitorId);
+
       let generated: Awaited<ReturnType<typeof generator.generateWeights>>;
+      let validatedWeights: WeightConfig;
+      let reasoning: { changelog: ChangelogEntry[]; overallAssessment: string } | undefined;
+
       if (!latestVersion) {
         generated = await generator.generateWeights({
           model: competitor.model,
           competitorId,
         });
+
+        const validation = validateWeights(generated.parsed, stakeConfig);
+        if (!validation.valid) {
+          console.error(`[${competitorId}] Raw LLM output:\n${generated.rawResponse}`);
+          return { success: false, competitorId, error: `Validation failed: ${validation.error}` };
+        }
+        validatedWeights = validation.weights;
       } else {
+        const previousReasoning = latestVersion.reasoning as
+          | {
+              changelog: ChangelogEntry[];
+              overallAssessment: string;
+            }
+          | null
+          | undefined;
+
         const feedbackPrompt = buildWeightFeedbackPrompt({
           currentWeights,
           performance: {
@@ -163,6 +221,9 @@ export function createWeightIterationService(deps: WeightIterationDeps) {
           },
           recentOutcomes,
           leaderboard,
+          performanceHistory,
+          signalCorrelations,
+          previousReasoning: previousReasoning ?? undefined,
         });
 
         generated = await generator.generateWithFeedback({
@@ -170,20 +231,32 @@ export function createWeightIterationService(deps: WeightIterationDeps) {
           competitorId,
           feedbackPrompt,
         });
-      }
 
-      const validation = validateWeights(generated.weights, stakeConfig);
-      if (!validation.valid) {
-        console.error(`[${competitorId}] Raw LLM output:\n${generated.rawResponse}`);
-        return { success: false, competitorId, error: `Validation failed: ${validation.error}` };
+        const validation = validateWeightOutput(generated.parsed, stakeConfig);
+        if (!validation.valid) {
+          console.error(`[${competitorId}] Raw LLM output:\n${generated.rawResponse}`);
+          return { success: false, competitorId, error: `Validation failed: ${validation.error}` };
+        }
+        validatedWeights = validation.weights;
+        reasoning = {
+          changelog: validation.changelog,
+          overallAssessment: validation.overallAssessment,
+        };
       }
 
       const nextVersion = latestVersion ? latestVersion.version + 1 : 1;
 
+      const prevSnapshot = latestVersion?.performanceSnapshot;
+      const roundWins = prevSnapshot ? stats.wins - (prevSnapshot.wins ?? 0) : stats.wins;
+      const roundLosses = prevSnapshot ? stats.losses - (prevSnapshot.losses ?? 0) : stats.losses;
+      const roundPnl = prevSnapshot
+        ? stats.profitLoss - (prevSnapshot.profitLoss ?? 0)
+        : stats.profitLoss;
+
       await versions.create({
         competitorId,
         version: nextVersion,
-        code: JSON.stringify(generated.weights),
+        code: JSON.stringify(validatedWeights),
         rawLlmOutput: generated.rawResponse,
         enginePath: "",
         model: competitor.model,
@@ -199,8 +272,14 @@ export function createWeightIterationService(deps: WeightIterationDeps) {
                 lockedAmount: stats.lockedAmount,
                 totalStaked: stats.totalStaked,
                 totalReturned: stats.totalReturned,
+                roundWins,
+                roundLosses,
+                roundPnl,
+                winningSignals: signalCorrelations.winningSignals,
+                losingSignals: signalCorrelations.losingSignals,
               }
             : null,
+        reasoning: reasoning ?? null,
       });
 
       // Re-register with new weights — the loader will pick these up
@@ -209,7 +288,7 @@ export function createWeightIterationService(deps: WeightIterationDeps) {
       registry.register(
         competitorId,
         competitor.name,
-        createWeightedEngine(validation.weights, stakeConfig),
+        createWeightedEngine(validatedWeights, stakeConfig),
       );
 
       return { success: true, competitorId, version: nextVersion };

@@ -7,6 +7,12 @@ import {
 import { DEFAULT_WEIGHTS } from "../../../../src/competitors/weight-tuned/types";
 
 const VALID_JSON = JSON.stringify(DEFAULT_WEIGHTS);
+const VALID_ENVELOPE = {
+  weights: DEFAULT_WEIGHTS,
+  changelog: [{ parameter: "signals.h2h", previous: 0.3, new: 0.1, reason: "test" }],
+  overallAssessment: "Test assessment",
+};
+const VALID_ENVELOPE_JSON = JSON.stringify(VALID_ENVELOPE);
 
 describe("stripMarkdownFences", () => {
   test("returns raw JSON unchanged", () => {
@@ -36,20 +42,18 @@ describe("stripMarkdownFences", () => {
 });
 
 describe("WEIGHT_SYSTEM_PROMPT", () => {
-  test("includes JSON schema for expected output format", () => {
-    expect(WEIGHT_SYSTEM_PROMPT).toContain('"type": "object"');
-    expect(WEIGHT_SYSTEM_PROMPT).toContain('"signals"');
-    expect(WEIGHT_SYSTEM_PROMPT).toContain('"required"');
+  test("describes output format for feedback and initial generation", () => {
+    expect(WEIGHT_SYSTEM_PROMPT).toContain("changelog");
+    expect(WEIGHT_SYSTEM_PROMPT).toContain("overallAssessment");
+    expect(WEIGHT_SYSTEM_PROMPT).toContain("weights");
   });
 
-  test("includes all required weight config fields in schema", () => {
-    expect(WEIGHT_SYSTEM_PROMPT).toContain('"drawBaseline"');
-    expect(WEIGHT_SYSTEM_PROMPT).toContain('"drawPeak"');
-    expect(WEIGHT_SYSTEM_PROMPT).toContain('"drawWidth"');
-    expect(WEIGHT_SYSTEM_PROMPT).toContain('"confidenceThreshold"');
-    expect(WEIGHT_SYSTEM_PROMPT).toContain('"stakingAggression"');
-    expect(WEIGHT_SYSTEM_PROMPT).toContain('"edgeMultiplier"');
-    expect(WEIGHT_SYSTEM_PROMPT).toContain('"kellyFraction"');
+  test("includes strategy guidance", () => {
+    expect(WEIGHT_SYSTEM_PROMPT).toContain("Strategy Guidance");
+    expect(WEIGHT_SYSTEM_PROMPT).toContain("drawBaseline");
+    expect(WEIGHT_SYSTEM_PROMPT).toContain("stakingAggression");
+    expect(WEIGHT_SYSTEM_PROMPT).toContain("edgeMultiplier");
+    expect(WEIGHT_SYSTEM_PROMPT).toContain("confidenceThreshold");
   });
 });
 
@@ -65,7 +69,7 @@ describe("createWeightGenerator", () => {
       competitorId: "wt-test",
     });
 
-    expect(result.weights).toEqual(DEFAULT_WEIGHTS);
+    expect(result.parsed).toEqual(DEFAULT_WEIGHTS);
     expect(result.competitorId).toBe("wt-test");
     expect(result.model).toBe("test-model");
     expect(result.rawResponse).toBe(VALID_JSON);
@@ -83,13 +87,13 @@ describe("createWeightGenerator", () => {
       competitorId: "wt-test",
     });
 
-    expect(result.weights).toEqual(DEFAULT_WEIGHTS);
+    expect(result.parsed).toEqual(DEFAULT_WEIGHTS);
     expect(result.rawResponse).toBe(wrappedResponse);
   });
 
-  test("generateWithFeedback parses valid JSON response", async () => {
+  test("generateWithFeedback parses valid envelope JSON response", async () => {
     const mockClient = {
-      chat: mock(() => Promise.resolve(VALID_JSON)),
+      chat: mock(() => Promise.resolve(VALID_ENVELOPE_JSON)),
     };
     const generator = createWeightGenerator({ client: mockClient });
 
@@ -99,11 +103,11 @@ describe("createWeightGenerator", () => {
       feedbackPrompt: "improve weights",
     });
 
-    expect(result.weights).toEqual(DEFAULT_WEIGHTS);
+    expect(result.parsed).toEqual(VALID_ENVELOPE);
   });
 
   test("generateWithFeedback handles markdown-wrapped JSON", async () => {
-    const wrappedResponse = `\`\`\`json\n${VALID_JSON}\n\`\`\``;
+    const wrappedResponse = `\`\`\`json\n${VALID_ENVELOPE_JSON}\n\`\`\``;
     const mockClient = {
       chat: mock(() => Promise.resolve(wrappedResponse)),
     };
@@ -115,7 +119,7 @@ describe("createWeightGenerator", () => {
       feedbackPrompt: "improve weights",
     });
 
-    expect(result.weights).toEqual(DEFAULT_WEIGHTS);
+    expect(result.parsed).toEqual(VALID_ENVELOPE);
   });
 
   test("throws on completely invalid response", async () => {

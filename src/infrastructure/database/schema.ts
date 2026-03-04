@@ -1,4 +1,5 @@
 import { integer, real, sqliteTable, text } from "drizzle-orm/sqlite-core";
+import type { ChangelogEntry } from "../../competitors/weight-tuned/types.ts";
 import type { Reasoning } from "../../domain/contracts/prediction.ts";
 import type { PlayerSeasonStats, TeamSeasonStats } from "../../domain/contracts/statistics.ts";
 
@@ -78,6 +79,12 @@ export type PerformanceSnapshot = {
   lockedAmount: number;
   totalStaked: number;
   totalReturned: number;
+  roundWins?: number;
+  roundLosses?: number;
+  roundPnl?: number;
+  avgEdgeAtBet?: number;
+  winningSignals?: string[];
+  losingSignals?: string[];
 };
 
 export const competitorVersions = sqliteTable("competitor_versions", {
@@ -91,6 +98,10 @@ export const competitorVersions = sqliteTable("competitor_versions", {
   enginePath: text("engine_path").notNull(),
   model: text("model").notNull(),
   performanceSnapshot: text("performance_snapshot", { mode: "json" }).$type<PerformanceSnapshot>(),
+  reasoning: text("reasoning", { mode: "json" }).$type<{
+    changelog: ChangelogEntry[];
+    overallAssessment: string;
+  }>(),
   generatedAt: integer("generated_at", { mode: "timestamp" })
     .notNull()
     .$defaultFn(() => new Date()),

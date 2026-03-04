@@ -1,4 +1,4 @@
-import type { WeightConfig } from "./types";
+import type { ChangelogEntry, WeightConfig } from "./types";
 
 export type PredictionOutcome = {
   marketQuestion: string;
@@ -29,12 +29,30 @@ export type PerformanceStats = {
   totalReturned: number;
 };
 
-type FeedbackPromptInput = {
-  currentConfig: string;
+export type PerformanceRound = {
+  version: number;
+  dateFrom: string;
+  dateTo: string;
+  betsSettled: number;
+  wins: number;
+  losses: number;
+  pnl: number;
+  avgEdge: number;
+  winningSignals: string[];
+  losingSignals: string[];
+};
+
+export type WeightFeedbackInput = {
+  currentWeights: WeightConfig;
   performance: PerformanceStats;
   recentOutcomes: PredictionOutcome[];
   leaderboard: LeaderboardEntry[];
-  signalWeights?: Record<string, number>;
+  performanceHistory: PerformanceRound[];
+  signalCorrelations: { winningSignals: string[]; losingSignals: string[] };
+  previousReasoning?: {
+    changelog: ChangelogEntry[];
+    overallAssessment: string;
+  };
 };
 
 const MAX_OUTCOMES = 20;
@@ -58,20 +76,50 @@ export function formatOutcomeFeatures(
     .join(", ");
 }
 
-function formatOutcomesTable(outcomes: PredictionOutcome[]): string {
-  if (outcomes.length === 0) return "No predictions yet.";
+export function computeSignalCorrelations(
+  outcomes: PredictionOutcome[],
+  signalWeights: Record<string, number>,
+): { winningSignals: string[]; losingSignals: string[] } {
+  const settled = outcomes.filter((o) => o.result !== "pending" && o.extractedFeatures);
+  const wins = settled.filter((o) => o.result === "won");
+  const losses = settled.filter((o) => o.result === "lost");
 
-  const rows = outcomes.map((o) => {
-    const resultEmoji = o.result === "won" ? "WIN" : o.result === "lost" ? "LOSS" : "PENDING";
-    const profitStr = o.profit !== null ? formatCurrency(o.profit) : "-";
-    return `| ${o.marketQuestion} | ${o.side} | ${formatPercentage(o.confidence)} | ${o.stake.toFixed(1)} | ${resultEmoji} | ${profitStr} |`;
-  });
+  function topSignals(group: PredictionOutcome[]): string[] {
+    if (group.length === 0) return [];
+    const totals: Record<string, number> = {};
+    for (const o of group) {
+      for (const [name, value] of Object.entries(o.extractedFeatures ?? {})) {
+        if ((signalWeights[name] ?? 0) > 0) {
+          totals[name] = (totals[name] ?? 0) + (signalWeights[name] ?? 0) * value;
+        }
+      }
+    }
+    return Object.entries(totals)
+      .map(([name, total]) => ({ name, avg: total / group.length }))
+      .sort((a, b) => b.avg - a.avg)
+      .slice(0, 3)
+      .map((s) => s.name);
+  }
 
-  return [
-    "| Market | Side | Confidence | Stake | Result | Profit |",
-    "|--------|------|------------|-------|--------|--------|",
-    ...rows,
-  ].join("\n");
+  return {
+    winningSignals: topSignals(wins),
+    losingSignals: topSignals(losses),
+  };
+}
+
+export function formatPerformanceHistory(rounds: PerformanceRound[]): string {
+  if (rounds.length === 0) return "No performance history yet.";
+
+  return rounds
+    .map(
+      (r) => `Round ${r.version} (${r.dateFrom} → ${r.dateTo}, ${r.betsSettled} bets settled):
+- Record: ${r.wins}W / ${r.losses}L
+- P&L: ${formatCurrency(r.pnl)}
+- Avg edge at bet time: ${formatPercentage(r.avgEdge)}
+- Signals correlated with wins: ${r.winningSignals.length > 0 ? r.winningSignals.join(", ") : "insufficient data"}
+- Signals correlated with losses: ${r.losingSignals.length > 0 ? r.losingSignals.join(", ") : "insufficient data"}`,
+    )
+    .join("\n\n");
 }
 
 function formatOutcomesWithFeatures(
@@ -162,70 +210,6 @@ function analyzePatterns(outcomes: PredictionOutcome[]): string[] {
   return suggestions;
 }
 
-function buildFeedbackPrompt(input: FeedbackPromptInput): string {
-  const { currentConfig, performance, recentOutcomes, leaderboard, signalWeights } = input;
-
-  const truncatedOutcomes = recentOutcomes.slice(-MAX_OUTCOMES);
-
-  const patterns = analyzePatterns(truncatedOutcomes);
-  const patternSection =
-    patterns.length > 0
-      ? `## Improvement Suggestions\n\n${patterns.map((p) => `- ${p}`).join("\n")}`
-      : "";
-
-  const outcomesSection = signalWeights
-    ? formatOutcomesWithFeatures(truncatedOutcomes, signalWeights)
-    : formatOutcomesTable(truncatedOutcomes);
-
-  return `You are iterating on your football prediction engine. Review your current weight configuration and performance data below, then generate an improved version.
-
-## Your Current Engine Code
-
-\`\`\`typescript
-${currentConfig}
-\`\`\`
-
-## Your Performance Summary
-
-- Total Bets: ${performance.totalBets}
-- Wins: ${performance.wins} | Losses: ${performance.losses}
-- Accuracy: ${formatPercentage(performance.accuracy)}
-- ROI: ${formatPercentage(performance.roi)}
-- Profit/Loss: ${formatCurrency(performance.profitLoss)}
-- Total Staked: ${formatCurrency(performance.totalStaked)}
-- Total Returned: ${formatCurrency(performance.totalReturned)}
-- Locked in Active Bets: ${formatCurrency(performance.lockedAmount)}
-
-## Recent Prediction Outcomes (last ${truncatedOutcomes.length})
-
-${outcomesSection}
-
-## Leaderboard
-
-${formatLeaderboard(leaderboard)}
-
-${patternSection}
-
-## Instructions
-
-Analyze your performance and generate an improved prediction engine. Focus on:
-1. Patterns in your wins and losses — what market conditions lead to each?
-2. Your confidence calibration — are you overconfident or underconfident?
-3. Your stake sizing — are you risking too much on uncertain bets?
-4. Strategies used by higher-ranked competitors (if you're not #1)
-5. Edge cases you may be missing
-6. Feature values that correlated with wins vs losses — which features were reliable indicators?
-
-Generate an improved weight configuration that addresses these weaknesses.`;
-}
-
-export type WeightFeedbackInput = {
-  currentWeights: WeightConfig;
-  performance: PerformanceStats;
-  recentOutcomes: PredictionOutcome[];
-  leaderboard: LeaderboardEntry[];
-};
-
 function formatWeightsTable(weights: WeightConfig): string {
   const signalRows = Object.entries(weights.signals)
     .map(([name, val]) => `| ${name} | ${val.toFixed(3)} |`)
@@ -251,31 +235,105 @@ ${signalRows}
 | kellyFraction | ${weights.kellyFraction.toFixed(3)} |`;
 }
 
+function formatPreviousReasoning(
+  reasoning: NonNullable<WeightFeedbackInput["previousReasoning"]>,
+): string {
+  const changelogLines = reasoning.changelog
+    .map((c) => `- **${c.parameter}**: ${c.previous} → ${c.new} — ${c.reason}`)
+    .join("\n");
+
+  return `## Previous Assessment
+
+${reasoning.overallAssessment}
+
+### Changes Made Last Round
+
+${changelogLines || "No changes recorded."}`;
+}
+
 export function buildWeightFeedbackPrompt(input: WeightFeedbackInput): string {
-  const base = buildFeedbackPrompt({
-    currentConfig: JSON.stringify(input.currentWeights, null, 2),
-    performance: input.performance,
-    recentOutcomes: input.recentOutcomes,
-    leaderboard: input.leaderboard,
-    signalWeights: input.currentWeights.signals,
-  });
+  const {
+    currentWeights,
+    performance,
+    recentOutcomes,
+    leaderboard,
+    performanceHistory,
+    signalCorrelations,
+    previousReasoning,
+  } = input;
+
+  const truncatedOutcomes = recentOutcomes.slice(-MAX_OUTCOMES);
+
+  const patterns = analyzePatterns(truncatedOutcomes);
+  const patternSection =
+    patterns.length > 0
+      ? `## Improvement Suggestions\n\n${patterns.map((p) => `- ${p}`).join("\n")}`
+      : "";
+
+  const outcomesSection = formatOutcomesWithFeatures(truncatedOutcomes, currentWeights.signals);
 
   const weightsSection = `## Your Current Weight Configuration
 
 \`\`\`json
-${JSON.stringify(input.currentWeights, null, 2)}
+${JSON.stringify(currentWeights, null, 2)}
 \`\`\`
 
-${formatWeightsTable(input.currentWeights)}`;
+${formatWeightsTable(currentWeights)}`;
 
-  const codeHeader = "## Your Current Engine Code";
-  const performanceHeader = "## Your Performance Summary";
-  const codeStart = base.indexOf(codeHeader);
-  const perfStart = base.indexOf(performanceHeader);
+  const correlationNote =
+    signalCorrelations.winningSignals.length > 0 || signalCorrelations.losingSignals.length > 0
+      ? `\nOverall signal correlations — wins driven by: ${signalCorrelations.winningSignals.join(", ") || "insufficient data"}, losses driven by: ${signalCorrelations.losingSignals.join(", ") || "insufficient data"}.`
+      : "";
 
-  if (codeStart !== -1 && perfStart !== -1) {
-    return `${base.slice(0, codeStart)}${weightsSection}\n\n${base.slice(perfStart)}`;
-  }
+  return `You are optimizing a weight configuration for a football prediction engine. You never see individual matches — only aggregate results from how your weights performed. Review your performance data below, then generate an improved weight configuration.
 
-  return `${weightsSection}\n\n${base}`;
+${weightsSection}
+
+## Performance History
+
+${formatPerformanceHistory(performanceHistory)}
+
+## Overall Performance
+
+- Total Bets: ${performance.totalBets}
+- Wins: ${performance.wins} | Losses: ${performance.losses}
+- Accuracy: ${formatPercentage(performance.accuracy)}
+- ROI: ${formatPercentage(performance.roi)}
+- Profit/Loss: ${formatCurrency(performance.profitLoss)}
+- Total Staked: ${formatCurrency(performance.totalStaked)}
+- Total Returned: ${formatCurrency(performance.totalReturned)}
+- Locked in Active Bets: ${formatCurrency(performance.lockedAmount)}
+
+## Recent Prediction Outcomes (last ${truncatedOutcomes.length})
+
+${outcomesSection}
+
+## Leaderboard
+
+${formatLeaderboard(leaderboard)}
+
+${patternSection}
+
+${previousReasoning ? formatPreviousReasoning(previousReasoning) : ""}
+
+## Rules
+
+- Do NOT overreact to a single bad matchday. Look at trends across multiple rounds.
+- Small incremental adjustments (±0.05) are better than large swings unless performance is consistently poor across 3+ rounds.
+- If a signal has been consistently unhelpful across 3+ rounds, consider reducing it significantly.
+- If overall P&L is positive, be conservative with changes.
+- If you have fewer than 10 settled bets total, make only minor adjustments — you don't have enough data to draw strong conclusions.
+- Track your reasoning — what did you change and why?
+
+## Instructions
+
+Analyze your performance and generate an improved weight configuration. Focus on:
+1. Patterns in your wins and losses — what market conditions lead to each?
+2. Your confidence calibration — are you overconfident or underconfident?
+3. Your stake sizing — are you risking too much on uncertain bets?
+4. Strategies used by higher-ranked competitors (if you're not #1)
+5. Edge cases you may be missing
+6. Feature values that correlated with wins vs losses — which features were reliable indicators?${correlationNote}
+
+Generate an improved weight configuration that addresses these weaknesses.`;
 }

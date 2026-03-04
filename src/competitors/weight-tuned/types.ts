@@ -45,6 +45,22 @@ export const DEFAULT_STAKE_CONFIG: StakeConfig = {
   minBetPct: 0.005,
 };
 
+export const changelogEntrySchema = z.object({
+  parameter: z.string(),
+  previous: z.number(),
+  new: z.number(),
+  reason: z.string(),
+});
+
+export const weightOutputSchema = z.object({
+  weights: weightConfigSchema,
+  changelog: z.array(changelogEntrySchema),
+  overallAssessment: z.string(),
+});
+
+export type WeightOutput = z.infer<typeof weightOutputSchema>;
+export type ChangelogEntry = z.infer<typeof changelogEntrySchema>;
+
 export const WEIGHT_JSON_SCHEMA = {
   name: "weight_config",
   schema: {
@@ -101,6 +117,41 @@ export const WEIGHT_JSON_SCHEMA = {
       "edgeMultiplier",
       "kellyFraction",
     ],
+    additionalProperties: false,
+  },
+};
+
+export const WEIGHT_OUTPUT_JSON_SCHEMA = {
+  name: "weight_output",
+  schema: {
+    type: "object",
+    properties: {
+      weights: WEIGHT_JSON_SCHEMA.schema,
+      changelog: {
+        type: "array",
+        description: "List of parameter changes with reasoning",
+        items: {
+          type: "object",
+          properties: {
+            parameter: {
+              type: "string",
+              description: "Dotted path to the parameter (e.g. 'signals.h2h', 'minEdge')",
+            },
+            previous: { type: "number", description: "Previous value" },
+            new: { type: "number", description: "New value" },
+            reason: { type: "string", description: "Why you made this change" },
+          },
+          required: ["parameter", "previous", "new", "reason"],
+          additionalProperties: false,
+        },
+      },
+      overallAssessment: {
+        type: "string",
+        description:
+          "Strategic summary of your analysis and the reasoning behind your changes (2-4 sentences)",
+      },
+    },
+    required: ["weights", "changelog", "overallAssessment"],
     additionalProperties: false,
   },
 };

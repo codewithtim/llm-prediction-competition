@@ -1,7 +1,13 @@
 import { predictionOutputSchema } from "../../domain/contracts/prediction";
 import { createWeightedEngine } from "./engine";
 import { SAMPLE_STATISTICS_MULTI_MARKET } from "./sample-statistics";
-import { type StakeConfig, type WeightConfig, weightConfigSchema } from "./types";
+import {
+  type ChangelogEntry,
+  type StakeConfig,
+  type WeightConfig,
+  weightConfigSchema,
+  weightOutputSchema,
+} from "./types";
 
 export type ValidationResult =
   | { valid: true; weights: WeightConfig }
@@ -51,4 +57,33 @@ export function validateWeights(input: unknown, stakeConfig: StakeConfig): Valid
   }
 
   return { valid: true, weights };
+}
+
+export type ValidatedOutput =
+  | {
+      valid: true;
+      weights: WeightConfig;
+      changelog: ChangelogEntry[];
+      overallAssessment: string;
+    }
+  | { valid: false; error: string };
+
+export function validateWeightOutput(input: unknown, stakeConfig: StakeConfig): ValidatedOutput {
+  const parsed = weightOutputSchema.safeParse(input);
+  if (!parsed.success) {
+    const messages = parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join(", ");
+    return { valid: false, error: `Schema validation failed: ${messages}` };
+  }
+
+  const weightsResult = validateWeights(parsed.data.weights, stakeConfig);
+  if (!weightsResult.valid) {
+    return weightsResult;
+  }
+
+  return {
+    valid: true,
+    weights: weightsResult.weights,
+    changelog: parsed.data.changelog,
+    overallAssessment: parsed.data.overallAssessment,
+  };
 }
