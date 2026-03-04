@@ -124,6 +124,19 @@ export type BetSummary = {
   attempts: number;
 };
 
+export type BetDetailResponse = BetSummary & {
+  fixtureSummary: string | null;
+  fixtureDate: string | null;
+  fixtureStatus: string | null;
+  marketOutcomes: [string, string] | null;
+  marketOutcomePrices: [string, string] | null;
+  marketActive: boolean | null;
+  marketClosed: boolean | null;
+  reasoning: ReasoningDTO | null;
+  orderId: string | null;
+  lastAttemptAt: string | null;
+};
+
 export type ReasoningSectionDTO = {
   label: string;
   content: string;

@@ -1,4 +1,5 @@
 import { Hono } from "hono";
+import type { BetDetailResponse } from "../../shared/api-types";
 import type { ApiDeps } from "../index";
 import { toBetSummary } from "../mappers";
 
@@ -39,6 +40,55 @@ export function betsRoutes(deps: ApiDeps) {
     };
 
     return c.json(allBets.map((b) => toBetSummary(b, lookups)));
+  });
+
+  app.get("/bets/:id", async (c) => {
+    const id = c.req.param("id");
+    const bet = await deps.betsRepo.findById(id);
+    if (!bet) return c.json({ error: "Bet not found" }, 404);
+
+    const [competitor, market, fixture, predictions] = await Promise.all([
+      deps.competitorsRepo.findById(bet.competitorId),
+      deps.marketsRepo.findById(bet.marketId),
+      deps.fixturesRepo.findById(bet.fixtureId),
+      deps.predictionsRepo.findByMarket(bet.marketId),
+    ]);
+
+    const prediction = predictions.find(
+      (p) => p.competitorId === bet.competitorId && p.side === bet.side,
+    );
+
+    return c.json({
+      id: bet.id,
+      competitorId: bet.competitorId,
+      competitorName: competitor?.name ?? "Unknown",
+      marketId: bet.marketId,
+      marketQuestion: market?.question ?? "Unknown",
+      polymarketUrl: market?.polymarketUrl ?? null,
+      fixtureId: bet.fixtureId,
+      side: bet.side,
+      amount: bet.amount,
+      price: bet.price,
+      shares: bet.shares,
+      status: bet.status,
+      placedAt: bet.placedAt?.toISOString() ?? "",
+      settledAt: bet.settledAt?.toISOString() ?? null,
+      profit: bet.profit,
+      confidence: prediction?.confidence ?? null,
+      errorMessage: bet.errorMessage ?? null,
+      errorCategory: bet.errorCategory ?? null,
+      attempts: bet.attempts ?? 0,
+      fixtureSummary: fixture ? `${fixture.homeTeamName} vs ${fixture.awayTeamName}` : null,
+      fixtureDate: fixture?.date ?? null,
+      fixtureStatus: fixture?.status ?? null,
+      marketOutcomes: market?.outcomes ?? null,
+      marketOutcomePrices: market?.outcomePrices ?? null,
+      marketActive: market?.active ?? null,
+      marketClosed: market?.closed ?? null,
+      reasoning: prediction?.reasoning ?? null,
+      orderId: bet.orderId ?? null,
+      lastAttemptAt: bet.lastAttemptAt?.toISOString() ?? null,
+    } satisfies BetDetailResponse);
   });
 
   return app;

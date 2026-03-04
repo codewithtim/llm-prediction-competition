@@ -268,7 +268,7 @@ describe("GET /api/bets", () => {
     expect(data).toHaveLength(2);
   });
 
-  test("filters by status", async () => {
+  test("filters by status (list)", async () => {
     const deps = createMockDeps({
       betsRepo: {
         findAll: async () => [
@@ -287,5 +287,194 @@ describe("GET /api/bets", () => {
     const data = await res.json();
     expect(data).toHaveLength(1);
     expect(data[0].id).toBe("b1");
+  });
+});
+
+describe("GET /api/bets/:id", () => {
+  test("returns enriched bet detail", async () => {
+    const deps = createMockDeps({
+      betsRepo: {
+        findById: async () => ({
+          id: "b1",
+          orderId: "order-123",
+          competitorId: "c1",
+          marketId: "m1",
+          fixtureId: 1001,
+          tokenId: "tok1",
+          side: "YES",
+          amount: 10,
+          price: 0.65,
+          shares: 15.38,
+          status: "filled",
+          placedAt: new Date("2026-01-01"),
+          settledAt: null,
+          profit: null,
+          errorMessage: null,
+          errorCategory: null,
+          attempts: 0,
+          lastAttemptAt: null,
+        }),
+      } as any,
+      competitorsRepo: {
+        findById: async () => ({ id: "c1", name: "Claude" }),
+      } as any,
+      marketsRepo: {
+        findById: async () => ({
+          id: "m1",
+          question: "Will Arsenal win?",
+          polymarketUrl: "https://polymarket.com/market/m1",
+          outcomes: ["Yes", "No"],
+          outcomePrices: ["0.65", "0.35"],
+          active: true,
+          closed: false,
+        }),
+      } as any,
+      fixturesRepo: {
+        findById: async () => ({
+          id: 1001,
+          homeTeamName: "Arsenal",
+          awayTeamName: "Chelsea",
+          date: "2026-03-15",
+          status: "scheduled",
+        }),
+      } as any,
+      predictionsRepo: {
+        findByMarket: async () => [
+          {
+            competitorId: "c1",
+            marketId: "m1",
+            side: "YES",
+            confidence: 0.82,
+            reasoning: { summary: "Arsenal strong at home", sections: [] },
+          },
+        ],
+      } as any,
+    });
+
+    const app = new Hono();
+    app.route("/api", betsRoutes(deps));
+
+    const res = await app.request("/api/bets/b1");
+    expect(res.status).toBe(200);
+
+    const data = await res.json();
+    expect(data.id).toBe("b1");
+    expect(data.competitorName).toBe("Claude");
+    expect(data.marketQuestion).toBe("Will Arsenal win?");
+    expect(data.fixtureSummary).toBe("Arsenal vs Chelsea");
+    expect(data.fixtureDate).toBe("2026-03-15");
+    expect(data.fixtureStatus).toBe("scheduled");
+    expect(data.marketOutcomes).toEqual(["Yes", "No"]);
+    expect(data.marketOutcomePrices).toEqual(["0.65", "0.35"]);
+    expect(data.marketActive).toBe(true);
+    expect(data.marketClosed).toBe(false);
+    expect(data.confidence).toBe(0.82);
+    expect(data.reasoning).toEqual({ summary: "Arsenal strong at home", sections: [] });
+    expect(data.orderId).toBe("order-123");
+  });
+
+  test("returns 404 for unknown bet", async () => {
+    const deps = createMockDeps();
+
+    const app = new Hono();
+    app.route("/api", betsRoutes(deps));
+
+    const res = await app.request("/api/bets/nonexistent");
+    expect(res.status).toBe(404);
+
+    const data = await res.json();
+    expect(data.error).toBe("Bet not found");
+  });
+
+  test("returns null reasoning when no prediction matches", async () => {
+    const deps = createMockDeps({
+      betsRepo: {
+        findById: async () => ({
+          id: "b1",
+          competitorId: "c1",
+          marketId: "m1",
+          fixtureId: 1001,
+          tokenId: "tok1",
+          side: "YES",
+          amount: 10,
+          price: 0.65,
+          shares: 15.38,
+          status: "pending",
+          placedAt: new Date("2026-01-01"),
+          settledAt: null,
+          profit: null,
+          errorMessage: null,
+          errorCategory: null,
+          attempts: 0,
+          lastAttemptAt: null,
+        }),
+      } as any,
+      competitorsRepo: {
+        findById: async () => ({ id: "c1", name: "Claude" }),
+      } as any,
+      marketsRepo: {
+        findById: async () => ({ id: "m1", question: "Q" }),
+      } as any,
+      fixturesRepo: {
+        findById: async () => ({ id: 1001, homeTeamName: "A", awayTeamName: "B", date: "2026-01-01", status: "scheduled" }),
+      } as any,
+      predictionsRepo: {
+        findByMarket: async () => [],
+      } as any,
+    });
+
+    const app = new Hono();
+    app.route("/api", betsRoutes(deps));
+
+    const res = await app.request("/api/bets/b1");
+    const data = await res.json();
+    expect(data.confidence).toBeNull();
+    expect(data.reasoning).toBeNull();
+  });
+
+  test("handles missing fixture and market gracefully", async () => {
+    const deps = createMockDeps({
+      betsRepo: {
+        findById: async () => ({
+          id: "b1",
+          competitorId: "c1",
+          marketId: "m1",
+          fixtureId: 1001,
+          tokenId: "tok1",
+          side: "YES",
+          amount: 10,
+          price: 0.65,
+          shares: 15.38,
+          status: "pending",
+          placedAt: new Date("2026-01-01"),
+          settledAt: null,
+          profit: null,
+          errorMessage: null,
+          errorCategory: null,
+          attempts: 0,
+          lastAttemptAt: null,
+        }),
+      } as any,
+      predictionsRepo: {
+        findByMarket: async () => [],
+      } as any,
+    });
+
+    const app = new Hono();
+    app.route("/api", betsRoutes(deps));
+
+    const res = await app.request("/api/bets/b1");
+    expect(res.status).toBe(200);
+
+    const data = await res.json();
+    expect(data.competitorName).toBe("Unknown");
+    expect(data.marketQuestion).toBe("Unknown");
+    expect(data.fixtureSummary).toBeNull();
+    expect(data.fixtureDate).toBeNull();
+    expect(data.fixtureStatus).toBeNull();
+    expect(data.marketOutcomes).toBeNull();
+    expect(data.marketOutcomePrices).toBeNull();
+    expect(data.marketActive).toBeNull();
+    expect(data.marketClosed).toBeNull();
   });
 });

@@ -1,4 +1,5 @@
 import type {
+  BetDetailResponse,
   BetSummary,
   CompetitorDetailResponse,
   CompetitorSummary,
@@ -63,6 +64,13 @@ export function useMarkets(filters?: { active?: string; closed?: string }) {
   return useQuery<MarketSummary[]>({
     queryKey: ["markets", filters],
     queryFn: () => fetchJson(`/markets${qs ? `?${qs}` : ""}`),
+  });
+}
+
+export function useBet(id: string) {
+  return useQuery<BetDetailResponse>({
+    queryKey: ["bet", id],
+    queryFn: () => fetchJson(`/bets/${id}`),
   });
 }
 

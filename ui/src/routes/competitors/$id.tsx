@@ -1,4 +1,4 @@
-import { useParams } from "@tanstack/react-router";
+import { Link, useParams } from "@tanstack/react-router";
 import { PageShell } from "@/components/layout/page-shell";
 import { EmptyState } from "@/components/shared/empty-state";
 import { LoadingSkeleton } from "@/components/shared/loading-skeleton";
@@ -76,8 +76,14 @@ export function CompetitorDetailPage() {
                 <TableBody>
                   {data.recentBets.map((b) => (
                     <TableRow key={b.id} className="border-zinc-800 hover:bg-zinc-800/50">
-                      <TableCell className="text-zinc-200 max-w-64 truncate">
-                        {b.marketQuestion}
+                      <TableCell className="max-w-64 truncate">
+                        <Link
+                          to="/bets/$id"
+                          params={{ id: b.id }}
+                          className="text-zinc-100 hover:text-emerald-400 transition-colors"
+                        >
+                          {b.marketQuestion}
+                        </Link>
                       </TableCell>
                       <TableCell className="font-mono text-zinc-300">{b.side}</TableCell>
                       <TableCell className="text-right font-mono text-zinc-300">
