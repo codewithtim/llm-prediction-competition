@@ -19,9 +19,7 @@ export function Sidebar() {
       className={`fixed inset-y-0 left-0 z-50 flex flex-col bg-zinc-950 border-r border-zinc-800 transition-[width] duration-200 ${collapsed ? "w-16" : "w-64"}`}
     >
       <div className="flex h-14 items-center border-b border-zinc-800 px-4">
-        {!collapsed && (
-          <span className="text-lg font-semibold text-zinc-100 pl-2">LLM Betting</span>
-        )}
+        {!collapsed && <span className="text-lg font-semibold text-zinc-100 pl-2">Opnly.bet</span>}
         <button
           type="button"
           onClick={toggle}

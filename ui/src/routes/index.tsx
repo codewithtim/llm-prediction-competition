@@ -12,7 +12,7 @@ export function DashboardPage() {
   if (isLoading || !data) return <LoadingSkeleton />;
 
   return (
-    <PageShell title="Dashboard" subtitle="Overview of the LLM betting competition">
+    <PageShell title="Dashboard" subtitle="Overview of Opnly.bet">
       <StatsCards data={data} />
       <PnlChart entries={data.leaderboard} />
       <Leaderboard entries={data.leaderboard} />
