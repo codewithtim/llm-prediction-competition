@@ -69,7 +69,7 @@ jobs:
             mkdir -p /opt/llm-betting/certs
             printf '%s' "$ORIGIN_CERT" > /opt/llm-betting/certs/cert.pem
             printf '%s' "$ORIGIN_KEY" > /opt/llm-betting/certs/key.pem
-            chmod 600 /opt/llm-betting/certs/key.pem
+            chmod 644 /opt/llm-betting/certs/key.pem
 
             # Caddyfile using Origin Certificate (no ACME needed)
             printf '%s {\n  tls /etc/caddy/certs/cert.pem /etc/caddy/certs/key.pem\n  reverse_proxy llm-betting:3000\n}\n' \
