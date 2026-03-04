@@ -1,5 +1,5 @@
 import type { Fixture } from "../domain/models/fixture.ts";
-import type { Event, Market } from "../domain/models/market.ts";
+import type { Event } from "../domain/models/market.ts";
 import { matchEventsToFixtures } from "../domain/services/market-matching.ts";
 import type { fixturesRepo as fixturesRepoFactory } from "../infrastructure/database/repositories/fixtures.ts";
 import type { marketsRepo as marketsRepoFactory } from "../infrastructure/database/repositories/markets.ts";
@@ -8,6 +8,7 @@ import type { FootballClient } from "../infrastructure/sports-data/client.ts";
 import { mapApiFixtureToFixture } from "../infrastructure/sports-data/mappers.ts";
 import { logger } from "../shared/logger.ts";
 import type { PipelineConfig } from "./config.ts";
+import { collectMarketRows } from "./converters.ts";
 
 export type DiscoveryPipelineDeps = {
   discovery: MarketDiscovery;
@@ -42,28 +43,6 @@ function fixtureToDbRow(fixture: Fixture) {
     date: fixture.date,
     venue: fixture.venue,
     status: fixture.status,
-  };
-}
-
-export function marketToDbRow(market: Market, fixtureId: number | null) {
-  return {
-    id: market.id,
-    conditionId: market.conditionId,
-    slug: market.slug,
-    question: market.question,
-    outcomes: market.outcomes,
-    outcomePrices: market.outcomePrices,
-    tokenIds: market.tokenIds,
-    active: market.active,
-    closed: market.closed,
-    acceptingOrders: market.acceptingOrders,
-    liquidity: market.liquidity,
-    volume: market.volume,
-    gameId: market.gameId,
-    sportsMarketType: market.sportsMarketType,
-    line: market.line,
-    polymarketUrl: market.polymarketUrl,
-    fixtureId,
   };
 }
 
@@ -187,23 +166,7 @@ export function createDiscoveryPipeline(deps: DiscoveryPipelineDeps) {
       });
 
       // Step 5: Bulk upsert all markets (matched with fixtureId, unmatched with null)
-      const matchedMarketIds = new Set<string>();
-      const marketRows: ReturnType<typeof marketToDbRow>[] = [];
-
-      for (const matched of matchResult.matched) {
-        for (const mm of matched.markets) {
-          matchedMarketIds.add(mm.market.id);
-          marketRows.push(marketToDbRow(mm.market, matched.fixture.id));
-        }
-      }
-
-      for (const event of matchResult.unmatchedEvents) {
-        for (const market of event.markets) {
-          if (matchedMarketIds.has(market.id)) continue;
-          marketRows.push(marketToDbRow(market, null));
-        }
-      }
-
+      const marketRows = collectMarketRows(matchResult);
       try {
         await marketsRepo.bulkUpsert(marketRows);
         result.marketsUpserted = marketRows.length;

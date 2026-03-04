@@ -19,10 +19,6 @@ import type { fixturesRepo as fixturesRepoFactory } from "../infrastructure/data
 import type { marketsRepo as marketsRepoFactory } from "../infrastructure/database/repositories/markets.ts";
 import type { predictionsRepo as predictionsRepoFactory } from "../infrastructure/database/repositories/predictions.ts";
 import type { statsCacheRepo as statsCacheRepoFactory } from "../infrastructure/database/repositories/stats-cache.ts";
-import type {
-  fixtures as fixturesTable,
-  markets as marketsTable,
-} from "../infrastructure/database/schema.ts";
 import type { GammaClient } from "../infrastructure/polymarket/gamma-client.ts";
 import { mapGammaMarketToMarket } from "../infrastructure/polymarket/mappers.ts";
 import type { FootballClient } from "../infrastructure/sports-data/client.ts";
@@ -35,6 +31,7 @@ import {
 } from "../infrastructure/sports-data/mappers.ts";
 import { logger } from "../shared/logger.ts";
 import type { PipelineConfig } from "./config.ts";
+import { dbRowToFixture, dbRowToMarket } from "./converters.ts";
 
 export type PredictionPipelineDeps = {
   gammaClient: GammaClient;
@@ -60,9 +57,6 @@ export type PredictionPipelineResult = {
   errors: string[];
 };
 
-type MarketRow = typeof marketsTable.$inferSelect;
-type FixtureRow = typeof fixturesTable.$inferSelect;
-
 type PreFetchedFixtureData = {
   fixture: Fixture;
   fixtureLabel: string;
@@ -76,52 +70,6 @@ type PreFetchedFixtureData = {
   homeTeamPlayers?: PlayerSeasonStats[];
   awayTeamPlayers?: PlayerSeasonStats[];
 };
-
-function dbRowToMarket(row: MarketRow): Market {
-  return {
-    id: row.id,
-    conditionId: row.conditionId,
-    slug: row.slug,
-    question: row.question,
-    outcomes: row.outcomes,
-    outcomePrices: row.outcomePrices,
-    tokenIds: row.tokenIds,
-    active: row.active,
-    closed: row.closed,
-    acceptingOrders: row.acceptingOrders,
-    liquidity: row.liquidity,
-    volume: row.volume,
-    gameId: row.gameId,
-    sportsMarketType: row.sportsMarketType,
-    line: row.line,
-    polymarketUrl: row.polymarketUrl ?? null,
-  };
-}
-
-function dbRowToFixture(row: FixtureRow): Fixture {
-  return {
-    id: row.id,
-    league: {
-      id: row.leagueId,
-      name: row.leagueName,
-      country: row.leagueCountry,
-      season: row.leagueSeason,
-    },
-    homeTeam: {
-      id: row.homeTeamId,
-      name: row.homeTeamName,
-      logo: row.homeTeamLogo,
-    },
-    awayTeam: {
-      id: row.awayTeamId,
-      name: row.awayTeamName,
-      logo: row.awayTeamLogo,
-    },
-    date: row.date,
-    venue: row.venue,
-    status: row.status,
-  };
-}
 
 function buildMarketContext(market: Market): MarketContext {
   return {
