@@ -1,10 +1,10 @@
-FROM oven/bun:latest AS base
+FROM oven/bun:1.3 AS base
 WORKDIR /app
 
 # Install backend dependencies
 FROM base AS deps
 COPY package.json bun.lock ./
-RUN bun install --frozen-lockfile --production
+RUN bun install --frozen-lockfile --production --ignore-scripts
 
 # Build UI
 FROM base AS ui-build
