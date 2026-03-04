@@ -59,7 +59,8 @@ const _firewall = new digitalocean.Firewall("llm-betting", {
   name: "llm-betting-firewall",
   inboundRules: [
     { protocol: "tcp", portRange: "22", sourceAddresses: ["0.0.0.0/0", "::/0"] },
-    { protocol: "tcp", portRange: "3000", sourceAddresses: [...cloudflareIpv4, ...cloudflareIpv6] },
+    { protocol: "tcp", portRange: "80", sourceAddresses: [...cloudflareIpv4, ...cloudflareIpv6] },
+    { protocol: "tcp", portRange: "443", sourceAddresses: [...cloudflareIpv4, ...cloudflareIpv6] },
     { protocol: "icmp", sourceAddresses: ["0.0.0.0/0", "::/0"] },
   ],
   outboundRules: [

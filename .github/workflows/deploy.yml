@@ -65,10 +65,6 @@ jobs:
               > /opt/llm-betting/.env
             chmod 600 /opt/llm-betting/.env
 
-            # Ensure firewall allows HTTP/HTTPS
-            ufw allow 80/tcp >/dev/null 2>&1 || true
-            ufw allow 443/tcp >/dev/null 2>&1 || true
-
             # Write Cloudflare Origin Certificate
             mkdir -p /opt/llm-betting/certs
             printf '%s' "$ORIGIN_CERT" > /opt/llm-betting/certs/cert.pem
