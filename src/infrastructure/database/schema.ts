@@ -75,6 +75,9 @@ export type PerformanceSnapshot = {
   accuracy: number;
   roi: number;
   profitLoss: number;
+  lockedAmount: number;
+  totalStaked: number;
+  totalReturned: number;
 };
 
 export const competitorVersions = sqliteTable("competitor_versions", {

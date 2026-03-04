@@ -189,6 +189,9 @@ export function createWeightIterationService(deps: WeightIterationDeps) {
                 accuracy: stats.accuracy,
                 roi: stats.roi,
                 profitLoss: stats.profitLoss,
+                lockedAmount: stats.lockedAmount,
+                totalStaked: stats.totalStaked,
+                totalReturned: stats.totalReturned,
               }
             : null,
       });
