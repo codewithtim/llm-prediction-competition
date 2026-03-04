@@ -58,7 +58,7 @@ jobs:
               "TURSO_AUTH_TOKEN=$TURSO_AUTH_TOKEN" \
               "WALLET_ENCRYPTION_KEY=$WALLET_ENCRYPTION_KEY" \
               "NODE_ENV=production" \
-              "PORT=3000" \
+              "PORT=80" \
               > /opt/llm-betting/.env
             chmod 600 /opt/llm-betting/.env
 
@@ -81,6 +81,6 @@ jobs:
             docker run -d \
               --name llm-betting \
               --restart unless-stopped \
-              -p 80:3000 \
+              --network host \
               --env-file /opt/llm-betting/.env \
               ghcr.io/${{ github.repository }}:latest
