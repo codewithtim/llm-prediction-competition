@@ -36,7 +36,7 @@ describe("getUsdcBalance", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
 
     const callArgs = fetchMock.mock.calls[0] as unknown[];
-    expect(callArgs[0]).toBe("https://polygon-rpc.com");
+    expect(callArgs[0]).toBe("https://polygon-bor-rpc.publicnode.com");
     const body = JSON.parse((callArgs[1] as RequestInit).body as string);
     expect(body.method).toBe("eth_call");
     expect(body.params[0].data).toContain("70a08231"); // balanceOf selector
@@ -71,7 +71,7 @@ describe("getUsdcBalance", () => {
     expect(balance).toBeCloseTo(5.5, 2);
   });
 
-  test("returns null on RPC error response", async () => {
+  test("returns null when all RPCs return errors", async () => {
     mockFetch({
       ok: true,
       body: {
@@ -83,13 +83,37 @@ describe("getUsdcBalance", () => {
 
     const balance = await getUsdcBalance("0xabc");
     expect(balance).toBeNull();
+    // Should have tried both RPCs
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
-  test("returns null when fetch throws (network error)", async () => {
+  test("returns null when all RPCs throw (network error)", async () => {
     globalThis.fetch = mock(() => Promise.reject(new Error("network down"))) as any;
 
     const balance = await getUsdcBalance("0xabc");
     expect(balance).toBeNull();
+  });
+
+  test("falls back to second RPC when first fails", async () => {
+    let callCount = 0;
+    globalThis.fetch = mock(() => {
+      callCount++;
+      if (callCount === 1) return Promise.reject(new Error("first rpc down"));
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        json: () =>
+          Promise.resolve({
+            jsonrpc: "2.0",
+            id: 1,
+            result: "0x0000000000000000000000000000000000000000000000000000000000989680",
+          }),
+      } as Response);
+    }) as any;
+
+    const balance = await getUsdcBalance("0xabc");
+    expect(balance).toBe(10);
+    expect(callCount).toBe(2);
   });
 
   test("encodes wallet address in call data correctly", async () => {
