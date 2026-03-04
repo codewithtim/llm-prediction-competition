@@ -42,7 +42,7 @@ export function BankrollChart({ data }: { data: BankrollHistoryPoint[] }) {
                   borderRadius: "8px",
                   fontSize: "12px",
                 }}
-                labelFormatter={(v: string) => new Date(v).toLocaleString()}
+                labelFormatter={(v) => new Date(String(v)).toLocaleString()}
                 formatter={(value) => [`$${Number(value).toFixed(2)}`, "Bankroll"]}
               />
               <Area
