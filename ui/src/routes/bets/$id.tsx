@@ -2,7 +2,6 @@ import { Link, useParams } from "@tanstack/react-router";
 import { PageShell } from "@/components/layout/page-shell";
 import { ExternalLink } from "@/components/shared/external-link";
 import { LoadingSkeleton } from "@/components/shared/loading-skeleton";
-import { Money } from "@/components/shared/money";
 import { ReasoningSections } from "@/components/shared/reasoning-sections";
 import { StatCard } from "@/components/shared/stat-card";
 import { StatusBadge } from "@/components/shared/status-badge";
