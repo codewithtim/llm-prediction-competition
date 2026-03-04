@@ -7,7 +7,7 @@ export function ExternalLink({ href, children }: { href: string | null; children
       href={href}
       target="_blank"
       rel="noopener noreferrer"
-      className="hover:text-zinc-100 underline decoration-zinc-600 hover:decoration-zinc-400 transition-colors"
+      className="text-zinc-100 hover:text-emerald-400 transition-colors"
     >
       {children}
     </a>

@@ -1,6 +1,7 @@
-import { Link, useParams } from "@tanstack/react-router";
+import { useParams } from "@tanstack/react-router";
 import { PageShell } from "@/components/layout/page-shell";
 import { ExternalLink } from "@/components/shared/external-link";
+import { InternalLink } from "@/components/shared/internal-link";
 import { LoadingSkeleton } from "@/components/shared/loading-skeleton";
 import { ReasoningSections } from "@/components/shared/reasoning-sections";
 import { StatCard } from "@/components/shared/stat-card";
@@ -62,23 +63,15 @@ export function BetDetailPage() {
         </CardHeader>
         <CardContent>
           <DetailRow label="Competitor">
-            <Link
-              to="/competitors/$id"
-              params={{ id: data.competitorId }}
-              className="text-zinc-100 hover:text-emerald-400 transition-colors"
-            >
+            <InternalLink to="/competitors/$id" params={{ id: data.competitorId }}>
               {data.competitorName}
-            </Link>
+            </InternalLink>
           </DetailRow>
           {data.fixtureSummary && (
             <DetailRow label="Fixture">
-              <Link
-                to="/fixtures/$id"
-                params={{ id: String(data.fixtureId) }}
-                className="text-zinc-100 hover:text-emerald-400 transition-colors"
-              >
+              <InternalLink to="/fixtures/$id" params={{ id: String(data.fixtureId) }}>
                 {data.fixtureSummary}
-              </Link>
+              </InternalLink>
             </DetailRow>
           )}
           <DetailRow label="Side">

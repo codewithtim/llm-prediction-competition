@@ -1,5 +1,5 @@
 import type { LeaderboardEntry } from "@shared/api-types";
-import { Link } from "@tanstack/react-router";
+import { InternalLink } from "@/components/shared/internal-link";
 import { Money } from "@/components/shared/money";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -38,13 +38,9 @@ export function Leaderboard({ entries }: { entries: LeaderboardEntry[] }) {
               <TableRow key={entry.competitor.id} className="border-zinc-800 hover:bg-zinc-800/50">
                 <TableCell className="font-mono text-zinc-500">{entry.rank}</TableCell>
                 <TableCell>
-                  <Link
-                    to="/competitors/$id"
-                    params={{ id: entry.competitor.id }}
-                    className="text-zinc-100 hover:text-emerald-400 transition-colors"
-                  >
+                  <InternalLink to="/competitors/$id" params={{ id: entry.competitor.id }}>
                     {entry.competitor.name}
-                  </Link>
+                  </InternalLink>
                   <div className="text-xs text-zinc-500">{entry.competitor.model}</div>
                 </TableCell>
                 <TableCell>

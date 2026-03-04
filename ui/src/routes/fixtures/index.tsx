@@ -1,7 +1,7 @@
-import { Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { PageShell } from "@/components/layout/page-shell";
 import { EmptyState } from "@/components/shared/empty-state";
+import { InternalLink } from "@/components/shared/internal-link";
 import { TableSkeleton } from "@/components/shared/loading-skeleton";
 import { StatusBadge } from "@/components/shared/status-badge";
 import {
@@ -81,13 +81,13 @@ export function FixturesPage() {
                 <TableRow key={f.id} className="border-zinc-800 hover:bg-zinc-800/50">
                   <TableCell className="text-zinc-400 text-sm">{formatDate(f.date)}</TableCell>
                   <TableCell>
-                    <Link
+                    <InternalLink
                       to="/fixtures/$id"
                       params={{ id: String(f.id) }}
-                      className="text-zinc-100 hover:text-emerald-400 transition-colors font-medium"
+                      className="font-medium"
                     >
                       {f.homeTeamName} vs {f.awayTeamName}
-                    </Link>
+                    </InternalLink>
                   </TableCell>
                   <TableCell className="text-zinc-400 text-sm">
                     {f.leagueName} ({f.leagueCountry})

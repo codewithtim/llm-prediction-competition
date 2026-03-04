@@ -52,7 +52,34 @@ export type VersionSummary = {
     roi: number;
     profitLoss: number;
   } | null;
+  overallAssessment: string | null;
   generatedAt: string;
+};
+
+export type ChangelogEntryDTO = {
+  parameter: string;
+  previous: number;
+  new: number;
+  reason: string;
+};
+
+export type VersionDetailResponse = {
+  id: number;
+  version: number;
+  model: string;
+  enginePath: string;
+  generatedAt: string;
+  performanceSnapshot: {
+    totalBets: number;
+    wins: number;
+    losses: number;
+    accuracy: number;
+    roi: number;
+    profitLoss: number;
+  } | null;
+  weights: Record<string, number | Record<string, number>>;
+  changelog: ChangelogEntryDTO[];
+  overallAssessment: string | null;
 };
 
 export type FixtureSummary = {

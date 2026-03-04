@@ -1,5 +1,6 @@
 import type { BetSummary } from "@shared/api-types";
-import { Link, useNavigate } from "@tanstack/react-router";
+import { useNavigate } from "@tanstack/react-router";
+import { InternalLink } from "@/components/shared/internal-link";
 import { Money } from "@/components/shared/money";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -46,14 +47,13 @@ export function RecentActivity({ bets }: { bets: BetSummary[] }) {
                 >
                   <TableCell className="text-zinc-200 font-medium">{bet.competitorName}</TableCell>
                   <TableCell className="text-sm max-w-48 truncate">
-                    <Link
+                    <InternalLink
                       to="/bets/$id"
                       params={{ id: bet.id }}
-                      className="text-zinc-100 hover:text-emerald-400 transition-colors"
                       onClick={(e) => e.stopPropagation()}
                     >
                       {bet.marketQuestion}
-                    </Link>
+                    </InternalLink>
                   </TableCell>
                   <TableCell className="font-mono text-zinc-300">{bet.side}</TableCell>
                   <TableCell className="text-right font-mono text-zinc-300">

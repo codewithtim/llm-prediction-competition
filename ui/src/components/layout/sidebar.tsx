@@ -29,14 +29,14 @@ export function Sidebar() {
           <ChevronIcon className="h-4 w-4" direction={collapsed ? "right" : "left"} />
         </button>
       </div>
-      <nav className="flex-1 space-y-1 px-2 py-4">
+      <nav className="flex-1 space-y-1 py-4">
         {NAV_ITEMS.map((item) => {
           const isActive = item.to === "/" ? currentPath === "/" : currentPath.startsWith(item.to);
           return (
             <Link
               key={item.to}
               to={item.to}
-              className={`flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors ${collapsed ? "justify-center" : ""} ${
+              className={`flex items-center gap-3 px-4 py-2 text-sm transition-colors ${collapsed ? "justify-center" : ""} ${
                 isActive
                   ? "bg-zinc-800 text-zinc-100 border-l-2 border-emerald-500"
                   : "text-zinc-400 hover:bg-zinc-900 hover:text-zinc-200"

@@ -4,6 +4,7 @@ import { useSidebar } from "@/components/layout/sidebar-context";
 import { BetDetailPage } from "@/routes/bets/$id";
 import { BetsPage } from "@/routes/bets/index";
 import { CompetitorDetailPage } from "@/routes/competitors/$id";
+import { VersionDetailPage } from "@/routes/competitors/$id.versions.$version";
 import { CompetitorsPage } from "@/routes/competitors/index";
 import { FixtureDetailPage } from "@/routes/fixtures/$id";
 import { FixturesPage } from "@/routes/fixtures/index";
@@ -46,6 +47,12 @@ const competitorDetailRoute = createRoute({
   component: CompetitorDetailPage,
 });
 
+const versionDetailRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/competitors/$id/versions/$version",
+  component: VersionDetailPage,
+});
+
 const fixturesRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/fixtures",
@@ -80,6 +87,7 @@ const routeTree = rootRoute.addChildren([
   indexRoute,
   competitorsRoute,
   competitorDetailRoute,
+  versionDetailRoute,
   fixturesRoute,
   fixtureDetailRoute,
   marketsRoute,

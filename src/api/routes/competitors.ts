@@ -119,6 +119,7 @@ export function competitorsRoutes(deps: ApiDeps) {
         model: v.model,
         enginePath: v.enginePath,
         performanceSnapshot: v.performanceSnapshot,
+        overallAssessment: v.reasoning?.overallAssessment ?? null,
         generatedAt: v.generatedAt?.toISOString() ?? "",
       })),
       recentBets: bets.slice(0, 20).map((b) => toBetSummary(b, lookups)),
@@ -135,6 +136,37 @@ export function competitorsRoutes(deps: ApiDeps) {
         reasoning: p.reasoning,
         createdAt: p.createdAt?.toISOString() ?? "",
       })),
+    });
+  });
+
+  app.get("/competitors/:id/versions/:version", async (c) => {
+    const id = c.req.param("id");
+    const versionNum = Number(c.req.param("version"));
+    if (Number.isNaN(versionNum)) return c.json({ error: "Invalid version" }, 400);
+
+    const version = await deps.competitorVersionsRepo.findByVersion(id, versionNum);
+    if (!version) return c.json({ error: "Version not found" }, 404);
+
+    let weights: Record<string, number | Record<string, number>> = {};
+    try {
+      const parsed = JSON.parse(version.code);
+      if (parsed && typeof parsed === "object") {
+        weights = parsed;
+      }
+    } catch {
+      // code may not be JSON (e.g. raw source) — leave weights empty
+    }
+
+    return c.json({
+      id: version.id,
+      version: version.version,
+      model: version.model,
+      enginePath: version.enginePath,
+      generatedAt: version.generatedAt?.toISOString() ?? "",
+      performanceSnapshot: version.performanceSnapshot,
+      weights,
+      changelog: version.reasoning?.changelog ?? [],
+      overallAssessment: version.reasoning?.overallAssessment ?? null,
     });
   });
 

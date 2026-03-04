@@ -1,6 +1,6 @@
-import { Link } from "@tanstack/react-router";
 import { PageShell } from "@/components/layout/page-shell";
 import { EmptyState } from "@/components/shared/empty-state";
+import { InternalLink } from "@/components/shared/internal-link";
 import { TableSkeleton } from "@/components/shared/loading-skeleton";
 import { ModelLogo } from "@/components/shared/model-logo";
 import { Money } from "@/components/shared/money";
@@ -44,13 +44,13 @@ export function CompetitorsPage() {
               {data.map((c) => (
                 <TableRow key={c.id} className="border-zinc-800 hover:bg-zinc-800/50">
                   <TableCell>
-                    <Link
+                    <InternalLink
                       to="/competitors/$id"
                       params={{ id: c.id }}
-                      className="text-zinc-100 hover:text-emerald-400 transition-colors font-medium"
+                      className="font-medium"
                     >
                       {c.name}
-                    </Link>
+                    </InternalLink>
                   </TableCell>
                   <TableCell>
                     <span className="inline-flex items-center gap-2 text-zinc-400 text-sm">

@@ -1,7 +1,8 @@
-import { Link, useNavigate } from "@tanstack/react-router";
+import { useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { PageShell } from "@/components/layout/page-shell";
 import { EmptyState } from "@/components/shared/empty-state";
+import { InternalLink } from "@/components/shared/internal-link";
 import { TableSkeleton } from "@/components/shared/loading-skeleton";
 import { Money } from "@/components/shared/money";
 import { StatusBadge } from "@/components/shared/status-badge";
@@ -109,14 +110,13 @@ export function BetsPage() {
                 >
                   <TableCell className="text-zinc-200 font-medium">{b.competitorName}</TableCell>
                   <TableCell className="text-sm max-w-64 truncate">
-                    <Link
+                    <InternalLink
                       to="/bets/$id"
                       params={{ id: b.id }}
-                      className="text-zinc-100 hover:text-emerald-400 transition-colors"
                       onClick={(e) => e.stopPropagation()}
                     >
                       {b.marketQuestion}
-                    </Link>
+                    </InternalLink>
                   </TableCell>
                   <TableCell className="font-mono text-zinc-300">{b.side}</TableCell>
                   <TableCell className="text-right font-mono text-zinc-300">

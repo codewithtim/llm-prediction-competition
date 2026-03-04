@@ -8,6 +8,7 @@ import type {
   FixtureSummary,
   MarketSummary,
   PredictionSummary,
+  VersionDetailResponse,
 } from "@shared/api-types";
 import { useQuery } from "@tanstack/react-query";
 
@@ -87,6 +88,13 @@ export function useBets(filters?: {
   return useQuery<BetSummary[]>({
     queryKey: ["bets", filters],
     queryFn: () => fetchJson(`/bets${qs ? `?${qs}` : ""}`),
+  });
+}
+
+export function useVersion(competitorId: string, version: number) {
+  return useQuery<VersionDetailResponse>({
+    queryKey: ["version", competitorId, version],
+    queryFn: () => fetchJson(`/competitors/${competitorId}/versions/${version}`),
   });
 }
 

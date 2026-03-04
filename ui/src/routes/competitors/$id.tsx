@@ -1,6 +1,7 @@
-import { Link, useParams } from "@tanstack/react-router";
+import { useParams } from "@tanstack/react-router";
 import { PageShell } from "@/components/layout/page-shell";
 import { EmptyState } from "@/components/shared/empty-state";
+import { InternalLink } from "@/components/shared/internal-link";
 import { LoadingSkeleton } from "@/components/shared/loading-skeleton";
 import { ModelLogo } from "@/components/shared/model-logo";
 import { Money } from "@/components/shared/money";
@@ -77,13 +78,9 @@ export function CompetitorDetailPage() {
                   {data.recentBets.map((b) => (
                     <TableRow key={b.id} className="border-zinc-800 hover:bg-zinc-800/50">
                       <TableCell className="max-w-64 truncate">
-                        <Link
-                          to="/bets/$id"
-                          params={{ id: b.id }}
-                          className="text-zinc-100 hover:text-emerald-400 transition-colors"
-                        >
+                        <InternalLink to="/bets/$id" params={{ id: b.id }}>
                           {b.marketQuestion}
-                        </Link>
+                        </InternalLink>
                       </TableCell>
                       <TableCell className="font-mono text-zinc-300">{b.side}</TableCell>
                       <TableCell className="text-right font-mono text-zinc-300">
@@ -165,17 +162,32 @@ export function CompetitorDetailPage() {
                   <TableRow className="border-zinc-800 hover:bg-transparent">
                     <TableHead className="text-zinc-400">Version</TableHead>
                     <TableHead className="text-zinc-400">Model</TableHead>
-                    <TableHead className="text-zinc-400">Engine Path</TableHead>
+                    <TableHead className="text-zinc-400">Assessment</TableHead>
+                    <TableHead className="text-zinc-400 text-right">ROI</TableHead>
+                    <TableHead className="text-zinc-400 text-right">Accuracy</TableHead>
                     <TableHead className="text-zinc-400">Generated</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {data.versions.map((v) => (
                     <TableRow key={v.id} className="border-zinc-800 hover:bg-zinc-800/50">
-                      <TableCell className="font-mono text-zinc-300">v{v.version}</TableCell>
+                      <TableCell className="font-mono">
+                        <InternalLink
+                          to="/competitors/$id/versions/$version"
+                          params={{ id: data.id, version: String(v.version) }}
+                        >
+                          v{v.version}
+                        </InternalLink>
+                      </TableCell>
                       <TableCell className="text-zinc-400">{v.model}</TableCell>
-                      <TableCell className="text-zinc-400 text-sm font-mono">
-                        {v.enginePath}
+                      <TableCell className="text-zinc-400 text-sm max-w-xs truncate">
+                        {v.overallAssessment ?? "—"}
+                      </TableCell>
+                      <TableCell className="text-right font-mono text-zinc-300">
+                        {v.performanceSnapshot ? formatPct(v.performanceSnapshot.roi) : "—"}
+                      </TableCell>
+                      <TableCell className="text-right font-mono text-zinc-300">
+                        {v.performanceSnapshot ? formatPct(v.performanceSnapshot.accuracy) : "—"}
                       </TableCell>
                       <TableCell className="text-zinc-400 text-sm">
                         {formatDateTime(v.generatedAt)}
