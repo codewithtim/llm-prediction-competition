@@ -1,4 +1,5 @@
 import type {
+  BankrollHistoryPoint,
   BetDetailResponse,
   BetSummary,
   CompetitorDetailResponse,
@@ -95,6 +96,13 @@ export function useVersion(competitorId: string, version: number) {
   return useQuery<VersionDetailResponse>({
     queryKey: ["version", competitorId, version],
     queryFn: () => fetchJson(`/competitors/${competitorId}/versions/${version}`),
+  });
+}
+
+export function useBankrollHistory(competitorId: string) {
+  return useQuery<BankrollHistoryPoint[]>({
+    queryKey: ["bankroll-history", competitorId],
+    queryFn: () => fetchJson(`/competitors/${competitorId}/bankroll-history`),
   });
 }
 

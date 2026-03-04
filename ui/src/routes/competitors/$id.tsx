@@ -1,4 +1,5 @@
 import { useParams } from "@tanstack/react-router";
+import { BankrollChart } from "@/components/competitors/bankroll-chart";
 import { PageShell } from "@/components/layout/page-shell";
 import { EmptyState } from "@/components/shared/empty-state";
 import { InternalLink } from "@/components/shared/internal-link";
@@ -17,12 +18,13 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useCompetitor } from "@/lib/api";
+import { useBankrollHistory, useCompetitor } from "@/lib/api";
 import { formatCurrency, formatDateTime, formatPct } from "@/lib/format";
 
 export function CompetitorDetailPage() {
   const { id } = useParams({ from: "/competitors/$id" });
   const { data, isLoading } = useCompetitor(id);
+  const { data: bankrollHistory } = useBankrollHistory(id);
 
   if (isLoading || !data) return <LoadingSkeleton />;
 
@@ -36,7 +38,17 @@ export function CompetitorDetailPage() {
         <StatusBadge status={data.status} />
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <StatCard
+          title="Wallet Balance"
+          value={data.onChainBalance != null ? formatCurrency(data.onChainBalance) : "—"}
+          valueClassName="text-zinc-200"
+        />
+        <StatCard
+          title="Bankroll"
+          value={formatCurrency(data.computedBankroll)}
+          valueClassName="text-zinc-200"
+        />
         <StatCard
           title="P&L"
           value={formatCurrency(data.stats.profitLoss)}
@@ -46,6 +58,8 @@ export function CompetitorDetailPage() {
         <StatCard title="Accuracy" value={formatPct(data.stats.accuracy)} />
         <StatCard title="ROI" value={formatPct(data.stats.roi)} />
       </div>
+
+      <BankrollChart data={bankrollHistory ?? []} />
 
       <Tabs defaultValue="bets" className="w-full">
         <TabsList className="bg-zinc-900 border border-zinc-800">

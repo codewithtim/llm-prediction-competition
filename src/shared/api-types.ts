@@ -20,6 +20,7 @@ export type CompetitorSummary = {
   type: string;
   hasWallet: boolean;
   walletAddress: string | null;
+  onChainBalance: number | null;
   createdAt: string;
   stats: PerformanceStatsDTO;
 };
@@ -32,6 +33,8 @@ export type CompetitorDetailResponse = {
   type: string;
   hasWallet: boolean;
   walletAddress: string | null;
+  onChainBalance: number | null;
+  computedBankroll: number;
   createdAt: string;
   stats: PerformanceStatsDTO;
   versions: VersionSummary[];
@@ -187,6 +190,11 @@ export type PredictionSummary = {
   stake: number;
   reasoning: ReasoningDTO;
   createdAt: string;
+};
+
+export type BankrollHistoryPoint = {
+  date: string;
+  bankroll: number;
 };
 
 export type LeaderboardEntry = {

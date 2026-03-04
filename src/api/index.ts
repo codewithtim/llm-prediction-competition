@@ -6,6 +6,7 @@ import type { fixturesRepo } from "../database/repositories/fixtures";
 import type { marketsRepo } from "../database/repositories/markets";
 import type { predictionsRepo } from "../database/repositories/predictions";
 import type { walletsRepo } from "../database/repositories/wallets";
+import type { BankrollProvider } from "../domain/services/bankroll";
 import { betsRoutes } from "./routes/bets";
 import { competitorsRoutes } from "./routes/competitors";
 import { dashboardRoutes } from "./routes/dashboard";
@@ -21,6 +22,8 @@ export type ApiDeps = {
   marketsRepo: ReturnType<typeof marketsRepo>;
   fixturesRepo: ReturnType<typeof fixturesRepo>;
   walletsRepo: ReturnType<typeof walletsRepo>;
+  bankrollProvider: BankrollProvider;
+  initialBankroll: number;
 };
 
 export function createApi(deps: ApiDeps) {

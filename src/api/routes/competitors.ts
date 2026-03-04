@@ -1,4 +1,5 @@
 import { Hono } from "hono";
+import { getUsdcBalance } from "../../apis/polymarket/balance-client";
 import type { ApiDeps } from "../index";
 import { toBetSummary } from "../mappers";
 
@@ -32,6 +33,12 @@ export function competitorsRoutes(deps: ApiDeps) {
       roi: 0,
     };
 
+    // Fetch on-chain balances in parallel for wallets
+    const balanceEntries = await Promise.all(
+      walletList.map(async (w) => [w.competitorId, await getUsdcBalance(w.walletAddress)] as const),
+    );
+    const balanceMap = new Map(balanceEntries);
+
     const results = allCompetitors.map((comp) => {
       const stats = statsMap.get(comp.id) ?? emptyStats;
       return {
@@ -42,6 +49,7 @@ export function competitorsRoutes(deps: ApiDeps) {
         type: comp.type,
         hasWallet: walletMap.has(comp.id),
         walletAddress: walletMap.get(comp.id) ?? null,
+        onChainBalance: balanceMap.get(comp.id) ?? null,
         createdAt: comp.createdAt?.toISOString() ?? "",
         stats: {
           totalBets: stats.totalBets,
@@ -70,12 +78,17 @@ export function competitorsRoutes(deps: ApiDeps) {
     const walletList = await deps.walletsRepo.listAll();
     const walletMap = new Map(walletList.map((w) => [w.competitorId, w.walletAddress]));
 
-    const [stats, versions, bets, predictions] = await Promise.all([
-      deps.betsRepo.getPerformanceStats(id),
-      deps.competitorVersionsRepo.findByCompetitor(id),
-      deps.betsRepo.findByCompetitor(id),
-      deps.predictionsRepo.findByCompetitor(id),
-    ]);
+    const walletAddress = walletMap.get(comp.id) ?? null;
+
+    const [stats, versions, bets, predictions, onChainBalance, computedBankroll] =
+      await Promise.all([
+        deps.betsRepo.getPerformanceStats(id),
+        deps.competitorVersionsRepo.findByCompetitor(id),
+        deps.betsRepo.findByCompetitor(id),
+        deps.predictionsRepo.findByCompetitor(id),
+        walletAddress ? getUsdcBalance(walletAddress) : Promise.resolve(null),
+        deps.bankrollProvider.getBankroll(id),
+      ]);
 
     const marketIds = [
       ...new Set([...bets.map((b) => b.marketId), ...predictions.map((p) => p.marketId)]),
@@ -98,7 +111,9 @@ export function competitorsRoutes(deps: ApiDeps) {
       status: comp.status,
       type: comp.type,
       hasWallet: walletMap.has(comp.id),
-      walletAddress: walletMap.get(comp.id) ?? null,
+      walletAddress,
+      onChainBalance,
+      computedBankroll,
       createdAt: comp.createdAt?.toISOString() ?? "",
       stats: {
         totalBets: stats.totalBets,
@@ -137,6 +152,30 @@ export function competitorsRoutes(deps: ApiDeps) {
         createdAt: p.createdAt?.toISOString() ?? "",
       })),
     });
+  });
+
+  app.get("/competitors/:id/bankroll-history", async (c) => {
+    const id = c.req.param("id");
+    const comp = await deps.competitorsRepo.findById(id);
+    if (!comp) return c.json({ error: "Competitor not found" }, 404);
+
+    const allBets = await deps.betsRepo.findByCompetitor(id);
+    const settledBets = allBets
+      .filter(
+        (b) => (b.status === "settled_won" || b.status === "settled_lost") && b.settledAt != null,
+      )
+      .sort((a, b) => (a.settledAt?.getTime() ?? 0) - (b.settledAt?.getTime() ?? 0));
+
+    let running = deps.initialBankroll;
+    const dataPoints = settledBets.map((b) => {
+      running += b.profit ?? 0;
+      return {
+        date: b.settledAt?.toISOString() ?? "",
+        bankroll: Math.round(running * 100) / 100,
+      };
+    });
+
+    return c.json(dataPoints);
   });
 
   app.get("/competitors/:id/versions/:version", async (c) => {

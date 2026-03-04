@@ -186,6 +186,8 @@ const api = createApi({
   marketsRepo: markets,
   fixturesRepo: fixtures,
   walletsRepo: wallets,
+  bankrollProvider,
+  initialBankroll: DEFAULT_CONFIG.betting.initialBankroll,
 });
 
 api.get("/health", (c) => c.json({ status: "ok" }));

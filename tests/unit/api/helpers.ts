@@ -80,5 +80,10 @@ export function createMockDeps(overrides: Partial<ApiDeps> = {}): ApiDeps {
       listAll: async () => [],
       ...overrides.walletsRepo,
     } as any,
+    bankrollProvider: {
+      getBankroll: async () => 10,
+      ...overrides.bankrollProvider,
+    } as any,
+    initialBankroll: overrides.initialBankroll ?? 10,
   };
 }
