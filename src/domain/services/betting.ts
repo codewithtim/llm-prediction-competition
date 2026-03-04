@@ -1,4 +1,5 @@
 import type { BettingClientFactory } from "../../apis/polymarket/betting-client-factory";
+import type { AuditLogRepo } from "../../database/repositories/audit-log";
 import type { betsRepo as betsRepoFactory } from "../../database/repositories/bets";
 import type { PredictionOutput } from "../contracts/prediction";
 import type { Market } from "../models/market";
@@ -57,9 +58,10 @@ export function clampStake(stake: number, maxStake: number): number {
 export function createBettingService(deps: {
   bettingClientFactory: BettingClientFactory;
   betsRepo: ReturnType<typeof betsRepoFactory>;
+  auditLog: AuditLogRepo;
   config: BettingConfig;
 }) {
-  const { bettingClientFactory, betsRepo, config } = deps;
+  const { bettingClientFactory, betsRepo, auditLog, config } = deps;
 
   return {
     async placeBet(input: PlaceBetInput): Promise<PlaceBetResult> {
@@ -127,6 +129,14 @@ export function createBettingService(deps: {
         return { status: "skipped", reason: "Bet already exists for this market and competitor" };
       }
 
+      await auditLog.safeRecord({
+        betId,
+        event: "bet_created",
+        statusBefore: null,
+        statusAfter: "submitting",
+        metadata: { marketId: market.id, price, stake: amount, side: prediction.side },
+      });
+
       const bettingClient = bettingClientFactory.getClient(competitorId, walletConfig);
 
       try {
@@ -137,15 +147,21 @@ export function createBettingService(deps: {
           side: "BUY",
         });
 
-        // Success: update to pending with real orderId
         await betsRepo.updateBetAfterSubmission(betId, {
           status: "pending",
           orderId,
         });
 
+        await auditLog.safeRecord({
+          betId,
+          event: "order_submitted",
+          statusBefore: "submitting",
+          statusAfter: "pending",
+          orderId,
+        });
+
         return { status: "placed", bet: { ...bet, orderId } };
       } catch (err) {
-        // Failure: update to failed with error details
         const errorMessage = err instanceof Error ? err.message : String(err);
         const errorCategory = classifyBetError(err);
 
@@ -155,6 +171,15 @@ export function createBettingService(deps: {
           errorCategory,
           attempts: 1,
           lastAttemptAt: new Date(),
+        });
+
+        await auditLog.safeRecord({
+          betId,
+          event: "order_failed",
+          statusBefore: "submitting",
+          statusAfter: "failed",
+          error: errorMessage,
+          errorCategory,
         });
 
         return { status: "failed", error: errorMessage, errorCategory };

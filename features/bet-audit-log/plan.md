@@ -1,7 +1,7 @@
 # Plan: Bet Audit Log
 
 **Date:** 2026-03-03
-**Status:** Draft
+**Status:** Implemented
 
 ---
 
@@ -45,7 +45,7 @@ Every bet status change and external API interaction:
 
 ### Trade-offs
 
-- **More code in each service** — each status transition gets an `auditLog.record()` call alongside the existing repo call. ~1 extra line per transition.
+- **More code in each service** — each status transition gets an `auditLog.safeRecord()` call alongside the existing repo call. ~1 extra line per transition.
 - **Audit writes are fire-and-forget** — if the audit log write fails (e.g. DB issue), we log a warning but don't fail the bet operation. This means the audit log could have gaps in extreme failure scenarios.
 - **Storage growth** — each bet generates 2–4 audit rows over its lifetime. With the current volume (tens of bets per day), this is negligible. No cleanup or rotation needed.
 
@@ -53,9 +53,9 @@ Every bet status change and external API interaction:
 
 ## Changes Required
 
-### `src/infrastructure/database/schema.ts`
+### `src/database/schema.ts`
 
-Add the `bet_audit_log` table:
+Add the `bet_audit_log` table with an index on `bet_id` for efficient per-bet queries:
 
 ```typescript
 export const betAuditLog = sqliteTable("bet_audit_log", {
@@ -90,13 +90,15 @@ export const betAuditLog = sqliteTable("bet_audit_log", {
   metadata: text("metadata", { mode: "json" }).$type<Record<string, unknown>>(),
   timestamp: integer("timestamp", { mode: "timestamp" }).notNull().$defaultFn(() => new Date()),
 });
+
+export const betAuditLogBetIdIdx = index("bet_audit_log_bet_id_idx").on(betAuditLog.betId);
 ```
 
 The `metadata` JSON column captures event-specific details (profit, attempt number, age, etc.) without needing a column for every possible field.
 
-### `src/infrastructure/database/repositories/audit-log.ts`
+### `src/database/repositories/audit-log.ts`
 
-New repository file:
+New repository file. The `safeRecord` method wraps the insert in a try/catch so that each service call site is a single line with no boilerplate error handling:
 
 ```typescript
 export function auditLogRepo(db: Database) {
@@ -105,37 +107,42 @@ export function auditLogRepo(db: Database) {
       return db.insert(betAuditLog).values(entry).run();
     },
 
+    async safeRecord(entry: typeof betAuditLog.$inferInsert) {
+      try {
+        await db.insert(betAuditLog).values(entry).run();
+      } catch (e) {
+        logger.warn("Audit log write failed", { betId: entry.betId, event: entry.event, error: e });
+      }
+    },
+
     async findByBetId(betId: string) {
       return db.select().from(betAuditLog)
         .where(eq(betAuditLog.betId, betId))
         .orderBy(betAuditLog.timestamp)
         .all();
     },
-
-    async findRecent(limit: number) {
-      return db.select().from(betAuditLog)
-        .orderBy(desc(betAuditLog.timestamp))
-        .limit(limit)
-        .all();
-    },
   };
 }
+
+export type AuditLogRepo = ReturnType<typeof auditLogRepo>;
 ```
+
+Services use `safeRecord` (fire-and-forget with logging) rather than `record` (raw, throws on failure). The `record` method is still available for tests or cases where you want the error to propagate. The `findRecent` method is removed — the only query pattern needed is per-bet via the API.
 
 ### `src/domain/services/betting.ts`
 
 Add `auditLog` to deps. Record two events:
 
-1. After `betsRepo.create()` (write-ahead) — `bet_created` with `statusAfter: "submitting"`.
-2. After `betsRepo.updateBetAfterSubmission()` — either `order_submitted` (status → pending) or `order_failed` (status → failed).
+1. After `betsRepo.create()` (write-ahead) — `bet_created` with `statusBefore: null`, `statusAfter: "submitting"`.
+2. After `betsRepo.updateBetAfterSubmission()` — either `order_submitted` (`statusBefore: "submitting"`, `statusAfter: "pending"`) or `order_failed` (`statusBefore: "submitting"`, `statusAfter: "failed"`).
 
-Each audit call is wrapped in try/catch that logs a warning on failure.
+`statusBefore` is known from context: the bet was just created as `"submitting"`, so no DB read is needed.
 
 ```typescript
 export function createBettingService(deps: {
   bettingClientFactory: BettingClientFactory;
   betsRepo: ReturnType<typeof betsRepoFactory>;
-  auditLog: ReturnType<typeof auditLogRepoFactory>;
+  auditLog: AuditLogRepo;
   config: BettingConfig;
 }) {
 ```
@@ -144,36 +151,53 @@ export function createBettingService(deps: {
 
 Add `auditLog` to deps. Record events for:
 
-1. Stuck submitting bet → failed: `stuck_bet_recovered`
-2. Ghost order detected → failed: `ghost_order_detected`
-3. Order filled (pending → filled): `order_confirmed`
-4. Stale order cancelled (pending → cancelled): `order_cancelled`
+1. Stuck submitting bet → failed: `stuck_bet_recovered` — `statusBefore` is `"submitting"` (known from the query filter).
+2. Ghost order detected → failed: `ghost_order_detected` — `statusBefore` is `"pending"` (known from the query filter).
+3. Order filled (pending → filled): `order_confirmed` — `statusBefore` is `"pending"`.
+4. Stale order cancelled (pending → cancelled): `order_cancelled` — `statusBefore` is `"pending"`.
+
+All `statusBefore` values are derived from the service's existing query context (it fetches bets by status), so no additional DB reads are needed.
 
 ### `src/domain/services/bet-retry.ts`
 
 Add `auditLog` to deps. Record events for:
 
-1. Retry starting (failed → submitting): `retry_started`
-2. Retry succeeded (submitting → pending): `retry_succeeded`
-3. Retry failed again (submitting → failed): `retry_failed`
+1. Retry starting (failed → submitting): `retry_started` — `statusBefore` is `"failed"` (known from the retryable bets query).
+2. Retry succeeded (submitting → pending): `retry_succeeded` — `statusBefore` is `"submitting"`.
+3. Retry failed again (submitting → failed): `retry_failed` — `statusBefore` is `"submitting"`.
 
 ### `src/domain/services/settlement.ts`
 
 Add `auditLog` to deps. Record event for:
 
-1. Bet settled (filled/pending → settled_won/settled_lost): `bet_settled` with metadata `{ outcome, profit, winningSide }`.
+1. Bet settled (filled → settled_won/settled_lost): `bet_settled` with metadata `{ outcome, profit, winningSide }`. `statusBefore` is `"filled"` (known from the settlement query).
 
 ### `src/index.ts`
 
 Wire the `auditLogRepo` into the services that need it. Follows existing dependency injection pattern — create the repo, pass it as a dep to betting, order-confirmation, bet-retry, and settlement services.
 
+```typescript
+const auditLog = auditLogRepo(db);
+
+const bettingService = createBettingService({ ..., auditLog });
+const orderConfirmationService = createOrderConfirmationService({ ..., auditLog });
+const betRetryService = createBetRetryService({ ..., auditLog });
+const settlementService = createSettlementService({ ..., auditLog });
+```
+
+Also add `auditLog` to the `ApiDeps` type in `src/api/index.ts` so the route handler can access the repo.
+
+### `src/api/index.ts`
+
+Add `auditLogRepo` to the `ApiDeps` type and pass it through when creating the API.
+
 ### `src/api/routes/bets.ts`
 
-Add a GET endpoint for the audit log of a specific bet:
+Add a GET endpoint for the audit log of a specific bet. The route path is `/bets/:id/audit` (not `/api/bets/:id/audit`) because routes are mounted under `/api` by `createApi`:
 
 ```typescript
-app.get("/api/bets/:id/audit", async (c) => {
-  const entries = await auditLog.findByBetId(c.req.param("id"));
+app.get("/bets/:id/audit", async (c) => {
+  const entries = await deps.auditLog.findByBetId(c.req.param("id"));
   return c.json({ entries });
 });
 ```
@@ -186,7 +210,7 @@ Add the `BetAuditEntry` response type so the UI can consume it.
 
 ## Data & Migration
 
-New table `bet_audit_log` — no existing data affected. Generate migration with `bunx drizzle-kit generate` and apply with `bun run src/infrastructure/database/migrate.ts`.
+New table `bet_audit_log` — no existing data affected. Generate migration with `bunx drizzle-kit generate` and apply with `bun run src/database/migrate.ts`.
 
 The audit log starts empty. Existing bets won't have historical audit entries, but all future status changes will be captured.
 
@@ -200,7 +224,7 @@ The audit log starts empty. Existing bets won't have historical audit entries, b
 
 3. **Betting service: records bet_created and order_failed on failure** — Place a bet that fails, verify two audit entries with error and errorCategory.
 
-4. **Betting service: audit failure does not block bet placement** — Mock `auditLog.record` to throw, verify bet is still placed successfully and warning is logged.
+4. **Betting service: audit failure does not block bet placement** — Mock `auditLog.safeRecord` to throw (or mock `record` under `safeRecord`), verify bet is still placed successfully and warning is logged.
 
 5. **Order confirmation: records order_confirmed** — Confirm a pending bet as filled, verify audit entry.
 
@@ -218,19 +242,20 @@ The audit log starts empty. Existing bets won't have historical audit entries, b
 
 ## Task Breakdown
 
-- [ ] Add `betAuditLog` table to `src/infrastructure/database/schema.ts`
-- [ ] Generate and apply migration with `bunx drizzle-kit generate`
-- [ ] Create `src/infrastructure/database/repositories/audit-log.ts` with `record`, `findByBetId`, `findRecent`
-- [ ] Add `BetAuditEntry` type to `src/shared/api-types.ts`
-- [ ] Add `auditLog` dep to `createBettingService` in `src/domain/services/betting.ts` and record `bet_created` + `order_submitted`/`order_failed`
-- [ ] Add `auditLog` dep to `createOrderConfirmationService` in `src/domain/services/order-confirmation.ts` and record `order_confirmed`, `order_cancelled`, `stuck_bet_recovered`, `ghost_order_detected`
-- [ ] Add `auditLog` dep to `createBetRetryService` in `src/domain/services/bet-retry.ts` and record `retry_started`, `retry_succeeded`, `retry_failed`
-- [ ] Add `auditLog` dep to `createSettlementService` in `src/domain/services/settlement.ts` and record `bet_settled`
-- [ ] Wire `auditLogRepo` into all services in `src/index.ts`
-- [ ] Add `GET /api/bets/:id/audit` route to `src/api/routes/bets.ts`
-- [ ] Add repo tests in `tests/unit/infrastructure/database/repositories/audit-log.test.ts`
-- [ ] Add betting service audit tests in `tests/unit/domain/services/betting.test.ts`
-- [ ] Add order confirmation audit tests in `tests/unit/domain/services/order-confirmation.test.ts`
-- [ ] Add bet retry audit tests in `tests/unit/domain/services/bet-retry.test.ts`
-- [ ] Add settlement audit tests in `tests/unit/domain/services/settlement.test.ts`
-- [ ] Run full test suite, type check, and lint
+- [x] Add `betAuditLog` table and `betAuditLogBetIdIdx` index to `src/database/schema.ts`
+- [x] Generate and apply migration with `bunx drizzle-kit generate`
+- [x] Create `src/database/repositories/audit-log.ts` with `record`, `safeRecord`, `findByBetId`
+- [x] Add `BetAuditEntry` type to `src/shared/api-types.ts`
+- [x] Add `auditLog` dep to `createBettingService` in `src/domain/services/betting.ts` and record `bet_created` + `order_submitted`/`order_failed` via `safeRecord`
+- [x] Add `auditLog` dep to `createOrderConfirmationService` in `src/domain/services/order-confirmation.ts` and record `order_confirmed`, `order_cancelled`, `stuck_bet_recovered`, `ghost_order_detected` via `safeRecord`
+- [x] Add `auditLog` dep to `createBetRetryService` in `src/domain/services/bet-retry.ts` and record `retry_started`, `retry_succeeded`, `retry_failed` via `safeRecord`
+- [x] Add `auditLog` dep to `createSettlementService` in `src/domain/services/settlement.ts` and record `bet_settled` via `safeRecord`
+- [x] Wire `auditLogRepo` into all services in `src/index.ts`
+- [x] Add `auditLogRepo` to `ApiDeps` in `src/api/index.ts`
+- [x] Add `GET /bets/:id/audit` route to `src/api/routes/bets.ts`
+- [x] Add repo tests in `tests/unit/database/repositories/audit-log.test.ts`
+- [x] Add betting service audit tests in `tests/unit/domain/services/betting.test.ts`
+- [x] Add order confirmation audit tests in `tests/unit/domain/services/order-confirmation.test.ts`
+- [x] Add bet retry audit tests in `tests/unit/domain/services/bet-retry.test.ts`
+- [x] Add settlement audit tests in `tests/unit/domain/services/settlement.test.ts`
+- [x] Run full test suite, type check, and lint

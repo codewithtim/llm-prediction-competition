@@ -17,6 +17,7 @@ export type BetErrorCategory =
   | "rate_limited"
   | "wallet_error"
   | "invalid_market"
+  | "order_too_small"
   | "unknown";
 
 export type Bet = {

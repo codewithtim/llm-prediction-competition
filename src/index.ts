@@ -10,6 +10,7 @@ import { createFootballClient } from "./apis/sports-data/client.ts";
 import { loadCompetitors } from "./competitors/loader.ts";
 import { createRegistry } from "./competitors/registry.ts";
 import { createDb } from "./database/client.ts";
+import { auditLogRepo } from "./database/repositories/audit-log.ts";
 import { betsRepo } from "./database/repositories/bets.ts";
 import { competitorVersionsRepo } from "./database/repositories/competitor-versions.ts";
 import { competitorsRepo } from "./database/repositories/competitors.ts";
@@ -50,6 +51,7 @@ const markets = marketsRepo(db);
 const fixtures = fixturesRepo(db);
 const preds = predictionsRepo(db);
 const statsCache = statsCacheRepo(db);
+const auditLog = auditLogRepo(db);
 const bets = betsRepo(db);
 const comps = competitorsRepo(db);
 const wallets = walletsRepo(db);
@@ -74,6 +76,7 @@ const discovery = createMarketDiscovery(gammaClient, {
 const bettingService = createBettingService({
   bettingClientFactory,
   betsRepo: bets,
+  auditLog,
   config: DEFAULT_CONFIG.betting,
 });
 const bankrollProvider = createBankrollProvider({
@@ -84,6 +87,7 @@ const settlementService = createSettlementService({
   gammaClient,
   betsRepo: bets,
   marketsRepo: markets,
+  auditLog,
 });
 
 // ── Competitor registry (database-driven) ────────────────────────────
@@ -113,6 +117,7 @@ for (const entry of engines) {
 const orderConfirmationService = createOrderConfirmationService({
   betsRepo: bets,
   bettingClientFactory,
+  auditLog,
   walletConfigs,
   maxOrderAgeMs: DEFAULT_CONFIG.orderConfirmation.maxOrderAgeMs,
 });
@@ -120,6 +125,7 @@ const orderConfirmationService = createOrderConfirmationService({
 const betRetryService = createBetRetryService({
   betsRepo: bets,
   bettingClientFactory,
+  auditLog,
   walletConfigs,
   maxRetryAttempts: DEFAULT_CONFIG.retry.maxRetryAttempts,
   retryDelayMs: DEFAULT_CONFIG.retry.retryDelayMs,
@@ -186,6 +192,7 @@ const api = createApi({
   marketsRepo: markets,
   fixturesRepo: fixtures,
   walletsRepo: wallets,
+  auditLogRepo: auditLog,
   bankrollProvider,
   initialBankroll: DEFAULT_CONFIG.betting.initialBankroll,
 });

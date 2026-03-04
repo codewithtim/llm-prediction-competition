@@ -4,6 +4,7 @@ import {
   createSettlementService,
   determineWinningOutcome,
 } from "../../../../src/domain/services/settlement";
+import type { AuditLogRepo } from "../../../../src/database/repositories/audit-log";
 import type { betsRepo as betsRepoFactory } from "../../../../src/database/repositories/bets";
 import type { marketsRepo as marketsRepoFactory } from "../../../../src/database/repositories/markets";
 import type { GammaClient } from "../../../../src/apis/polymarket/gamma-client";
@@ -11,6 +12,14 @@ import type { GammaMarket } from "../../../../src/apis/polymarket/types";
 
 type BetsRepo = ReturnType<typeof betsRepoFactory>;
 type MarketsRepo = ReturnType<typeof marketsRepoFactory>;
+
+function mockAuditLog(): AuditLogRepo {
+  return {
+    record: mock(() => Promise.resolve({} as any)),
+    safeRecord: mock(() => Promise.resolve()),
+    findByBetId: mock(() => Promise.resolve([])),
+  };
+}
 
 type BetRow = {
   id: string;
@@ -243,6 +252,7 @@ describe("createSettlementService", () => {
         gammaClient: gamma,
         betsRepo: bets,
         marketsRepo: markets,
+        auditLog: mockAuditLog(),
       });
 
       const result = await service.settleBets();
@@ -267,6 +277,7 @@ describe("createSettlementService", () => {
         gammaClient: gamma,
         betsRepo: bets,
         marketsRepo: markets,
+        auditLog: mockAuditLog(),
       });
 
       const result = await service.settleBets();
@@ -294,6 +305,7 @@ describe("createSettlementService", () => {
         gammaClient: gamma,
         betsRepo: bets,
         marketsRepo: markets,
+        auditLog: mockAuditLog(),
       });
 
       const result = await service.settleBets();
@@ -317,6 +329,7 @@ describe("createSettlementService", () => {
         gammaClient: gamma,
         betsRepo: bets,
         marketsRepo: markets,
+        auditLog: mockAuditLog(),
       });
 
       const result = await service.settleBets();
@@ -343,6 +356,7 @@ describe("createSettlementService", () => {
         gammaClient: gamma,
         betsRepo: bets,
         marketsRepo: markets,
+        auditLog: mockAuditLog(),
       });
 
       const result = await service.settleBets();
@@ -362,6 +376,7 @@ describe("createSettlementService", () => {
         gammaClient: gamma,
         betsRepo: bets,
         marketsRepo: markets,
+        auditLog: mockAuditLog(),
       });
 
       await service.settleBets();
@@ -391,6 +406,7 @@ describe("createSettlementService", () => {
         gammaClient: gamma,
         betsRepo: bets,
         marketsRepo: markets,
+        auditLog: mockAuditLog(),
       });
 
       const result = await service.settleBets();
@@ -409,6 +425,7 @@ describe("createSettlementService", () => {
         gammaClient: gamma,
         betsRepo: bets,
         marketsRepo: markets,
+        auditLog: mockAuditLog(),
       });
 
       const result = await service.settleBets();
@@ -431,6 +448,7 @@ describe("createSettlementService", () => {
         gammaClient: gamma,
         betsRepo: bets,
         marketsRepo: markets,
+        auditLog: mockAuditLog(),
       });
 
       const result = await service.settleBets();
@@ -451,6 +469,7 @@ describe("createSettlementService", () => {
         gammaClient: gamma,
         betsRepo: bets,
         marketsRepo: markets,
+        auditLog: mockAuditLog(),
       });
 
       const result = await service.settleBets();
@@ -479,6 +498,7 @@ describe("createSettlementService", () => {
         gammaClient: gamma,
         betsRepo: bets,
         marketsRepo: markets,
+        auditLog: mockAuditLog(),
       });
 
       const result = await service.settleBets();
@@ -503,6 +523,7 @@ describe("createSettlementService", () => {
         gammaClient: gamma,
         betsRepo: bets,
         marketsRepo: markets,
+        auditLog: mockAuditLog(),
       });
 
       const result = await service.settleBets();
@@ -524,6 +545,7 @@ describe("createSettlementService", () => {
         gammaClient: gamma,
         betsRepo: bets,
         marketsRepo: markets,
+        auditLog: mockAuditLog(),
       });
 
       const result = await service.settleBets();
@@ -547,6 +569,7 @@ describe("createSettlementService", () => {
         gammaClient: gamma,
         betsRepo: bets,
         marketsRepo: markets,
+        auditLog: mockAuditLog(),
       });
 
       const result = await service.settleBets();
@@ -554,6 +577,38 @@ describe("createSettlementService", () => {
       const statusCalls = (bets.findByStatus as ReturnType<typeof mock>).mock.calls;
       const queriedStatuses = statusCalls.map((c: unknown[]) => c[0]);
       expect(queriedStatuses).not.toContain("failed");
+    });
+  });
+
+  describe("audit logging", () => {
+    it("records bet_settled with outcome and profit in metadata", async () => {
+      const bet = makeBetRow({ side: "YES", amount: 5, price: 0.65, status: "filled" });
+      const market = makeMarketRow({ id: "market-1", closed: false });
+      const gamma = mockGammaClient({
+        getMarketById: mock(() => Promise.resolve(makeGammaMarket({ outcomePrices: '["1","0"]' }))),
+      });
+      const bets = mockBetsRepo([], [bet]);
+      const markets = mockMarketsRepo([market]);
+      const audit = mockAuditLog();
+
+      const service = createSettlementService({
+        gammaClient: gamma,
+        betsRepo: bets,
+        marketsRepo: markets,
+        auditLog: audit,
+      });
+
+      await service.settleBets();
+
+      expect(audit.safeRecord).toHaveBeenCalledTimes(1);
+      const entry = (audit.safeRecord as ReturnType<typeof mock>).mock.calls[0]![0] as Record<string, unknown>;
+      expect(entry.event).toBe("bet_settled");
+      expect(entry.statusBefore).toBe("filled");
+      expect(entry.statusAfter).toBe("settled_won");
+      const meta = entry.metadata as Record<string, unknown>;
+      expect(meta.outcome).toBe("won");
+      expect(meta.winningSide).toBe("YES");
+      expect(typeof meta.profit).toBe("number");
     });
   });
 });

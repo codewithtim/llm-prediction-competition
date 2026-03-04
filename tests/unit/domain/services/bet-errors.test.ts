@@ -50,6 +50,14 @@ describe("classifyBetError", () => {
     expect(classifyBetError(new Error("market closed for trading"))).toBe("invalid_market");
   });
 
+  it('classifies "invalid amount...min size" as order_too_small', () => {
+    expect(
+      classifyBetError(
+        new Error("invalid amount for a marketable BUY order ($0.3116), min size: $1"),
+      ),
+    ).toBe("order_too_small");
+  });
+
   it("classifies unknown error string as unknown", () => {
     expect(classifyBetError(new Error("something completely unexpected"))).toBe("unknown");
   });

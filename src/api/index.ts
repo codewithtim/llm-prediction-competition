@@ -1,4 +1,5 @@
 import { Hono } from "hono";
+import type { AuditLogRepo } from "../database/repositories/audit-log";
 import type { betsRepo } from "../database/repositories/bets";
 import type { competitorVersionsRepo } from "../database/repositories/competitor-versions";
 import type { competitorsRepo } from "../database/repositories/competitors";
@@ -22,6 +23,7 @@ export type ApiDeps = {
   marketsRepo: ReturnType<typeof marketsRepo>;
   fixturesRepo: ReturnType<typeof fixturesRepo>;
   walletsRepo: ReturnType<typeof walletsRepo>;
+  auditLogRepo: AuditLogRepo;
   bankrollProvider: BankrollProvider;
   initialBankroll: number;
 };

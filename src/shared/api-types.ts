@@ -217,3 +217,16 @@ export type DashboardResponse = {
   leaderboard: LeaderboardEntry[];
   recentBets: BetSummary[];
 };
+
+export type BetAuditEntry = {
+  id: number;
+  betId: string;
+  event: string;
+  statusBefore: string | null;
+  statusAfter: string;
+  orderId: string | null;
+  error: string | null;
+  errorCategory: string | null;
+  metadata: Record<string, unknown> | null;
+  timestamp: string;
+};

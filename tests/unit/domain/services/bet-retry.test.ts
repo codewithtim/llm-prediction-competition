@@ -1,10 +1,19 @@
 import { describe, expect, it, mock } from "bun:test";
 import { createBetRetryService } from "../../../../src/domain/services/bet-retry";
+import type { AuditLogRepo } from "../../../../src/database/repositories/audit-log";
 import type { betsRepo as betsRepoFactory } from "../../../../src/database/repositories/bets";
 import type { BettingClient } from "../../../../src/apis/polymarket/betting-client";
 import type { BettingClientFactory } from "../../../../src/apis/polymarket/betting-client-factory";
 
 type BetsRepo = ReturnType<typeof betsRepoFactory>;
+
+function mockAuditLog(): AuditLogRepo {
+  return {
+    record: mock(() => Promise.resolve({} as any)),
+    safeRecord: mock(() => Promise.resolve()),
+    findByBetId: mock(() => Promise.resolve([])),
+  };
+}
 
 type BetRow = {
   id: string;
@@ -125,6 +134,7 @@ describe("createBetRetryService", () => {
     const service = createBetRetryService({
       betsRepo: repo,
       bettingClientFactory: factory,
+      auditLog: mockAuditLog(),
       walletConfigs: makeWalletConfigs(),
       maxRetryAttempts: 3,
     });
@@ -153,6 +163,7 @@ describe("createBetRetryService", () => {
     const service = createBetRetryService({
       betsRepo: repo,
       bettingClientFactory: factory,
+      auditLog: mockAuditLog(),
       walletConfigs: makeWalletConfigs(),
       maxRetryAttempts: 3,
     });
@@ -173,6 +184,7 @@ describe("createBetRetryService", () => {
     const service = createBetRetryService({
       betsRepo: repo,
       bettingClientFactory: factory,
+      auditLog: mockAuditLog(),
       walletConfigs: makeWalletConfigs(),
       maxRetryAttempts: 3,
     });
@@ -209,6 +221,7 @@ describe("createBetRetryService", () => {
     const service = createBetRetryService({
       betsRepo: repo,
       bettingClientFactory: factory,
+      auditLog: mockAuditLog(),
       walletConfigs: makeWalletConfigs(),
       maxRetryAttempts: 3,
     });
@@ -233,6 +246,7 @@ describe("createBetRetryService", () => {
     const service = createBetRetryService({
       betsRepo: repo,
       bettingClientFactory: factory,
+      auditLog: mockAuditLog(),
       walletConfigs: makeWalletConfigs(),
       maxRetryAttempts: 3,
     });
@@ -251,6 +265,7 @@ describe("createBetRetryService", () => {
     const service = createBetRetryService({
       betsRepo: repo,
       bettingClientFactory: factory,
+      auditLog: mockAuditLog(),
       walletConfigs: makeWalletConfigs(),
       maxRetryAttempts: 3,
     });
@@ -275,6 +290,7 @@ describe("createBetRetryService", () => {
     const service = createBetRetryService({
       betsRepo: repo,
       bettingClientFactory: factory,
+      auditLog: mockAuditLog(),
       walletConfigs: makeWalletConfigs(),
       maxRetryAttempts: 3,
     });
@@ -299,6 +315,7 @@ describe("createBetRetryService", () => {
     const service = createBetRetryService({
       betsRepo: repo,
       bettingClientFactory: factory,
+      auditLog: mockAuditLog(),
       walletConfigs: makeWalletConfigs(),
       maxRetryAttempts: 3,
     });
@@ -320,6 +337,7 @@ describe("createBetRetryService", () => {
     const service = createBetRetryService({
       betsRepo: repo,
       bettingClientFactory: factory,
+      auditLog: mockAuditLog(),
       walletConfigs: makeWalletConfigs(),
       maxRetryAttempts: 3,
     });
@@ -329,5 +347,69 @@ describe("createBetRetryService", () => {
     expect(result.errors).toHaveLength(1);
     expect(result.errors[0]).toContain("No wallet config");
     expect(client.placeOrder).not.toHaveBeenCalled();
+  });
+
+  describe("audit logging", () => {
+    it("records retry_started and retry_succeeded on success", async () => {
+      const bet = makeFailedBet({ attempts: 1 });
+      const repo = mockBetsRepo([bet]);
+      const client = mockBettingClient();
+      const factory = mockBettingClientFactory(client);
+      const audit = mockAuditLog();
+
+      const service = createBetRetryService({
+        betsRepo: repo,
+        bettingClientFactory: factory,
+        auditLog: audit,
+        walletConfigs: makeWalletConfigs(),
+        maxRetryAttempts: 3,
+      });
+
+      await service.retryFailedBets();
+
+      expect(audit.safeRecord).toHaveBeenCalledTimes(2);
+      const calls = (audit.safeRecord as ReturnType<typeof mock>).mock.calls as unknown[][];
+      const first = calls[0]![0] as Record<string, unknown>;
+      expect(first.event).toBe("retry_started");
+      expect(first.statusBefore).toBe("failed");
+      expect(first.statusAfter).toBe("submitting");
+
+      const second = calls[1]![0] as Record<string, unknown>;
+      expect(second.event).toBe("retry_succeeded");
+      expect(second.statusBefore).toBe("submitting");
+      expect(second.statusAfter).toBe("pending");
+      expect(second.orderId).toBe("retry-order-abc");
+    });
+
+    it("records retry_started and retry_failed on failure", async () => {
+      const bet = makeFailedBet({ attempts: 1 });
+      const repo = mockBetsRepo([bet]);
+      const client = mockBettingClient({
+        placeOrder: mock(() => Promise.reject(new Error("Still failing"))),
+      } as unknown as BettingClient);
+      const factory = mockBettingClientFactory(client);
+      const audit = mockAuditLog();
+
+      const service = createBetRetryService({
+        betsRepo: repo,
+        bettingClientFactory: factory,
+        auditLog: audit,
+        walletConfigs: makeWalletConfigs(),
+        maxRetryAttempts: 3,
+      });
+
+      await service.retryFailedBets();
+
+      expect(audit.safeRecord).toHaveBeenCalledTimes(2);
+      const calls = (audit.safeRecord as ReturnType<typeof mock>).mock.calls as unknown[][];
+      const first = calls[0]![0] as Record<string, unknown>;
+      expect(first.event).toBe("retry_started");
+
+      const second = calls[1]![0] as Record<string, unknown>;
+      expect(second.event).toBe("retry_failed");
+      expect(second.statusBefore).toBe("submitting");
+      expect(second.statusAfter).toBe("failed");
+      expect(second.error).toContain("Still failing");
+    });
   });
 });

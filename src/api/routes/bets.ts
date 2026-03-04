@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import type { BetDetailResponse } from "../../shared/api-types";
+import type { BetAuditEntry, BetDetailResponse } from "../../shared/api-types";
 import type { ApiDeps } from "../index";
 import { toBetSummary } from "../mappers";
 
@@ -86,6 +86,27 @@ export function betsRoutes(deps: ApiDeps) {
       orderId: bet.orderId ?? null,
       lastAttemptAt: bet.lastAttemptAt?.toISOString() ?? null,
     } satisfies BetDetailResponse);
+  });
+
+  app.get("/bets/:id/audit", async (c) => {
+    const entries = await deps.auditLogRepo.findByBetId(c.req.param("id"));
+    return c.json({
+      entries: entries.map(
+        (e) =>
+          ({
+            id: e.id,
+            betId: e.betId,
+            event: e.event,
+            statusBefore: e.statusBefore,
+            statusAfter: e.statusAfter,
+            orderId: e.orderId,
+            error: e.error,
+            errorCategory: e.errorCategory,
+            metadata: e.metadata,
+            timestamp: e.timestamp.toISOString(),
+          }) satisfies BetAuditEntry,
+      ),
+    });
   });
 
   return app;

@@ -9,6 +9,10 @@ const ERROR_PATTERNS: Array<{ pattern: RegExp; category: BetErrorCategory }> = [
   { pattern: /429|rate limit/i, category: "rate_limited" },
   { pattern: /invalid signature|nonce/i, category: "wallet_error" },
   { pattern: /market not found|market closed/i, category: "invalid_market" },
+  {
+    pattern: /invalid amount.*min size|order size.*too small|below.*minimum/i,
+    category: "order_too_small",
+  },
 ];
 
 export function classifyBetError(error: unknown): BetErrorCategory {

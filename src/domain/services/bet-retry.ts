@@ -1,4 +1,5 @@
 import type { BettingClientFactory } from "../../apis/polymarket/betting-client-factory";
+import type { AuditLogRepo } from "../../database/repositories/audit-log";
 import type { betsRepo as betsRepoFactory } from "../../database/repositories/bets";
 import { logger } from "../../shared/logger";
 import type { WalletConfig } from "../types/competitor";
@@ -14,11 +15,19 @@ export type BetRetryResult = {
 export function createBetRetryService(deps: {
   betsRepo: ReturnType<typeof betsRepoFactory>;
   bettingClientFactory: BettingClientFactory;
+  auditLog: AuditLogRepo;
   walletConfigs: Map<string, WalletConfig>;
   maxRetryAttempts: number;
   retryDelayMs?: number;
 }) {
-  const { betsRepo, bettingClientFactory, walletConfigs, maxRetryAttempts, retryDelayMs } = deps;
+  const {
+    betsRepo,
+    bettingClientFactory,
+    auditLog,
+    walletConfigs,
+    maxRetryAttempts,
+    retryDelayMs,
+  } = deps;
 
   return {
     async retryFailedBets(): Promise<BetRetryResult> {
@@ -54,8 +63,14 @@ export function createBetRetryService(deps: {
 
         result.retried++;
 
-        // Write-ahead: set to submitting before retry API call
         await betsRepo.updateStatus(bet.id, "submitting");
+        await auditLog.safeRecord({
+          betId: bet.id,
+          event: "retry_started",
+          statusBefore: "failed",
+          statusAfter: "submitting",
+          metadata: { attempt: bet.attempts + 1, previousError: bet.errorMessage },
+        });
 
         const client = bettingClientFactory.getClient(bet.competitorId, walletConfig);
 
@@ -70,6 +85,15 @@ export function createBetRetryService(deps: {
           await betsRepo.updateBetAfterSubmission(bet.id, {
             status: "pending",
             orderId,
+          });
+
+          await auditLog.safeRecord({
+            betId: bet.id,
+            event: "retry_succeeded",
+            statusBefore: "submitting",
+            statusAfter: "pending",
+            orderId,
+            metadata: { attempt: bet.attempts + 1 },
           });
 
           result.succeeded++;
@@ -88,6 +112,16 @@ export function createBetRetryService(deps: {
             errorCategory,
             attempts: bet.attempts + 1,
             lastAttemptAt: new Date(),
+          });
+
+          await auditLog.safeRecord({
+            betId: bet.id,
+            event: "retry_failed",
+            statusBefore: "submitting",
+            statusAfter: "failed",
+            error: errorMessage,
+            errorCategory,
+            metadata: { attempt: bet.attempts + 1 },
           });
 
           result.failedAgain++;

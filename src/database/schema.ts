@@ -1,4 +1,4 @@
-import { integer, real, sqliteTable, text } from "drizzle-orm/sqlite-core";
+import { index, integer, real, sqliteTable, text } from "drizzle-orm/sqlite-core";
 import type { ChangelogEntry } from "../competitors/weight-tuned/types.ts";
 import type { Reasoning } from "../domain/contracts/prediction.ts";
 import type { PlayerSeasonStats, TeamSeasonStats } from "../domain/contracts/statistics.ts";
@@ -182,12 +182,78 @@ export const bets = sqliteTable("bets", {
       "rate_limited",
       "wallet_error",
       "invalid_market",
+      "order_too_small",
       "unknown",
     ],
   }),
   attempts: integer("attempts").notNull().default(0),
   lastAttemptAt: integer("last_attempt_at", { mode: "timestamp" }),
 });
+
+export const betAuditLog = sqliteTable(
+  "bet_audit_log",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    betId: text("bet_id")
+      .notNull()
+      .references(() => bets.id),
+    event: text("event", {
+      enum: [
+        "bet_created",
+        "order_submitted",
+        "order_failed",
+        "order_confirmed",
+        "order_cancelled",
+        "stuck_bet_recovered",
+        "ghost_order_detected",
+        "retry_started",
+        "retry_succeeded",
+        "retry_failed",
+        "bet_settled",
+      ],
+    }).notNull(),
+    statusBefore: text("status_before", {
+      enum: [
+        "submitting",
+        "pending",
+        "filled",
+        "settled_won",
+        "settled_lost",
+        "cancelled",
+        "failed",
+      ],
+    }),
+    statusAfter: text("status_after", {
+      enum: [
+        "submitting",
+        "pending",
+        "filled",
+        "settled_won",
+        "settled_lost",
+        "cancelled",
+        "failed",
+      ],
+    }).notNull(),
+    orderId: text("order_id"),
+    error: text("error"),
+    errorCategory: text("error_category", {
+      enum: [
+        "insufficient_funds",
+        "network_error",
+        "rate_limited",
+        "wallet_error",
+        "invalid_market",
+        "order_too_small",
+        "unknown",
+      ],
+    }),
+    metadata: text("metadata", { mode: "json" }).$type<Record<string, unknown>>(),
+    timestamp: integer("timestamp", { mode: "timestamp" })
+      .notNull()
+      .$defaultFn(() => new Date()),
+  },
+  (table) => [index("bet_audit_log_bet_id_idx").on(table.betId)],
+);
 
 export const notificationChannels = sqliteTable("notification_channels", {
   id: integer("id").primaryKey({ autoIncrement: true }),

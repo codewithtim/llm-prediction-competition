@@ -1,5 +1,6 @@
 import type { GammaClient } from "../../apis/polymarket/gamma-client";
 import { mapGammaMarketToMarket } from "../../apis/polymarket/mappers";
+import type { AuditLogRepo } from "../../database/repositories/audit-log";
 import type { betsRepo as betsRepoFactory } from "../../database/repositories/bets";
 import type { marketsRepo as marketsRepoFactory } from "../../database/repositories/markets";
 
@@ -38,8 +39,9 @@ export function createSettlementService(deps: {
   gammaClient: GammaClient;
   betsRepo: ReturnType<typeof betsRepoFactory>;
   marketsRepo: ReturnType<typeof marketsRepoFactory>;
+  auditLog: AuditLogRepo;
 }) {
-  const { gammaClient, betsRepo, marketsRepo } = deps;
+  const { gammaClient, betsRepo, marketsRepo, auditLog } = deps;
 
   return {
     async settleBets(): Promise<SettlementResult> {
@@ -135,12 +137,16 @@ export function createSettlementService(deps: {
         const profit = calculateProfit(bet.amount, bet.price, won);
 
         try {
-          await betsRepo.updateStatus(
-            bet.id,
-            won ? "settled_won" : "settled_lost",
-            new Date(),
-            profit,
-          );
+          const statusAfter = won ? "settled_won" : "settled_lost";
+          await betsRepo.updateStatus(bet.id, statusAfter, new Date(), profit);
+
+          await auditLog.safeRecord({
+            betId: bet.id,
+            event: "bet_settled",
+            statusBefore: bet.status as "pending" | "filled",
+            statusAfter,
+            metadata: { outcome: won ? "won" : "lost", profit, winningSide: winningOutcome },
+          });
 
           settled.push({
             betId: bet.id,

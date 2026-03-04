@@ -1,4 +1,5 @@
 import type { BettingClientFactory } from "../../apis/polymarket/betting-client-factory";
+import type { AuditLogRepo } from "../../database/repositories/audit-log";
 import type { betsRepo as betsRepoFactory } from "../../database/repositories/bets";
 import { logger } from "../../shared/logger";
 import type { WalletConfig } from "../types/competitor";
@@ -14,10 +15,11 @@ export type OrderConfirmationResult = {
 export function createOrderConfirmationService(deps: {
   betsRepo: ReturnType<typeof betsRepoFactory>;
   bettingClientFactory: BettingClientFactory;
+  auditLog: AuditLogRepo;
   walletConfigs: Map<string, WalletConfig>;
   maxOrderAgeMs: number;
 }) {
-  const { betsRepo, bettingClientFactory, walletConfigs, maxOrderAgeMs } = deps;
+  const { betsRepo, bettingClientFactory, auditLog, walletConfigs, maxOrderAgeMs } = deps;
 
   return {
     async confirmOrders(): Promise<OrderConfirmationResult> {
@@ -41,6 +43,14 @@ export function createOrderConfirmationService(deps: {
               errorCategory: "unknown",
               attempts: bet.attempts + 1,
               lastAttemptAt: new Date(),
+            });
+            await auditLog.safeRecord({
+              betId: bet.id,
+              event: "stuck_bet_recovered",
+              statusBefore: "submitting",
+              statusAfter: "failed",
+              error: "Stuck in submitting state — possible crash during placement",
+              metadata: { ageMs: age },
             });
             result.failed++;
             logger.info("Order confirmation: recovered stuck submitting bet", {
@@ -106,6 +116,13 @@ export function createOrderConfirmationService(deps: {
                 attempts: bet.attempts + 1,
                 lastAttemptAt: new Date(),
               });
+              await auditLog.safeRecord({
+                betId: bet.id,
+                event: "ghost_order_detected",
+                statusBefore: "pending",
+                statusAfter: "failed",
+                error: `Invalid orderId: ${JSON.stringify(bet.orderId)}`,
+              });
               result.failed++;
               continue;
             }
@@ -115,17 +132,30 @@ export function createOrderConfirmationService(deps: {
             const isStillOpen = openOrderIds.has(orderId);
 
             if (!isStillOpen) {
-              // Order no longer open -> filled
               await betsRepo.updateStatus(bet.id, "filled");
+              await auditLog.safeRecord({
+                betId: bet.id,
+                event: "order_confirmed",
+                statusBefore: "pending",
+                statusAfter: "filled",
+                orderId,
+              });
               result.confirmed++;
             } else {
               // Check if order is stale
               const age = Date.now() - bet.placedAt.getTime();
               if (age > maxOrderAgeMs) {
-                // Cancel stale order
                 const client = bettingClientFactory.getClient(competitorId, walletConfig);
                 await client.cancelOrder(orderId);
                 await betsRepo.updateStatus(bet.id, "cancelled");
+                await auditLog.safeRecord({
+                  betId: bet.id,
+                  event: "order_cancelled",
+                  statusBefore: "pending",
+                  statusAfter: "cancelled",
+                  orderId,
+                  metadata: { ageMs: age },
+                });
                 result.cancelled++;
                 logger.info("Order confirmation: cancelled stale order", {
                   betId: bet.id,

@@ -10,11 +10,20 @@ import {
   resolveTokenId,
 } from "../../../../src/domain/services/betting";
 import type { WalletConfig } from "../../../../src/domain/types/competitor";
+import type { AuditLogRepo } from "../../../../src/database/repositories/audit-log";
 import type { betsRepo as betsRepoFactory } from "../../../../src/database/repositories/bets";
 import type { BettingClient } from "../../../../src/apis/polymarket/betting-client";
 import type { BettingClientFactory } from "../../../../src/apis/polymarket/betting-client-factory";
 
 type BetsRepo = ReturnType<typeof betsRepoFactory>;
+
+function mockAuditLog(): AuditLogRepo {
+  return {
+    record: mock(() => Promise.resolve({} as any)),
+    safeRecord: mock(() => Promise.resolve()),
+    findByBetId: mock(() => Promise.resolve([])),
+  };
+}
 
 function makeMarket(overrides?: Partial<Market>): Market {
   return {
@@ -234,6 +243,7 @@ describe("createBettingService", () => {
       const service = createBettingService({
         bettingClientFactory: mockBettingClientFactory(client),
         betsRepo: repo,
+        auditLog: mockAuditLog(),
         config: makeConfig(),
       });
 
@@ -251,6 +261,7 @@ describe("createBettingService", () => {
       const service = createBettingService({
         bettingClientFactory: mockBettingClientFactory(client),
         betsRepo: repo,
+        auditLog: mockAuditLog(),
         config: makeConfig(),
       });
 
@@ -270,6 +281,7 @@ describe("createBettingService", () => {
       const service = createBettingService({
         bettingClientFactory: mockBettingClientFactory(client),
         betsRepo: repo,
+        auditLog: mockAuditLog(),
         config: makeConfig(),
       });
 
@@ -292,6 +304,7 @@ describe("createBettingService", () => {
       const service = createBettingService({
         bettingClientFactory: mockBettingClientFactory(client),
         betsRepo: repo,
+        auditLog: mockAuditLog(),
         config: makeConfig(),
       });
 
@@ -311,6 +324,7 @@ describe("createBettingService", () => {
       const service = createBettingService({
         bettingClientFactory: mockBettingClientFactory(client),
         betsRepo: repo,
+        auditLog: mockAuditLog(),
         config: makeConfig(),
       });
 
@@ -334,6 +348,7 @@ describe("createBettingService", () => {
       const service = createBettingService({
         bettingClientFactory: mockBettingClientFactory(client),
         betsRepo: repo,
+        auditLog: mockAuditLog(),
         config: makeConfig(),
       });
 
@@ -352,6 +367,7 @@ describe("createBettingService", () => {
       const service = createBettingService({
         bettingClientFactory: mockBettingClientFactory(client),
         betsRepo: repo,
+        auditLog: mockAuditLog(),
         config: makeConfig(),
       });
 
@@ -377,6 +393,7 @@ describe("createBettingService", () => {
       const service = createBettingService({
         bettingClientFactory: mockBettingClientFactory(client),
         betsRepo: repo,
+        auditLog: mockAuditLog(),
         config: makeConfig({ dryRun: true }),
       });
 
@@ -391,6 +408,7 @@ describe("createBettingService", () => {
       const service = createBettingService({
         bettingClientFactory: mockBettingClientFactory(client),
         betsRepo: repo,
+        auditLog: mockAuditLog(),
         config: makeConfig({ dryRun: true }),
       });
 
@@ -405,6 +423,7 @@ describe("createBettingService", () => {
       const service = createBettingService({
         bettingClientFactory: mockBettingClientFactory(client),
         betsRepo: repo,
+        auditLog: mockAuditLog(),
         config: makeConfig({ dryRun: true }),
       });
 
@@ -421,6 +440,7 @@ describe("createBettingService", () => {
       const service = createBettingService({
         bettingClientFactory: mockBettingClientFactory(client),
         betsRepo: repo,
+        auditLog: mockAuditLog(),
         config: makeConfig(),
       });
 
@@ -439,6 +459,7 @@ describe("createBettingService", () => {
       const service = createBettingService({
         bettingClientFactory: mockBettingClientFactory(client),
         betsRepo: repo,
+        auditLog: mockAuditLog(),
         config: makeConfig(),
       });
 
@@ -455,6 +476,7 @@ describe("createBettingService", () => {
       const service = createBettingService({
         bettingClientFactory: mockBettingClientFactory(client),
         betsRepo: repo,
+        auditLog: mockAuditLog(),
         config: makeConfig(),
       });
 
@@ -470,6 +492,7 @@ describe("createBettingService", () => {
       const service = createBettingService({
         bettingClientFactory: mockBettingClientFactory(client),
         betsRepo: repo,
+        auditLog: mockAuditLog(),
         config: makeConfig(),
       });
 
@@ -487,6 +510,7 @@ describe("createBettingService", () => {
       const service = createBettingService({
         bettingClientFactory: mockBettingClientFactory(client),
         betsRepo: repo,
+        auditLog: mockAuditLog(),
         config: makeConfig(),
       });
 
@@ -503,6 +527,7 @@ describe("createBettingService", () => {
       const service = createBettingService({
         bettingClientFactory: mockBettingClientFactory(client),
         betsRepo: repo,
+        auditLog: mockAuditLog(),
         config: makeConfig(),
       });
 
@@ -517,6 +542,7 @@ describe("createBettingService", () => {
       const service = createBettingService({
         bettingClientFactory: mockBettingClientFactory(client),
         betsRepo: repo,
+        auditLog: mockAuditLog(),
         config: makeConfig(),
       });
 
@@ -533,6 +559,7 @@ describe("createBettingService", () => {
       const service = createBettingService({
         bettingClientFactory: mockBettingClientFactory(client),
         betsRepo: repo,
+        auditLog: mockAuditLog(),
         config: makeConfig({ maxTotalExposure: 100 }),
       });
 
@@ -553,6 +580,7 @@ describe("createBettingService", () => {
       const service = createBettingService({
         bettingClientFactory: mockBettingClientFactory(client),
         betsRepo: repo,
+        auditLog: mockAuditLog(),
         config: makeConfig({ maxTotalExposure: 100 }),
       });
 
@@ -573,6 +601,7 @@ describe("createBettingService", () => {
       const service = createBettingService({
         bettingClientFactory: mockBettingClientFactory(client),
         betsRepo: repo,
+        auditLog: mockAuditLog(),
         config: makeConfig(),
       });
 
@@ -592,6 +621,7 @@ describe("createBettingService", () => {
       const service = createBettingService({
         bettingClientFactory: mockBettingClientFactory(client),
         betsRepo: repo,
+        auditLog: mockAuditLog(),
         config: makeConfig(),
       });
 
@@ -609,6 +639,7 @@ describe("createBettingService", () => {
       const service = createBettingService({
         bettingClientFactory: mockBettingClientFactory(client),
         betsRepo: repo,
+        auditLog: mockAuditLog(),
         config: makeConfig(),
       });
 
@@ -629,6 +660,7 @@ describe("createBettingService", () => {
       const service = createBettingService({
         bettingClientFactory: mockBettingClientFactory(client),
         betsRepo: repo,
+        auditLog: mockAuditLog(),
         config: makeConfig({ maxStakePerBet: 3 }),
       });
 
@@ -638,6 +670,79 @@ describe("createBettingService", () => {
         amount: number;
       };
       expect(callArg.amount).toBe(3);
+    });
+  });
+
+  describe("audit logging", () => {
+    it("records bet_created and order_submitted on success", async () => {
+      const client = mockBettingClient();
+      const repo = mockBetsRepo();
+      const audit = mockAuditLog();
+      const service = createBettingService({
+        bettingClientFactory: mockBettingClientFactory(client),
+        betsRepo: repo,
+        auditLog: audit,
+        config: makeConfig(),
+      });
+
+      await service.placeBet(makeInput());
+
+      expect(audit.safeRecord).toHaveBeenCalledTimes(2);
+      const calls = (audit.safeRecord as ReturnType<typeof mock>).mock.calls as unknown[][];
+      const first = calls[0]![0] as Record<string, unknown>;
+      expect(first.event).toBe("bet_created");
+      expect(first.statusBefore).toBeNull();
+      expect(first.statusAfter).toBe("submitting");
+
+      const second = calls[1]![0] as Record<string, unknown>;
+      expect(second.event).toBe("order_submitted");
+      expect(second.statusBefore).toBe("submitting");
+      expect(second.statusAfter).toBe("pending");
+      expect(second.orderId).toBe("order-abc");
+    });
+
+    it("records bet_created and order_failed on failure", async () => {
+      const client = mockBettingClient({
+        placeOrder: mock(() => Promise.reject(new Error("API error"))),
+      } as unknown as BettingClient);
+      const repo = mockBetsRepo();
+      const audit = mockAuditLog();
+      const service = createBettingService({
+        bettingClientFactory: mockBettingClientFactory(client),
+        betsRepo: repo,
+        auditLog: audit,
+        config: makeConfig(),
+      });
+
+      await service.placeBet(makeInput());
+
+      expect(audit.safeRecord).toHaveBeenCalledTimes(2);
+      const calls = (audit.safeRecord as ReturnType<typeof mock>).mock.calls as unknown[][];
+      const first = calls[0]![0] as Record<string, unknown>;
+      expect(first.event).toBe("bet_created");
+
+      const second = calls[1]![0] as Record<string, unknown>;
+      expect(second.event).toBe("order_failed");
+      expect(second.statusBefore).toBe("submitting");
+      expect(second.statusAfter).toBe("failed");
+      expect(second.error).toContain("API error");
+      expect(second.errorCategory).toBe("unknown");
+    });
+
+    it("does not record audit for skipped bets", async () => {
+      const client = mockBettingClient();
+      const repo = mockBetsRepo();
+      const audit = mockAuditLog();
+      const service = createBettingService({
+        bettingClientFactory: mockBettingClientFactory(client),
+        betsRepo: repo,
+        auditLog: audit,
+        config: makeConfig(),
+      });
+
+      await service.placeBet(makeInput({ market: makeMarket({ acceptingOrders: false }) }));
+
+      expect(audit.safeRecord).not.toHaveBeenCalled();
     });
   });
 });

@@ -1,10 +1,19 @@
 import { describe, expect, it, mock } from "bun:test";
 import { createOrderConfirmationService } from "../../../../src/domain/services/order-confirmation";
+import type { AuditLogRepo } from "../../../../src/database/repositories/audit-log";
 import type { betsRepo as betsRepoFactory } from "../../../../src/database/repositories/bets";
 import type { BettingClient } from "../../../../src/apis/polymarket/betting-client";
 import type { BettingClientFactory } from "../../../../src/apis/polymarket/betting-client-factory";
 
 type BetsRepo = ReturnType<typeof betsRepoFactory>;
+
+function mockAuditLog(): AuditLogRepo {
+  return {
+    record: mock(() => Promise.resolve({} as any)),
+    safeRecord: mock(() => Promise.resolve()),
+    findByBetId: mock(() => Promise.resolve([])),
+  };
+}
 
 type BetRow = {
   id: string;
@@ -128,6 +137,7 @@ describe("createOrderConfirmationService", () => {
     const service = createOrderConfirmationService({
       betsRepo: repo,
       bettingClientFactory: factory,
+      auditLog: mockAuditLog(),
       walletConfigs: makeWalletConfigs(),
       maxOrderAgeMs: 60 * 60 * 1000, // 1 hour
     });
@@ -147,6 +157,7 @@ describe("createOrderConfirmationService", () => {
     const service = createOrderConfirmationService({
       betsRepo: repo,
       bettingClientFactory: factory,
+      auditLog: mockAuditLog(),
       walletConfigs: makeWalletConfigs(),
       maxOrderAgeMs: 60 * 60 * 1000,
     });
@@ -175,6 +186,7 @@ describe("createOrderConfirmationService", () => {
     const service = createOrderConfirmationService({
       betsRepo: repo,
       bettingClientFactory: factory,
+      auditLog: mockAuditLog(),
       walletConfigs: makeWalletConfigs(),
       maxOrderAgeMs: 60 * 60 * 1000,
     });
@@ -202,6 +214,7 @@ describe("createOrderConfirmationService", () => {
     const service = createOrderConfirmationService({
       betsRepo: repo,
       bettingClientFactory: factory,
+      auditLog: mockAuditLog(),
       walletConfigs: makeWalletConfigs(),
       maxOrderAgeMs: 60 * 60 * 1000,
     });
@@ -224,6 +237,7 @@ describe("createOrderConfirmationService", () => {
     const service = createOrderConfirmationService({
       betsRepo: repo,
       bettingClientFactory: factory,
+      auditLog: mockAuditLog(),
       walletConfigs: makeWalletConfigs(),
       maxOrderAgeMs: 60 * 60 * 1000, // 1 hour
     });
@@ -243,6 +257,7 @@ describe("createOrderConfirmationService", () => {
     const service = createOrderConfirmationService({
       betsRepo: repo,
       bettingClientFactory: factory,
+      auditLog: mockAuditLog(),
       walletConfigs: makeWalletConfigs(),
       maxOrderAgeMs: 60 * 60 * 1000,
     });
@@ -280,6 +295,7 @@ describe("createOrderConfirmationService", () => {
     const service = createOrderConfirmationService({
       betsRepo: repo,
       bettingClientFactory: factory,
+      auditLog: mockAuditLog(),
       walletConfigs,
       maxOrderAgeMs: 60 * 60 * 1000,
     });
@@ -302,6 +318,7 @@ describe("createOrderConfirmationService", () => {
     const service = createOrderConfirmationService({
       betsRepo: repo,
       bettingClientFactory: factory,
+      auditLog: mockAuditLog(),
       walletConfigs,
       maxOrderAgeMs: 60 * 60 * 1000,
     });
@@ -320,6 +337,7 @@ describe("createOrderConfirmationService", () => {
     const service = createOrderConfirmationService({
       betsRepo: repo,
       bettingClientFactory: factory,
+      auditLog: mockAuditLog(),
       walletConfigs: makeWalletConfigs(), // only has comp-a
       maxOrderAgeMs: 60 * 60 * 1000,
     });
@@ -329,5 +347,106 @@ describe("createOrderConfirmationService", () => {
     expect(result.errors).toHaveLength(1);
     expect(result.errors[0]).toContain("No wallet config");
     expect(factory.getClient).not.toHaveBeenCalled();
+  });
+
+  describe("audit logging", () => {
+    it("records order_confirmed when order is filled", async () => {
+      const bet = makeBetRow({ orderId: "order-1" });
+      const repo = mockBetsRepo([bet]);
+      const client = mockBettingClient([]);
+      const factory = mockBettingClientFactory(client);
+      const audit = mockAuditLog();
+
+      const service = createOrderConfirmationService({
+        betsRepo: repo,
+        bettingClientFactory: factory,
+        auditLog: audit,
+        walletConfigs: makeWalletConfigs(),
+        maxOrderAgeMs: 60 * 60 * 1000,
+      });
+
+      await service.confirmOrders();
+
+      expect(audit.safeRecord).toHaveBeenCalledTimes(1);
+      const entry = (audit.safeRecord as ReturnType<typeof mock>).mock.calls[0]![0] as Record<string, unknown>;
+      expect(entry.event).toBe("order_confirmed");
+      expect(entry.statusBefore).toBe("pending");
+      expect(entry.statusAfter).toBe("filled");
+      expect(entry.orderId).toBe("order-1");
+    });
+
+    it("records order_cancelled for stale order", async () => {
+      const staleTime = new Date(Date.now() - 2 * 60 * 60 * 1000);
+      const bet = makeBetRow({ orderId: "order-1", placedAt: staleTime });
+      const repo = mockBetsRepo([bet]);
+      const client = mockBettingClient([{ id: "order-1" }]);
+      const factory = mockBettingClientFactory(client);
+      const audit = mockAuditLog();
+
+      const service = createOrderConfirmationService({
+        betsRepo: repo,
+        bettingClientFactory: factory,
+        auditLog: audit,
+        walletConfigs: makeWalletConfigs(),
+        maxOrderAgeMs: 60 * 60 * 1000,
+      });
+
+      await service.confirmOrders();
+
+      expect(audit.safeRecord).toHaveBeenCalledTimes(1);
+      const entry = (audit.safeRecord as ReturnType<typeof mock>).mock.calls[0]![0] as Record<string, unknown>;
+      expect(entry.event).toBe("order_cancelled");
+      expect(entry.statusBefore).toBe("pending");
+      expect(entry.statusAfter).toBe("cancelled");
+    });
+
+    it("records stuck_bet_recovered for stuck submitting bet", async () => {
+      const staleTime = new Date(Date.now() - 2 * 60 * 60 * 1000);
+      const stuckBet = makeBetRow({ id: "stuck-1", status: "submitting", placedAt: staleTime });
+      const repo = mockBetsRepo([], [stuckBet]);
+      const client = mockBettingClient([]);
+      const factory = mockBettingClientFactory(client);
+      const audit = mockAuditLog();
+
+      const service = createOrderConfirmationService({
+        betsRepo: repo,
+        bettingClientFactory: factory,
+        auditLog: audit,
+        walletConfigs: makeWalletConfigs(),
+        maxOrderAgeMs: 60 * 60 * 1000,
+      });
+
+      await service.confirmOrders();
+
+      expect(audit.safeRecord).toHaveBeenCalledTimes(1);
+      const entry = (audit.safeRecord as ReturnType<typeof mock>).mock.calls[0]![0] as Record<string, unknown>;
+      expect(entry.event).toBe("stuck_bet_recovered");
+      expect(entry.statusBefore).toBe("submitting");
+      expect(entry.statusAfter).toBe("failed");
+    });
+
+    it("records ghost_order_detected for invalid orderId", async () => {
+      const bet = makeBetRow({ orderId: null, attempts: 0 });
+      const repo = mockBetsRepo([bet]);
+      const client = mockBettingClient([]);
+      const factory = mockBettingClientFactory(client);
+      const audit = mockAuditLog();
+
+      const service = createOrderConfirmationService({
+        betsRepo: repo,
+        bettingClientFactory: factory,
+        auditLog: audit,
+        walletConfigs: makeWalletConfigs(),
+        maxOrderAgeMs: 60 * 60 * 1000,
+      });
+
+      await service.confirmOrders();
+
+      expect(audit.safeRecord).toHaveBeenCalledTimes(1);
+      const entry = (audit.safeRecord as ReturnType<typeof mock>).mock.calls[0]![0] as Record<string, unknown>;
+      expect(entry.event).toBe("ghost_order_detected");
+      expect(entry.statusBefore).toBe("pending");
+      expect(entry.statusAfter).toBe("failed");
+    });
   });
 });
