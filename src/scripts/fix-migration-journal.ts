@@ -6,9 +6,10 @@
  * migration ends up chronologically *before* it — causing the Drizzle
  * migrator to silently skip it.
  *
- * This script ensures:
- *   1. All `when` values are monotonically increasing (by idx order).
- *   2. No `when` value is in the future (capped at Date.now()).
+ * This script ensures all `when` values are monotonically increasing
+ * (by idx order). Future timestamps are preserved — capping them to
+ * Date.now() would make new entries un-runnable on databases that
+ * already applied migrations with those future timestamps.
  *
  * Called automatically by `db:generate` and `db:migrate`.
  */
@@ -36,25 +37,18 @@ export function fixMigrationJournal(): boolean {
   const raw = readFileSync(JOURNAL_PATH, "utf-8");
   const journal: Journal = JSON.parse(raw);
 
-  const now = Date.now();
   let changed = false;
 
   for (let i = 0; i < journal.entries.length; i++) {
     const curr = journal.entries[i] as JournalEntry;
     const prev = journal.entries[i - 1] as JournalEntry | undefined;
 
-    // Cap future timestamps to now (with room for ordering)
-    const maxTs = now - (journal.entries.length - i);
-    if (curr.when > maxTs) {
-      const fixed = prev ? Math.max(prev.when + 1, maxTs) : maxTs;
-      console.log(
-        `Fixed entry ${curr.idx} (${curr.tag}): future timestamp ${curr.when} -> ${fixed}`,
-      );
-      curr.when = fixed;
-      changed = true;
-    }
-
-    // Ensure monotonically increasing relative to previous entry
+    // Ensure monotonically increasing relative to previous entry.
+    // NOTE: We intentionally do NOT cap future timestamps to Date.now().
+    // The Drizzle migrator skips entries whose `when` is below the DB's
+    // max `created_at`. If a previous migration was applied with a future
+    // timestamp, capping new entries to now would make them permanently
+    // un-runnable on that database.
     if (prev && curr.when <= prev.when) {
       const fixed = prev.when + 1;
       console.log(`Fixed entry ${curr.idx} (${curr.tag}): out-of-order ${curr.when} -> ${fixed}`);

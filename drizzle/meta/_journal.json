@@ -127,6 +127,13 @@
       "when": 1772688631395,
       "tag": "0017_cute_living_lightning",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "6",
+      "when": 1772842000000,
+      "tag": "0018_fix-production-schema",
+      "breakpoints": true
     }
   ]
 }
