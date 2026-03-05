@@ -1,6 +1,7 @@
 import type { BettingClientFactory } from "../../apis/polymarket/betting-client-factory";
 import type { AuditLogRepo } from "../../database/repositories/audit-log";
 import type { betsRepo as betsRepoFactory } from "../../database/repositories/bets";
+import type { BettingEventsRepo } from "../../database/repositories/betting-events";
 import { safeFloat } from "../../shared/safe-float.ts";
 import type { PredictionOutput } from "../contracts/prediction";
 import type { Market } from "../models/market";
@@ -60,15 +61,23 @@ export function createBettingService(deps: {
   bettingClientFactory: BettingClientFactory;
   betsRepo: ReturnType<typeof betsRepoFactory>;
   auditLog: AuditLogRepo;
+  bettingEventsRepo: BettingEventsRepo;
   config: BettingConfig;
 }) {
-  const { bettingClientFactory, betsRepo, auditLog, config } = deps;
+  const { bettingClientFactory, betsRepo, auditLog, bettingEventsRepo, config } = deps;
 
   return {
     async placeBet(input: PlaceBetInput): Promise<PlaceBetResult> {
       const { prediction, resolvedStake, market, fixtureId, competitorId, walletConfig } = input;
 
       if (!market.acceptingOrders) {
+        await bettingEventsRepo.safeRecord({
+          competitorId,
+          marketId: market.id,
+          fixtureId,
+          event: "bet_skipped",
+          reason: "Market is not accepting orders",
+        });
         return { status: "skipped", reason: "Market is not accepting orders" };
       }
 
@@ -79,6 +88,13 @@ export function createBettingService(deps: {
         (b) => b.marketId === market.id && BLOCKING_STATUSES.has(b.status),
       );
       if (duplicate) {
+        await bettingEventsRepo.safeRecord({
+          competitorId,
+          marketId: market.id,
+          fixtureId,
+          event: "bet_skipped",
+          reason: "Bet already exists for this market and competitor",
+        });
         return { status: "skipped", reason: "Bet already exists for this market and competitor" };
       }
 
@@ -90,6 +106,14 @@ export function createBettingService(deps: {
         .reduce((sum, b) => sum + b.amount, 0);
 
       if (pendingExposure + amount > config.maxTotalExposure) {
+        await bettingEventsRepo.safeRecord({
+          competitorId,
+          marketId: market.id,
+          fixtureId,
+          event: "bet_skipped",
+          reason: "Would exceed maximum total exposure",
+          metadata: { pendingExposure, amount, maxTotalExposure: config.maxTotalExposure },
+        });
         return { status: "skipped", reason: "Would exceed maximum total exposure" };
       }
 
@@ -101,14 +125,36 @@ export function createBettingService(deps: {
       );
 
       if (price <= 0) {
+        await bettingEventsRepo.safeRecord({
+          competitorId,
+          marketId: market.id,
+          fixtureId,
+          event: "bet_skipped",
+          reason: "Invalid price (zero or non-finite)",
+          metadata: { price },
+        });
         return { status: "skipped", reason: "Invalid price (zero or non-finite)" };
       }
 
       if (config.dryRun) {
+        await bettingEventsRepo.safeRecord({
+          competitorId,
+          marketId: market.id,
+          fixtureId,
+          event: "bet_dry_run",
+          reason: "Dry run mode",
+        });
         return { status: "dry_run" };
       }
 
       if (!walletConfig) {
+        await bettingEventsRepo.safeRecord({
+          competitorId,
+          marketId: market.id,
+          fixtureId,
+          event: "bet_skipped",
+          reason: "No wallet configured for competitor",
+        });
         return { status: "skipped", reason: "No wallet configured for competitor" };
       }
 

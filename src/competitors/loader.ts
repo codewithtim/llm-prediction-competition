@@ -1,3 +1,4 @@
+import type { BettingEventsRepo } from "../database/repositories/betting-events";
 import type { competitorVersionsRepo } from "../database/repositories/competitor-versions";
 import type { CompetitorsRepo } from "../database/repositories/competitors";
 import type { WalletsRepo } from "../database/repositories/wallets";
@@ -11,12 +12,16 @@ export type LoaderDeps = {
   walletsRepo: WalletsRepo;
   encryptionKey: string;
   versionsRepo?: ReturnType<typeof competitorVersionsRepo>;
+  bettingEventsRepo?: BettingEventsRepo;
 };
 
 export async function loadCompetitors(deps: LoaderDeps): Promise<RegisteredEngine[]> {
-  const { competitorsRepo, walletsRepo, encryptionKey, versionsRepo } = deps;
+  const { competitorsRepo, walletsRepo, encryptionKey, versionsRepo, bettingEventsRepo } = deps;
   const rows = await competitorsRepo.findByStatus("active");
   const engines: RegisteredEngine[] = [];
+  let walletsLoaded = 0;
+  let walletsNotFound = 0;
+  let walletsFailed = 0;
 
   for (const row of rows) {
     try {
@@ -34,13 +39,38 @@ export async function loadCompetitors(deps: LoaderDeps): Promise<RegisteredEngin
                 polyApiSecret: wallet.polyApiSecret,
                 polyApiPassphrase: wallet.polyApiPassphrase,
               };
+              walletsLoaded++;
               logger.info("Loaded wallet for competitor", { id: row.id });
             } else {
-              logger.info("No wallet configured for competitor", { id: row.id });
+              walletsNotFound++;
+              logger.warn(
+                "No wallet row found for competitor (encryption key is set but no wallet exists in DB)",
+                { id: row.id },
+              );
+              await bettingEventsRepo?.safeRecord({
+                competitorId: row.id,
+                event: "wallet_not_found",
+                reason: "No wallet row in DB despite encryption key being configured",
+              });
             }
           } catch (err) {
+            walletsFailed++;
             const message = err instanceof Error ? err.message : String(err);
-            logger.error("Failed to load wallet for competitor", { id: row.id, error: message });
+            const errorType = err instanceof Error ? err.constructor.name : "Unknown";
+            logger.error(
+              "Failed to load wallet for competitor — possible key mismatch or corrupt data",
+              {
+                id: row.id,
+                errorType,
+                error: message,
+              },
+            );
+            await bettingEventsRepo?.safeRecord({
+              competitorId: row.id,
+              event: "wallet_load_failed",
+              reason: `Decryption failed: ${errorType}`,
+              metadata: { error: message },
+            });
           }
         }
 
@@ -54,7 +84,13 @@ export async function loadCompetitors(deps: LoaderDeps): Promise<RegisteredEngin
     }
   }
 
-  logger.info("Competitor loading complete", { loaded: engines.length, total: rows.length });
+  logger.info("Competitor loading complete", {
+    loaded: engines.length,
+    total: rows.length,
+    walletsLoaded,
+    walletsNotFound,
+    walletsFailed,
+  });
   return engines;
 }
 

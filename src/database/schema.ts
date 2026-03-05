@@ -293,3 +293,25 @@ export const playerStatsCache = sqliteTable("player_stats_cache", {
   data: text("data", { mode: "json" }).$type<PlayerSeasonStats[]>().notNull(),
   fetchedAt: integer("fetched_at", { mode: "timestamp" }).notNull(),
 });
+
+export const bettingEvents = sqliteTable(
+  "betting_events",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    competitorId: text("competitor_id").notNull(),
+    marketId: text("market_id"),
+    fixtureId: integer("fixture_id"),
+    event: text("event", {
+      enum: ["bet_skipped", "bet_dry_run", "wallet_load_failed", "wallet_not_found"],
+    }).notNull(),
+    reason: text("reason"),
+    metadata: text("metadata", { mode: "json" }).$type<Record<string, unknown>>(),
+    timestamp: integer("timestamp", { mode: "timestamp" })
+      .notNull()
+      .$defaultFn(() => new Date()),
+  },
+  (table) => [
+    index("betting_events_competitor_idx").on(table.competitorId),
+    index("betting_events_event_idx").on(table.event),
+  ],
+);

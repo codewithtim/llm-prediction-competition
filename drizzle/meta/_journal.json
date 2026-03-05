@@ -8,6 +8,13 @@
       "when": 1772699632043,
       "tag": "0000_rapid_stranger",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1772702648951,
+      "tag": "0001_clammy_vanisher",
+      "breakpoints": true
     }
   ]
 }

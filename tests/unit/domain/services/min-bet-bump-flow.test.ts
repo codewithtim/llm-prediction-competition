@@ -2,6 +2,7 @@ import { describe, expect, it, mock } from "bun:test";
 import { createBettingService } from "../../../../src/domain/services/betting";
 import { createBetRetryService } from "../../../../src/domain/services/bet-retry";
 import type { AuditLogRepo } from "../../../../src/database/repositories/audit-log";
+import type { BettingEventsRepo } from "../../../../src/database/repositories/betting-events";
 import type { betsRepo as betsRepoFactory } from "../../../../src/database/repositories/bets";
 import type { predictionsRepo as predictionsRepoFactory } from "../../../../src/database/repositories/predictions";
 import type { BettingClient } from "../../../../src/apis/polymarket/betting-client";
@@ -37,6 +38,14 @@ function mockAuditLog(): AuditLogRepo {
 		record: mock(() => Promise.resolve({} as any)),
 		safeRecord: mock(() => Promise.resolve()),
 		findByBetId: mock(() => Promise.resolve([])),
+	};
+}
+
+function mockBettingEventsRepo(): BettingEventsRepo {
+	return {
+		record: mock(() => Promise.resolve({} as any)),
+		safeRecord: mock(() => Promise.resolve()),
+		findByCompetitor: mock(() => Promise.resolve([])),
 	};
 }
 
@@ -204,6 +213,7 @@ describe("min-bet-bump flow", () => {
 			bettingClientFactory: factory,
 			betsRepo: betsRepo,
 			auditLog,
+			bettingEventsRepo: mockBettingEventsRepo(),
 			config: makeConfig(),
 		});
 
@@ -351,6 +361,7 @@ describe("min-bet-bump flow", () => {
 			bettingClientFactory: factory,
 			betsRepo: betsRepo,
 			auditLog,
+			bettingEventsRepo: mockBettingEventsRepo(),
 			config: makeConfig(),
 		});
 
@@ -463,6 +474,7 @@ describe("min-bet-bump flow", () => {
 			bettingClientFactory: factory,
 			betsRepo: betsRepo,
 			auditLog,
+			bettingEventsRepo: mockBettingEventsRepo(),
 			config: makeConfig(),
 		});
 
@@ -591,6 +603,7 @@ describe("min-bet-bump flow", () => {
 			bettingClientFactory: factory,
 			betsRepo: betsRepo,
 			auditLog,
+			bettingEventsRepo: mockBettingEventsRepo(),
 			config: makeConfig(),
 		});
 

@@ -11,6 +11,7 @@ import {
 } from "../../../../src/domain/services/betting";
 import type { WalletConfig } from "../../../../src/domain/types/competitor";
 import type { AuditLogRepo } from "../../../../src/database/repositories/audit-log";
+import type { BettingEventsRepo } from "../../../../src/database/repositories/betting-events";
 import type { betsRepo as betsRepoFactory } from "../../../../src/database/repositories/bets";
 import type { BettingClient } from "../../../../src/apis/polymarket/betting-client";
 import type { BettingClientFactory } from "../../../../src/apis/polymarket/betting-client-factory";
@@ -22,6 +23,14 @@ function mockAuditLog(): AuditLogRepo {
     record: mock(() => Promise.resolve({} as any)),
     safeRecord: mock(() => Promise.resolve()),
     findByBetId: mock(() => Promise.resolve([])),
+  };
+}
+
+function mockBettingEventsRepo(): BettingEventsRepo {
+  return {
+    record: mock(() => Promise.resolve({} as any)),
+    safeRecord: mock(() => Promise.resolve()),
+    findByCompetitor: mock(() => Promise.resolve([])),
   };
 }
 
@@ -244,6 +253,7 @@ describe("createBettingService", () => {
         bettingClientFactory: mockBettingClientFactory(client),
         betsRepo: repo,
         auditLog: mockAuditLog(),
+        bettingEventsRepo: mockBettingEventsRepo(),
         config: makeConfig(),
       });
 
@@ -262,6 +272,7 @@ describe("createBettingService", () => {
         bettingClientFactory: mockBettingClientFactory(client),
         betsRepo: repo,
         auditLog: mockAuditLog(),
+        bettingEventsRepo: mockBettingEventsRepo(),
         config: makeConfig(),
       });
 
@@ -282,6 +293,7 @@ describe("createBettingService", () => {
         bettingClientFactory: mockBettingClientFactory(client),
         betsRepo: repo,
         auditLog: mockAuditLog(),
+        bettingEventsRepo: mockBettingEventsRepo(),
         config: makeConfig(),
       });
 
@@ -305,6 +317,7 @@ describe("createBettingService", () => {
         bettingClientFactory: mockBettingClientFactory(client),
         betsRepo: repo,
         auditLog: mockAuditLog(),
+        bettingEventsRepo: mockBettingEventsRepo(),
         config: makeConfig(),
       });
 
@@ -325,6 +338,7 @@ describe("createBettingService", () => {
         bettingClientFactory: mockBettingClientFactory(client),
         betsRepo: repo,
         auditLog: mockAuditLog(),
+        bettingEventsRepo: mockBettingEventsRepo(),
         config: makeConfig(),
       });
 
@@ -349,6 +363,7 @@ describe("createBettingService", () => {
         bettingClientFactory: mockBettingClientFactory(client),
         betsRepo: repo,
         auditLog: mockAuditLog(),
+        bettingEventsRepo: mockBettingEventsRepo(),
         config: makeConfig(),
       });
 
@@ -368,6 +383,7 @@ describe("createBettingService", () => {
         bettingClientFactory: mockBettingClientFactory(client),
         betsRepo: repo,
         auditLog: mockAuditLog(),
+        bettingEventsRepo: mockBettingEventsRepo(),
         config: makeConfig(),
       });
 
@@ -394,6 +410,7 @@ describe("createBettingService", () => {
         bettingClientFactory: mockBettingClientFactory(client),
         betsRepo: repo,
         auditLog: mockAuditLog(),
+        bettingEventsRepo: mockBettingEventsRepo(),
         config: makeConfig({ dryRun: true }),
       });
 
@@ -409,6 +426,7 @@ describe("createBettingService", () => {
         bettingClientFactory: mockBettingClientFactory(client),
         betsRepo: repo,
         auditLog: mockAuditLog(),
+        bettingEventsRepo: mockBettingEventsRepo(),
         config: makeConfig({ dryRun: true }),
       });
 
@@ -424,6 +442,7 @@ describe("createBettingService", () => {
         bettingClientFactory: mockBettingClientFactory(client),
         betsRepo: repo,
         auditLog: mockAuditLog(),
+        bettingEventsRepo: mockBettingEventsRepo(),
         config: makeConfig({ dryRun: true }),
       });
 
@@ -441,6 +460,7 @@ describe("createBettingService", () => {
         bettingClientFactory: mockBettingClientFactory(client),
         betsRepo: repo,
         auditLog: mockAuditLog(),
+        bettingEventsRepo: mockBettingEventsRepo(),
         config: makeConfig(),
       });
 
@@ -460,6 +480,7 @@ describe("createBettingService", () => {
         bettingClientFactory: mockBettingClientFactory(client),
         betsRepo: repo,
         auditLog: mockAuditLog(),
+        bettingEventsRepo: mockBettingEventsRepo(),
         config: makeConfig(),
       });
 
@@ -477,6 +498,7 @@ describe("createBettingService", () => {
         bettingClientFactory: mockBettingClientFactory(client),
         betsRepo: repo,
         auditLog: mockAuditLog(),
+        bettingEventsRepo: mockBettingEventsRepo(),
         config: makeConfig(),
       });
 
@@ -493,6 +515,7 @@ describe("createBettingService", () => {
         bettingClientFactory: mockBettingClientFactory(client),
         betsRepo: repo,
         auditLog: mockAuditLog(),
+        bettingEventsRepo: mockBettingEventsRepo(),
         config: makeConfig(),
       });
 
@@ -511,6 +534,7 @@ describe("createBettingService", () => {
         bettingClientFactory: mockBettingClientFactory(client),
         betsRepo: repo,
         auditLog: mockAuditLog(),
+        bettingEventsRepo: mockBettingEventsRepo(),
         config: makeConfig(),
       });
 
@@ -528,6 +552,7 @@ describe("createBettingService", () => {
         bettingClientFactory: mockBettingClientFactory(client),
         betsRepo: repo,
         auditLog: mockAuditLog(),
+        bettingEventsRepo: mockBettingEventsRepo(),
         config: makeConfig(),
       });
 
@@ -543,6 +568,7 @@ describe("createBettingService", () => {
         bettingClientFactory: mockBettingClientFactory(client),
         betsRepo: repo,
         auditLog: mockAuditLog(),
+        bettingEventsRepo: mockBettingEventsRepo(),
         config: makeConfig(),
       });
 
@@ -560,6 +586,7 @@ describe("createBettingService", () => {
         bettingClientFactory: mockBettingClientFactory(client),
         betsRepo: repo,
         auditLog: mockAuditLog(),
+        bettingEventsRepo: mockBettingEventsRepo(),
         config: makeConfig({ maxTotalExposure: 100 }),
       });
 
@@ -581,6 +608,7 @@ describe("createBettingService", () => {
         bettingClientFactory: mockBettingClientFactory(client),
         betsRepo: repo,
         auditLog: mockAuditLog(),
+        bettingEventsRepo: mockBettingEventsRepo(),
         config: makeConfig({ maxTotalExposure: 100 }),
       });
 
@@ -602,6 +630,7 @@ describe("createBettingService", () => {
         bettingClientFactory: mockBettingClientFactory(client),
         betsRepo: repo,
         auditLog: mockAuditLog(),
+        bettingEventsRepo: mockBettingEventsRepo(),
         config: makeConfig(),
       });
 
@@ -622,6 +651,7 @@ describe("createBettingService", () => {
         bettingClientFactory: mockBettingClientFactory(client),
         betsRepo: repo,
         auditLog: mockAuditLog(),
+        bettingEventsRepo: mockBettingEventsRepo(),
         config: makeConfig(),
       });
 
@@ -640,6 +670,7 @@ describe("createBettingService", () => {
         bettingClientFactory: mockBettingClientFactory(client),
         betsRepo: repo,
         auditLog: mockAuditLog(),
+        bettingEventsRepo: mockBettingEventsRepo(),
         config: makeConfig(),
       });
 
@@ -661,6 +692,7 @@ describe("createBettingService", () => {
         bettingClientFactory: mockBettingClientFactory(client),
         betsRepo: repo,
         auditLog: mockAuditLog(),
+        bettingEventsRepo: mockBettingEventsRepo(),
         config: makeConfig({ maxStakePerBet: 3 }),
       });
 
@@ -682,6 +714,7 @@ describe("createBettingService", () => {
         bettingClientFactory: mockBettingClientFactory(client),
         betsRepo: repo,
         auditLog: audit,
+        bettingEventsRepo: mockBettingEventsRepo(),
         config: makeConfig(),
       });
 
@@ -711,6 +744,7 @@ describe("createBettingService", () => {
         bettingClientFactory: mockBettingClientFactory(client),
         betsRepo: repo,
         auditLog: audit,
+        bettingEventsRepo: mockBettingEventsRepo(),
         config: makeConfig(),
       });
 
@@ -737,6 +771,7 @@ describe("createBettingService", () => {
         bettingClientFactory: mockBettingClientFactory(client),
         betsRepo: repo,
         auditLog: audit,
+        bettingEventsRepo: mockBettingEventsRepo(),
         config: makeConfig(),
       });
 

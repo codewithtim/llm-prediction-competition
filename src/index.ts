@@ -12,6 +12,7 @@ import { createRegistry } from "./competitors/registry.ts";
 import { createDb } from "./database/client.ts";
 import { auditLogRepo } from "./database/repositories/audit-log.ts";
 import { betsRepo } from "./database/repositories/bets.ts";
+import { bettingEventsRepo } from "./database/repositories/betting-events.ts";
 import { competitorVersionsRepo } from "./database/repositories/competitor-versions.ts";
 import { competitorsRepo } from "./database/repositories/competitors.ts";
 import { fixturesRepo } from "./database/repositories/fixtures.ts";
@@ -52,6 +53,7 @@ const fixtures = fixturesRepo(db);
 const preds = predictionsRepo(db);
 const statsCache = statsCacheRepo(db);
 const auditLog = auditLogRepo(db);
+const bettingEvents = bettingEventsRepo(db);
 const bets = betsRepo(db);
 const comps = competitorsRepo(db);
 const wallets = walletsRepo(db);
@@ -77,6 +79,7 @@ const bettingService = createBettingService({
   bettingClientFactory,
   betsRepo: bets,
   auditLog,
+  bettingEventsRepo: bettingEvents,
   config: DEFAULT_CONFIG.betting,
 });
 const bankrollProvider = createBankrollProvider({
@@ -96,6 +99,7 @@ const engines = await loadCompetitors({
   walletsRepo: wallets,
   encryptionKey: env.WALLET_ENCRYPTION_KEY,
   versionsRepo: versions,
+  bettingEventsRepo: bettingEvents,
 });
 
 const registry = createRegistry();
