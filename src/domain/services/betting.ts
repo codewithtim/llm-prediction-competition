@@ -1,6 +1,7 @@
 import type { BettingClientFactory } from "../../apis/polymarket/betting-client-factory";
 import type { AuditLogRepo } from "../../database/repositories/audit-log";
 import type { betsRepo as betsRepoFactory } from "../../database/repositories/bets";
+import { safeFloat } from "../../shared/safe-float.ts";
 import type { PredictionOutput } from "../contracts/prediction";
 import type { Market } from "../models/market";
 import type { BetErrorCategory } from "../models/prediction";
@@ -93,9 +94,15 @@ export function createBettingService(deps: {
       }
 
       const tokenId = resolveTokenId(market, prediction.side);
-      const price = Number.parseFloat(
-        prediction.side === "YES" ? market.outcomePrices[0] : market.outcomePrices[1],
+      const price = safeFloat(
+        Number.parseFloat(
+          prediction.side === "YES" ? market.outcomePrices[0] : market.outcomePrices[1],
+        ),
       );
+
+      if (price <= 0) {
+        return { status: "skipped", reason: "Invalid price (zero or non-finite)" };
+      }
 
       if (config.dryRun) {
         return { status: "dry_run" };

@@ -29,6 +29,9 @@ export function determineWinningOutcome(outcomePrices: [string, string]): "YES" 
 }
 
 export function calculateProfit(amount: number, price: number, won: boolean): number {
+  if (price <= 0 || !Number.isFinite(price)) {
+    return -amount;
+  }
   if (won) {
     return amount * ((1 - price) / price);
   }

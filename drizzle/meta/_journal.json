@@ -141,6 +141,13 @@
       "when": 1772843000000,
       "tag": "0019_rebuild-broken-tables",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "6",
+      "when": 1772844000000,
+      "tag": "0020_clean-nan-values",
+      "breakpoints": true
     }
   ]
 }

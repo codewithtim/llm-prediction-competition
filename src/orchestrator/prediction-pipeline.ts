@@ -30,6 +30,7 @@ import { validateStake } from "../domain/services/stake-validator.ts";
 import { runAllEngines } from "../engine/runner.ts";
 import type { EngineResult } from "../engine/types.ts";
 import { logger } from "../shared/logger.ts";
+import { safeFloat } from "../shared/safe-float.ts";
 import type { PipelineConfig } from "./config.ts";
 import {
   dbRowToFixture,
@@ -429,7 +430,11 @@ export function createPredictionPipeline(deps: PredictionPipelineDeps) {
           continue;
         }
 
-        const absoluteStake = prediction.stake * bankroll;
+        const absoluteStake = safeFloat(prediction.stake * bankroll);
+        if (absoluteStake <= 0) {
+          result.betsSkipped++;
+          continue;
+        }
 
         try {
           await predictionsRepo.create({

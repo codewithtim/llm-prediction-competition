@@ -158,6 +158,7 @@ export function betsRepo(db: Database) {
     async updateAmount(id: string, newAmount: number) {
       const bet = await db.select().from(bets).where(eq(bets.id, id)).get();
       if (!bet) return;
+      if (!Number.isFinite(bet.price) || bet.price <= 0) return;
       const newShares = newAmount / bet.price;
       return db
         .update(bets)

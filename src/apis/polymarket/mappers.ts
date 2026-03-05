@@ -1,4 +1,5 @@
 import type { Event, Market } from "@domain/models/market.ts";
+import { safeFloat } from "../../shared/safe-float.ts";
 import type { GammaEvent, GammaMarket } from "./types.ts";
 
 export function mapGammaMarketToMarket(raw: GammaMarket): Market | null {
@@ -18,8 +19,8 @@ export function mapGammaMarketToMarket(raw: GammaMarket): Market | null {
     active: raw.active,
     closed: raw.closed,
     acceptingOrders: raw.acceptingOrders,
-    liquidity: raw.liquidityNum,
-    volume: raw.volumeNum,
+    liquidity: safeFloat(raw.liquidityNum),
+    volume: safeFloat(raw.volumeNum),
     gameId: raw.gameId ?? null,
     sportsMarketType: raw.sportsMarketType ?? null,
     line: null,
