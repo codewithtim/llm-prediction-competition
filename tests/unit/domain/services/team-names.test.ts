@@ -125,3 +125,57 @@ describe("teamNamesMatch", () => {
     expect(teamNamesMatch("Spurs", "Tottenham Hotspur")).toBe(true);
   });
 });
+
+describe("Champions League team name matching", () => {
+  test("matches Club Atlético de Madrid from Polymarket to Atletico Madrid from API-Football", () => {
+    expect(teamNamesMatch("Club Atlético de Madrid", "Atletico Madrid")).toBe(true);
+  });
+
+  test("matches Paris Saint-Germain FC from Polymarket to Paris Saint Germain from API-Football", () => {
+    expect(teamNamesMatch("Paris Saint-Germain FC", "Paris Saint Germain")).toBe(true);
+  });
+
+  test("matches Chelsea FC from Polymarket to Chelsea from API-Football", () => {
+    expect(teamNamesMatch("Chelsea FC", "Chelsea")).toBe(true);
+  });
+
+  test("matches Galatasaray SK from Polymarket to Galatasaray from API-Football", () => {
+    expect(teamNamesMatch("Galatasaray SK", "Galatasaray")).toBe(true);
+  });
+
+  test("matches Liverpool FC from Polymarket to Liverpool from API-Football", () => {
+    expect(teamNamesMatch("Liverpool FC", "Liverpool")).toBe(true);
+  });
+
+  test("matches Newcastle United FC from Polymarket to Newcastle United from API-Football", () => {
+    expect(teamNamesMatch("Newcastle United FC", "Newcastle United")).toBe(true);
+  });
+
+  test("matches FC Barcelona from Polymarket to Barcelona from API-Football", () => {
+    expect(teamNamesMatch("FC Barcelona", "Barcelona")).toBe(true);
+  });
+
+  test("matches FK Bodø/Glimt from Polymarket to Bodo/Glimt from API-Football", () => {
+    expect(teamNamesMatch("FK Bodø/Glimt", "Bodo/Glimt")).toBe(true);
+  });
+
+  test("matches Sporting CP from Polymarket to Sporting CP from API-Football", () => {
+    expect(teamNamesMatch("Sporting CP", "Sporting CP")).toBe(true);
+  });
+
+  test("matches Real Madrid CF from Polymarket to Real Madrid from API-Football", () => {
+    expect(teamNamesMatch("Real Madrid CF", "Real Madrid")).toBe(true);
+  });
+
+  test("matches Atalanta BC from Polymarket to Atalanta from API-Football", () => {
+    expect(teamNamesMatch("Atalanta BC", "Atalanta")).toBe(true);
+  });
+
+  test("matches FC Bayern München from Polymarket to Bayern Munich from API-Football", () => {
+    expect(teamNamesMatch("FC Bayern München", "Bayern Munich")).toBe(true);
+  });
+
+  test("matches Bayer 04 Leverkusen from Polymarket to Bayer Leverkusen from API-Football", () => {
+    expect(teamNamesMatch("Bayer 04 Leverkusen", "Bayer Leverkusen")).toBe(true);
+  });
+});

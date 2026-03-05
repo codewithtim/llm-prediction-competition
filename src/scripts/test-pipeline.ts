@@ -26,44 +26,15 @@ import type { Event, Market } from "../domain/models/market.ts";
 import type { MatchedFixture } from "../domain/services/market-matching.ts";
 import { matchEventsToFixtures } from "../domain/services/market-matching.ts";
 import { runEngine } from "../engine/runner.ts";
+import { LEAGUE_CATALOG } from "../orchestrator/config.ts";
 
-// Top European leagues (API-Football IDs + Polymarket tag IDs)
 const LEAGUES = [
-  {
-    id: 39,
-    name: "Premier League",
-    country: "England",
-    polymarketTagIds: [82],
-    polymarketSeriesSlug: "premier-league",
-  },
-  {
-    id: 140,
-    name: "La Liga",
-    country: "Spain",
-    polymarketTagIds: [306],
-    polymarketSeriesSlug: "la-liga",
-  },
-  {
-    id: 135,
-    name: "Serie A",
-    country: "Italy",
-    polymarketTagIds: [100350],
-    polymarketSeriesSlug: "serie-a",
-  },
-  {
-    id: 78,
-    name: "Bundesliga",
-    country: "Germany",
-    polymarketTagIds: [100350],
-    polymarketSeriesSlug: "bundesliga",
-  },
-  {
-    id: 61,
-    name: "Ligue 1",
-    country: "France",
-    polymarketTagIds: [100350],
-    polymarketSeriesSlug: "ligue-1",
-  },
+  LEAGUE_CATALOG.premierLeague,
+  LEAGUE_CATALOG.championsLeague,
+  LEAGUE_CATALOG.laLiga,
+  LEAGUE_CATALOG.serieA,
+  LEAGUE_CATALOG.bundesliga,
+  LEAGUE_CATALOG.ligue1,
 ];
 
 // API-Football free tier only covers seasons 2022-2024.

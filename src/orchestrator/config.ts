@@ -38,14 +38,54 @@ export type PipelineConfig = {
   retry: RetryConfig;
 };
 
-export const DEFAULT_LEAGUES: LeagueConfig[] = [
-  {
+export const LEAGUE_CATALOG = {
+  premierLeague: {
     id: 39,
     name: "Premier League",
     country: "England",
     polymarketTagIds: [82],
     polymarketSeriesSlug: "premier-league",
   },
+  championsLeague: {
+    id: 2,
+    name: "Champions League",
+    country: "World",
+    polymarketTagIds: [100977],
+    polymarketSeriesSlug: "ucl",
+  },
+  laLiga: {
+    id: 140,
+    name: "La Liga",
+    country: "Spain",
+    polymarketTagIds: [306],
+    polymarketSeriesSlug: "la-liga",
+  },
+  serieA: {
+    id: 135,
+    name: "Serie A",
+    country: "Italy",
+    polymarketTagIds: [100350],
+    polymarketSeriesSlug: "serie-a",
+  },
+  bundesliga: {
+    id: 78,
+    name: "Bundesliga",
+    country: "Germany",
+    polymarketTagIds: [100350],
+    polymarketSeriesSlug: "bundesliga",
+  },
+  ligue1: {
+    id: 61,
+    name: "Ligue 1",
+    country: "France",
+    polymarketTagIds: [100350],
+    polymarketSeriesSlug: "ligue-1",
+  },
+} as const satisfies Record<string, LeagueConfig>;
+
+export const DEFAULT_LEAGUES: LeagueConfig[] = [
+  LEAGUE_CATALOG.premierLeague,
+  LEAGUE_CATALOG.championsLeague,
 ];
 
 export const DEFAULT_CONFIG: PipelineConfig = {
