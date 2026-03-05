@@ -18,7 +18,8 @@ export function sanitizingFetch(input: RequestInfo | URL, init?: RequestInit): P
             return JSON.parse(sanitized);
           };
         }
-        return Reflect.get(target, prop, receiver);
+        const value = Reflect.get(target, prop, target);
+        return typeof value === "function" ? value.bind(target) : value;
       },
     });
     return patched;
