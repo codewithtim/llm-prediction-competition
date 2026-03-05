@@ -1,6 +1,12 @@
 import { createClient } from "@libsql/client";
 import { drizzle } from "drizzle-orm/libsql";
 import { migrate } from "drizzle-orm/libsql/migrator";
+import { fixMigrationJournal } from "../scripts/fix-migration-journal";
+
+// Fix any out-of-order or future timestamps before migrating.
+// This prevents the silent-skip bug where Drizzle skips migrations
+// whose `when` timestamp is before an already-applied migration.
+fixMigrationJournal();
 
 const url = process.env.TURSO_DATABASE_URL;
 const authToken = process.env.TURSO_AUTH_TOKEN;
