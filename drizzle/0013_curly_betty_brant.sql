@@ -1,1 +1,0 @@
-ALTER TABLE `predictions` ADD `extracted_features` text;

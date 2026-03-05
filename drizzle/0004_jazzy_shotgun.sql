@@ -1,1 +1,0 @@
-ALTER TABLE `markets` ADD `fixture_id` integer REFERENCES fixtures(id);

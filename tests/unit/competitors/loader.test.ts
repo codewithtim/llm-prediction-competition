@@ -20,6 +20,10 @@ describe("loadCompetitors", () => {
   it("loads weight-tuned competitors", async () => {
     const repo = competitorsRepo(db);
 
+    // Seed test competitors
+    await repo.create({ id: "wt-gpt-52", name: "GPT 5.2", model: "openai/gpt-5.2", type: "weight-tuned", status: "active", enginePath: null });
+    await repo.create({ id: "wt-claude-sonnet-46", name: "Claude Sonnet", model: "anthropic/claude-sonnet-4-6", type: "weight-tuned", status: "active", enginePath: null });
+
     const engines = await loadCompetitors({
       competitorsRepo: repo,
       walletsRepo: walletsRepo(db),
@@ -36,6 +40,9 @@ describe("loadCompetitors", () => {
 
   it("does not load disabled competitors", async () => {
     const repo = competitorsRepo(db);
+
+    // Seed a competitor then disable it
+    await repo.create({ id: "wt-claude-sonnet", name: "Claude Sonnet", model: "anthropic/claude-sonnet", type: "weight-tuned", status: "active", enginePath: null });
     await repo.setStatus("wt-claude-sonnet", "disabled");
 
     const engines = await loadCompetitors({

@@ -96,7 +96,7 @@ export const DEFAULT_CONFIG: PipelineConfig = {
   settlementIntervalMs: 2 * 60 * 60 * 1000, // 2 hours
   fixtureStatusIntervalMs: 15 * 60 * 1000, // 15 minutes
   marketRefreshIntervalMs: 15 * 60 * 1000, // 15 minutes
-  predictionLeadTimeMs: 3000 * 60 * 1000, // 30 minutes before kickoff
+  predictionLeadTimeMs: 30000 * 60 * 1000, // 30 minutes before kickoff
   predictionDelayMs: 30_000,
   betting: {
     maxStakePerBet: 10,
