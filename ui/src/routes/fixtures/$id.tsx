@@ -103,7 +103,7 @@ export function FixtureDetailPage() {
                   <TableRow key={p.id} className="border-zinc-800 hover:bg-zinc-800/50">
                     <TableCell className="text-zinc-200">{p.competitorName}</TableCell>
                     <TableCell className="text-zinc-400 text-sm max-w-48 truncate">
-                      {p.marketQuestion}
+                      <ExternalLink href={p.polymarketUrl}>{p.marketQuestion}</ExternalLink>
                     </TableCell>
                     <TableCell className="font-mono text-zinc-300">{p.side}</TableCell>
                     <TableCell className="text-right font-mono text-zinc-300">

@@ -144,6 +144,7 @@ export function competitorsRoutes(deps: ApiDeps) {
         competitorName: lookups.competitorMap.get(p.competitorId) ?? "Unknown",
         marketId: p.marketId,
         marketQuestion: marketById.get(p.marketId)?.question ?? "Unknown",
+        polymarketUrl: marketById.get(p.marketId)?.polymarketUrl ?? null,
         fixtureId: p.fixtureId,
         side: p.side,
         confidence: p.confidence,

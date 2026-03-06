@@ -81,11 +81,19 @@ export const LEAGUE_CATALOG = {
     polymarketTagIds: [100350],
     polymarketSeriesSlug: "ligue-1",
   },
+  faCup: {
+    id: 45,
+    name: "FA Cup",
+    country: "England",
+    polymarketTagIds: [101807],
+    polymarketSeriesSlug: "fa-cup",
+  },
 } as const satisfies Record<string, LeagueConfig>;
 
 export const DEFAULT_LEAGUES: LeagueConfig[] = [
   LEAGUE_CATALOG.premierLeague,
   LEAGUE_CATALOG.championsLeague,
+  LEAGUE_CATALOG.faCup,
 ];
 
 export const DEFAULT_CONFIG: PipelineConfig = {
@@ -96,7 +104,7 @@ export const DEFAULT_CONFIG: PipelineConfig = {
   settlementIntervalMs: 2 * 60 * 60 * 1000, // 2 hours
   fixtureStatusIntervalMs: 15 * 60 * 1000, // 15 minutes
   marketRefreshIntervalMs: 15 * 60 * 1000, // 15 minutes
-  predictionLeadTimeMs: 30 * 60 * 1000, // 30 minutes before kickoff
+  predictionLeadTimeMs: 30000 * 60 * 1000, // 30 minutes before kickoff
   predictionDelayMs: 30_000,
   betting: {
     maxStakePerBet: 10,

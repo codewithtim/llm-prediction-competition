@@ -13,6 +13,10 @@ const ERROR_PATTERNS: Array<{ pattern: RegExp; category: BetErrorCategory }> = [
     pattern: /invalid amount.*min size|order size.*too small|below.*minimum/i,
     category: "order_too_small",
   },
+  {
+    pattern: /trading restricted in your region|refer to available regions/i,
+    category: "geo_restricted",
+  },
 ];
 
 export function extractMinBetSize(error: unknown): number | null {

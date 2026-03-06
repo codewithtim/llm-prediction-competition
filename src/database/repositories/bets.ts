@@ -8,6 +8,7 @@ const TERMINAL_CATEGORIES: BetErrorCategory[] = [
   "insufficient_funds",
   "wallet_error",
   "invalid_market",
+  "geo_restricted",
 ];
 
 type BetRow = typeof bets.$inferSelect;

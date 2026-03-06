@@ -184,6 +184,7 @@ export type PredictionSummary = {
   competitorName: string;
   marketId: string;
   marketQuestion: string;
+  polymarketUrl: string | null;
   fixtureId: number;
   side: "YES" | "NO";
   confidence: number;

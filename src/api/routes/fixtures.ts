@@ -48,7 +48,7 @@ export function fixturesRoutes(deps: ApiDeps) {
 
     const allCompetitors = await deps.competitorsRepo.findAll();
     const competitorMap = new Map(allCompetitors.map((c) => [c.id, c.name]));
-    const marketMap = new Map(fixtureMarkets.map((m) => [m.id, m.question]));
+    const marketMap = new Map(fixtureMarkets.map((m) => [m.id, m]));
 
     return c.json({
       id: fixture.id,
@@ -80,19 +80,23 @@ export function fixturesRoutes(deps: ApiDeps) {
         sportsMarketType: m.sportsMarketType,
         status: m.closed ? "closed" : m.active ? "active" : "inactive",
       })),
-      predictions: fixturePredictions.map((p) => ({
-        id: p.id,
-        competitorId: p.competitorId,
-        competitorName: competitorMap.get(p.competitorId) ?? "Unknown",
-        marketId: p.marketId,
-        marketQuestion: marketMap.get(p.marketId) ?? "Unknown",
-        fixtureId: p.fixtureId,
-        side: p.side,
-        confidence: p.confidence,
-        stake: p.stake,
-        reasoning: p.reasoning,
-        createdAt: p.createdAt?.toISOString() ?? "",
-      })),
+      predictions: fixturePredictions.map((p) => {
+        const market = marketMap.get(p.marketId);
+        return {
+          id: p.id,
+          competitorId: p.competitorId,
+          competitorName: competitorMap.get(p.competitorId) ?? "Unknown",
+          marketId: p.marketId,
+          marketQuestion: market?.question ?? "Unknown",
+          polymarketUrl: market?.polymarketUrl ?? null,
+          fixtureId: p.fixtureId,
+          side: p.side,
+          confidence: p.confidence,
+          stake: p.stake,
+          reasoning: p.reasoning,
+          createdAt: p.createdAt?.toISOString() ?? "",
+        };
+      }),
     });
   });
 

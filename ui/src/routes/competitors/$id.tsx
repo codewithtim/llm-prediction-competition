@@ -2,6 +2,7 @@ import { useParams } from "@tanstack/react-router";
 import { BankrollChart } from "@/components/competitors/bankroll-chart";
 import { PageShell } from "@/components/layout/page-shell";
 import { EmptyState } from "@/components/shared/empty-state";
+import { ExternalLink } from "@/components/shared/external-link";
 import { InternalLink } from "@/components/shared/internal-link";
 import { LoadingSkeleton } from "@/components/shared/loading-skeleton";
 import { ModelLogo } from "@/components/shared/model-logo";
@@ -143,7 +144,7 @@ export function CompetitorDetailPage() {
                   {data.recentPredictions.map((p) => (
                     <TableRow key={p.id} className="border-zinc-800 hover:bg-zinc-800/50">
                       <TableCell className="text-zinc-200 max-w-48 truncate">
-                        {p.marketQuestion}
+                        <ExternalLink href={p.polymarketUrl}>{p.marketQuestion}</ExternalLink>
                       </TableCell>
                       <TableCell className="font-mono text-zinc-300">{p.side}</TableCell>
                       <TableCell className="text-right font-mono text-zinc-300">
