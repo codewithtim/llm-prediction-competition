@@ -7,6 +7,7 @@ const envSchema = z.object({
   TURSO_DATABASE_URL: z.string().min(1),
   TURSO_AUTH_TOKEN: z.string().default(""),
   WALLET_ENCRYPTION_KEY: z.string().default(""),
+  PROXY_URL: z.string().default(""),
 });
 
 export const env = envSchema.parse(process.env);

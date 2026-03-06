@@ -2,20 +2,22 @@ import type { GammaEvent, GammaEventParams, GammaMarket, GammaSport, GammaTag } 
 
 const GAMMA_BASE_URL = "https://gamma-api.polymarket.com";
 
-async function gammaFetch(endpoint: string): Promise<Response> {
-  const res = await fetch(`${GAMMA_BASE_URL}${endpoint}`);
-  if (!res.ok) {
-    let detail = "";
-    try {
-      const body = await res.text();
-      if (body) detail = `: ${body}`;
-    } catch {}
-    throw new Error(`Gamma ${endpoint} failed (HTTP ${res.status})${detail}`);
-  }
-  return res;
-}
+type FetchFn = (input: string | URL | Request, init?: RequestInit) => Promise<Response>;
 
-export function createGammaClient() {
+export function createGammaClient(fetchFn: FetchFn = fetch) {
+  async function gammaFetch(endpoint: string): Promise<Response> {
+    const res = await fetchFn(`${GAMMA_BASE_URL}${endpoint}`);
+    if (!res.ok) {
+      let detail = "";
+      try {
+        const body = await res.text();
+        if (body) detail = `: ${body}`;
+      } catch {}
+      throw new Error(`Gamma ${endpoint} failed (HTTP ${res.status})${detail}`);
+    }
+    return res;
+  }
+
   return {
     async getSports(): Promise<GammaSport[]> {
       const res = await gammaFetch("/sports");

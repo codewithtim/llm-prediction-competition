@@ -35,6 +35,15 @@ import { createPredictionPipeline } from "./orchestrator/prediction-pipeline.ts"
 import { createScheduler } from "./orchestrator/scheduler.ts";
 import { env } from "./shared/env.ts";
 import { logger } from "./shared/logger.ts";
+import { configureAxiosProxy, createProxyFetch } from "./shared/proxy.ts";
+
+// ── Proxy setup (must run before any Polymarket client creation) ─────
+if (env.PROXY_URL) {
+  configureAxiosProxy(env.PROXY_URL);
+  logger.info("Polymarket proxy configured", {
+    proxy: env.PROXY_URL.replace(/\/\/.*@/, "//<redacted>@"),
+  });
+}
 
 // ── Database ─────────────────────────────────────────────────────────
 const db = createDb(env.TURSO_DATABASE_URL, env.TURSO_AUTH_TOKEN);
@@ -60,7 +69,8 @@ const wallets = walletsRepo(db);
 const versions = competitorVersionsRepo(db);
 
 // ── External clients ─────────────────────────────────────────────────
-const gammaClient = createGammaClient();
+const polyFetch = env.PROXY_URL ? createProxyFetch(env.PROXY_URL) : fetch;
+const gammaClient = createGammaClient(polyFetch);
 const footballClient = createFootballClient(env.API_SPORTS_KEY);
 const openrouterConfigured = !!env.OPENROUTER_API_KEY;
 const _openrouter = openrouterConfigured ? createOpenRouterClient(env.OPENROUTER_API_KEY) : null;
