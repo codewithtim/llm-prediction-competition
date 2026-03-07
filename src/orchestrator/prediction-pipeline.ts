@@ -245,13 +245,53 @@ export function createPredictionPipeline(deps: PredictionPipelineDeps) {
     const homeStanding = allStandings.find((s) => s.team.id === fixture.homeTeam.id);
     const awayStanding = allStandings.find((s) => s.team.id === fixture.awayTeam.id);
 
-    if (!homeStanding || !awayStanding) {
-      result.errors.push(`Standings not found for fixture ${fixture.id} (${fixtureLabel})`);
-      return null;
-    }
+    const emptyRecord = { wins: 0, draws: 0, losses: 0, goalsFor: 0, goalsAgainst: 0 };
 
-    const homeStats = mapStandingToTeamStats(homeStanding);
-    const awayStats = mapStandingToTeamStats(awayStanding);
+    const homeStats: TeamStats = homeStanding
+      ? mapStandingToTeamStats(homeStanding)
+      : {
+          teamId: fixture.homeTeam.id,
+          teamName: fixture.homeTeam.name,
+          played: 0,
+          wins: 0,
+          draws: 0,
+          losses: 0,
+          goalsFor: 0,
+          goalsAgainst: 0,
+          goalDifference: 0,
+          points: 0,
+          form: null,
+          homeRecord: emptyRecord,
+          awayRecord: emptyRecord,
+        };
+
+    const awayStats: TeamStats = awayStanding
+      ? mapStandingToTeamStats(awayStanding)
+      : {
+          teamId: fixture.awayTeam.id,
+          teamName: fixture.awayTeam.name,
+          played: 0,
+          wins: 0,
+          draws: 0,
+          losses: 0,
+          goalsFor: 0,
+          goalsAgainst: 0,
+          goalDifference: 0,
+          points: 0,
+          form: null,
+          homeRecord: emptyRecord,
+          awayRecord: emptyRecord,
+        };
+
+    if (!homeStanding || !awayStanding) {
+      logger.warn("Prediction: standings not found (cup fixture?), continuing with empty stats", {
+        fixtureId: fixture.id,
+        fixture: fixtureLabel,
+        leagueId: fixture.league.id,
+        missingHome: !homeStanding,
+        missingAway: !awayStanding,
+      });
+    }
 
     let h2h: H2H;
     if (h2hResp.status === "fulfilled") {

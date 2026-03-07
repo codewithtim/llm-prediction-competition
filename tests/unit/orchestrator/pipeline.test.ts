@@ -919,8 +919,9 @@ describe("createPredictionPipeline", () => {
     const pipeline = createPredictionPipeline(deps);
     const result = await pipeline.run();
 
-    expect(result.errors.some((e: string) => e.includes("Standings not found"))).toBe(true);
-    expect(result.fixturesProcessed).toBe(0);
+    // Missing standings no longer blocks — fixture proceeds with empty stats
+    expect(result.errors).toHaveLength(0);
+    expect(result.fixturesProcessed).toBe(1);
   });
 
   test("counts placed bets correctly", async () => {
@@ -1211,9 +1212,9 @@ describe("createPredictionPipeline", () => {
     const pipeline = createPredictionPipeline(deps);
     const result = await pipeline.run();
 
-    expect(result.errors.some((e: string) => e.includes("Standings not found"))).toBe(true);
-    expect(result.fixturesProcessed).toBe(1);
-    expect(result.predictionsGenerated).toBe(1);
+    // Both fixtures now process — missing standings uses empty stats instead of skipping
+    expect(result.fixturesProcessed).toBe(2);
+    expect(result.predictionsGenerated).toBe(2);
   });
 
   test("odds are refreshed after stats are gathered, not before", async () => {
