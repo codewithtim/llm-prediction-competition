@@ -150,8 +150,14 @@ describe("mapGammaEventToEvent", () => {
     expect(result.startDate).toBe("2026-03-05T20:00:00Z");
   });
 
-  test("falls back to startDate when startTime is empty", () => {
+  test("falls back to endDate when startTime is empty", () => {
     const result = mapGammaEventToEvent(makeGammaEvent({ startTime: "" }));
+
+    expect(result.startDate).toBe("2026-03-06T00:00:00Z");
+  });
+
+  test("falls back to startDate when both startTime and endDate are empty", () => {
+    const result = mapGammaEventToEvent(makeGammaEvent({ startTime: "", endDate: "" }));
 
     expect(result.startDate).toBe("2026-02-14T05:11:37Z");
   });

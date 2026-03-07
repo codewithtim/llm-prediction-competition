@@ -68,8 +68,12 @@ describe("teamNamesMatch", () => {
     expect(teamNamesMatch("Tottenham Hotspur FC", "Tottenham")).toBe(true);
   });
 
-  test("match via substring containment", () => {
+  test("match after suffix stripping", () => {
     expect(teamNamesMatch("Crystal Palace FC", "Crystal Palace")).toBe(true);
+  });
+
+  test("rejects substring-only match (Inter vs Inter Miami)", () => {
+    expect(teamNamesMatch("Inter", "Inter Miami")).toBe(false);
   });
 
   test("rejects different teams", () => {

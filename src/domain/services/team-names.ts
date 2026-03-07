@@ -3,6 +3,9 @@ export const TEAM_NAME_GROUPS: string[][] = [
   ["wolverhampton wanderers", "wolverhampton", "wolves"],
   ["west ham united", "west ham"],
   ["newcastle united", "newcastle"],
+  ["brighton and hove albion", "brighton hove albion", "brighton"],
+  ["leeds united", "leeds"],
+  ["norwich city", "norwich"],
   ["sheffield united", "sheffield utd"],
   ["nottingham forest", "nottm forest"],
   ["athletic bilbao", "athletic club"],
@@ -55,11 +58,6 @@ export function resolveTeamName(name: string): string {
   return CANONICAL_NAMES.get(normalized) ?? normalized;
 }
 
-export function teamNamesMatch(polymarketName: string, apiFootballName: string): boolean {
-  const resolved = resolveTeamName(polymarketName);
-  const normalized = resolveTeamName(apiFootballName);
-
-  if (resolved === normalized) return true;
-
-  return resolved.includes(normalized) || normalized.includes(resolved);
+export function teamNamesMatch(nameA: string, nameB: string): boolean {
+  return resolveTeamName(nameA) === resolveTeamName(nameB);
 }

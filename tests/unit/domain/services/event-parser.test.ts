@@ -1,8 +1,8 @@
 import { describe, expect, test } from "bun:test";
 import {
+  datesMatchForFixture,
   extractUTCDate,
   parseEventTitle,
-  sameDateUTC,
 } from "../../../../src/domain/services/event-parser.ts";
 
 describe("parseEventTitle", () => {
@@ -62,16 +62,24 @@ describe("extractUTCDate", () => {
   });
 });
 
-describe("sameDateUTC", () => {
-  test("returns true for same UTC day", () => {
-    expect(sameDateUTC("2026-03-05T15:00:00Z", "2026-03-05T20:00:00Z")).toBe(true);
+describe("datesMatchForFixture", () => {
+  test("returns true for same timestamp", () => {
+    expect(datesMatchForFixture("2026-03-05T20:00:00Z", "2026-03-05T20:00:00Z")).toBe(true);
   });
 
-  test("returns false for different UTC days", () => {
-    expect(sameDateUTC("2026-03-05T20:00:00Z", "2026-03-06T20:00:00Z")).toBe(false);
+  test("returns true for dates within 24 hours", () => {
+    expect(datesMatchForFixture("2026-03-05T20:00:00Z", "2026-03-06T15:00:00Z")).toBe(true);
   });
 
-  test("handles offset strings resolving to same UTC day", () => {
-    expect(sameDateUTC("2026-03-05T20:00:00Z", "2026-03-05T21:00:00+01:00")).toBe(true);
+  test("real-world: Wolves vs Liverpool 19h apart matches", () => {
+    expect(datesMatchForFixture("2026-03-06T20:00:00+00:00", "2026-03-07T15:00:00Z")).toBe(true);
+  });
+
+  test("returns false for dates more than 24 hours apart", () => {
+    expect(datesMatchForFixture("2026-03-05T10:00:00Z", "2026-03-06T11:00:00Z")).toBe(false);
+  });
+
+  test("returns false for dates 25 hours apart", () => {
+    expect(datesMatchForFixture("2026-03-05T10:00:00Z", "2026-03-06T11:00:00Z")).toBe(false);
   });
 });

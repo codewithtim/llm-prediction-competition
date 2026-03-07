@@ -1,7 +1,7 @@
 import { logger } from "@shared/logger.ts";
 import type { Fixture } from "../models/fixture.ts";
 import type { Event, Market } from "../models/market.ts";
-import { parseEventTitle, sameDateUTC } from "./event-parser.ts";
+import { datesMatchForFixture, parseEventTitle } from "./event-parser.ts";
 import { teamNamesMatch } from "./team-names.ts";
 
 export type MatchedMarket = {
@@ -20,13 +20,6 @@ export type MatchResult = {
   unmatchedEvents: Event[];
   unmatchedFixtures: Fixture[];
 };
-
-function matchByGameId(market: Market, fixtureIndex: Map<number, Fixture>): Fixture | null {
-  if (market.gameId === null) return null;
-  const id = Number(market.gameId);
-  if (Number.isNaN(id)) return null;
-  return fixtureIndex.get(id) ?? null;
-}
 
 function matchByTeamNameAndDate(event: Event, fixtures: Fixture[]): Fixture | null {
   const parsed = parseEventTitle(event.title);
@@ -48,8 +41,7 @@ function matchByTeamNameAndDate(event: Event, fixtures: Fixture[]): Fixture | nu
 
     if (!homeMatch || !awayMatch) continue;
 
-    const dateMatch = sameDateUTC(event.startDate, fixture.date);
-    if (dateMatch) return fixture;
+    if (datesMatchForFixture(event.startDate, fixture.date)) return fixture;
   }
 
   logger.debug("Matching: no fixture found for event", {
@@ -65,39 +57,24 @@ function matchByTeamNameAndDate(event: Event, fixtures: Fixture[]): Fixture | nu
 }
 
 export function matchEventsToFixtures(events: Event[], fixtures: Fixture[]): MatchResult {
-  const fixtureIndex = new Map<number, Fixture>();
-  for (const fixture of fixtures) {
-    fixtureIndex.set(fixture.id, fixture);
-  }
-
   const matchedFixtureMap = new Map<number, MatchedFixture>();
   const matchedEventIds = new Set<string>();
   const matchedFixtureIds = new Set<number>();
 
   for (const event of events) {
-    let eventMatched = false;
+    const fixture = matchByTeamNameAndDate(event, fixtures);
+    if (!fixture) continue;
+
+    matchedEventIds.add(event.id);
+    matchedFixtureIds.add(fixture.id);
+
+    let entry = matchedFixtureMap.get(fixture.id);
+    if (!entry) {
+      entry = { fixture, markets: [] };
+      matchedFixtureMap.set(fixture.id, entry);
+    }
 
     for (const market of event.markets) {
-      // Try gameId match first (per-market)
-      let fixture = matchByGameId(market, fixtureIndex);
-
-      // Fall back to team name + date match (per-event)
-      if (!fixture) {
-        fixture = matchByTeamNameAndDate(event, fixtures);
-      }
-
-      if (!fixture) continue;
-
-      eventMatched = true;
-      matchedFixtureIds.add(fixture.id);
-
-      let entry = matchedFixtureMap.get(fixture.id);
-      if (!entry) {
-        entry = { fixture, markets: [] };
-        matchedFixtureMap.set(fixture.id, entry);
-      }
-
-      // Deduplicate: don't add the same market twice
       const alreadyAdded = entry.markets.some((m) => m.market.id === market.id);
       if (!alreadyAdded) {
         entry.markets.push({
@@ -106,10 +83,6 @@ export function matchEventsToFixtures(events: Event[], fixtures: Fixture[]): Mat
           eventTitle: event.title,
         });
       }
-    }
-
-    if (eventMatched) {
-      matchedEventIds.add(event.id);
     }
   }
 

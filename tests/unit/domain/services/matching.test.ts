@@ -57,70 +57,8 @@ function makeFixture(overrides: Partial<Fixture> = {}): Fixture {
   };
 }
 
-describe("gameId matching", () => {
-  test("matches market to fixture by gameId", () => {
-    const market = makeMarket({ gameId: "12345" });
-    const event = makeEvent({ markets: [market] });
-    const fixture = makeFixture({ id: 12345 });
-
-    const result = matchEventsToFixtures([event], [fixture]);
-
-    expect(result.matched).toHaveLength(1);
-    expect(result.matched[0]?.fixture.id).toBe(12345);
-    expect(result.matched[0]?.markets).toHaveLength(1);
-    expect(result.matched[0]?.markets[0]?.market.id).toBe("market-1");
-  });
-
-  test("matches multiple markets from same event to same fixture", () => {
-    const market1 = makeMarket({ id: "m1", gameId: "12345" });
-    const market2 = makeMarket({
-      id: "m2",
-      gameId: "12345",
-      sportsMarketType: "spreads",
-    });
-    const event = makeEvent({ markets: [market1, market2] });
-    const fixture = makeFixture({ id: 12345 });
-
-    const result = matchEventsToFixtures([event], [fixture]);
-
-    expect(result.matched).toHaveLength(1);
-    expect(result.matched[0]?.markets).toHaveLength(2);
-  });
-
-  test("non-matching gameId falls through to fallback", () => {
-    const market = makeMarket({ gameId: "99999" });
-    const event = makeEvent({
-      title: "Arsenal FC vs. Brighton FC",
-      startDate: "2026-03-05T20:00:00Z",
-      markets: [market],
-    });
-    const fixture = makeFixture({ id: 12345 });
-
-    const result = matchEventsToFixtures([event], [fixture]);
-
-    // Should match via team name + date fallback
-    expect(result.matched).toHaveLength(1);
-    expect(result.matched[0]?.fixture.id).toBe(12345);
-  });
-
-  test("non-numeric gameId handled gracefully", () => {
-    const market = makeMarket({ gameId: "not-a-number" });
-    const event = makeEvent({
-      title: "Arsenal FC vs. Brighton FC",
-      startDate: "2026-03-05T20:00:00Z",
-      markets: [market],
-    });
-    const fixture = makeFixture({ id: 12345 });
-
-    const result = matchEventsToFixtures([event], [fixture]);
-
-    // Falls through to team name + date fallback
-    expect(result.matched).toHaveLength(1);
-  });
-});
-
-describe("team name + date fallback matching", () => {
-  test("matches when teams and date align and gameId is null", () => {
+describe("team name + date matching", () => {
+  test("matches when teams and date align", () => {
     const event = makeEvent({
       title: "Arsenal FC vs. Brighton FC",
       startDate: "2026-03-05T20:00:00Z",
@@ -134,13 +72,37 @@ describe("team name + date fallback matching", () => {
     expect(result.unmatchedEvents).toHaveLength(0);
   });
 
-  test("fails when teams match but dates differ", () => {
+  test("matches Wolves vs Liverpool with 19h date drift", () => {
+    const event = makeEvent({
+      title: "Wolverhampton Wanderers FC vs. Liverpool FC",
+      startDate: "2026-03-07T15:00:00Z",
+      markets: [
+        makeMarket({ id: "m1", gameId: "90108815" }),
+        makeMarket({ id: "m2", gameId: "90108815", sportsMarketType: "spreads" }),
+        makeMarket({ id: "m3", gameId: "90108815", sportsMarketType: "totals" }),
+      ],
+    });
+    const fixture = makeFixture({
+      id: 1523415,
+      homeTeam: { id: 76, name: "Wolves", logo: null },
+      awayTeam: { id: 40, name: "Liverpool", logo: null },
+      date: "2026-03-06T20:00:00Z",
+    });
+
+    const result = matchEventsToFixtures([event], [fixture]);
+
+    expect(result.matched).toHaveLength(1);
+    expect(result.matched[0]?.fixture.id).toBe(1523415);
+    expect(result.matched[0]?.markets).toHaveLength(3);
+  });
+
+  test("fails when teams match but dates more than 24h apart", () => {
     const event = makeEvent({
       title: "Arsenal FC vs. Brighton FC",
-      startDate: "2026-03-10T20:00:00Z",
+      startDate: "2026-03-07T21:00:00Z",
       markets: [makeMarket({ gameId: null })],
     });
-    const fixture = makeFixture();
+    const fixture = makeFixture({ date: "2026-03-05T20:00:00Z" });
 
     const result = matchEventsToFixtures([event], [fixture]);
 
@@ -247,21 +209,23 @@ describe("team name + date fallback matching", () => {
 
 describe("two-events-per-match grouping", () => {
   test("main event + More Markets event grouped under one MatchedFixture", () => {
-    const mainMarket = makeMarket({ id: "m-main", gameId: "12345" });
+    const mainMarket = makeMarket({ id: "m-main", gameId: null });
     const moreMarket = makeMarket({
       id: "m-more",
-      gameId: "12345",
+      gameId: null,
       sportsMarketType: "totals",
     });
 
     const mainEvent = makeEvent({
       id: "evt-main",
       title: "Arsenal FC vs. Brighton FC",
+      startDate: "2026-03-05T20:00:00Z",
       markets: [mainMarket],
     });
     const moreEvent = makeEvent({
       id: "evt-more",
       title: "Arsenal FC vs. Brighton FC - More Markets",
+      startDate: "2026-03-05T20:00:00Z",
       markets: [moreMarket],
     });
 
@@ -276,13 +240,17 @@ describe("two-events-per-match grouping", () => {
   });
 
   test("no duplicate market entries when same market appears in multiple events", () => {
-    const sharedMarket = makeMarket({ id: "shared", gameId: "12345" });
+    const sharedMarket = makeMarket({ id: "shared", gameId: null });
     const event1 = makeEvent({
       id: "evt-1",
+      title: "Arsenal FC vs. Brighton FC",
+      startDate: "2026-03-05T20:00:00Z",
       markets: [sharedMarket],
     });
     const event2 = makeEvent({
       id: "evt-2",
+      title: "Arsenal FC vs. Brighton FC",
+      startDate: "2026-03-05T20:00:00Z",
       markets: [sharedMarket],
     });
     const fixture = makeFixture({ id: 12345 });
@@ -290,7 +258,6 @@ describe("two-events-per-match grouping", () => {
     const result = matchEventsToFixtures([event1, event2], [fixture]);
 
     expect(result.matched).toHaveLength(1);
-    // Same market ID should only appear once
     const marketIds = result.matched[0]?.markets.map((m) => m.market.id);
     expect(marketIds).toHaveLength(1);
     expect(marketIds?.[0]).toBe("shared");
@@ -350,25 +317,19 @@ describe("edge cases", () => {
     expect(result.unmatchedFixtures).toHaveLength(0);
   });
 
-  test("gameId match preferred over name match", () => {
-    // Two fixtures: one matches by gameId, the other matches by team name + date
-    const market = makeMarket({ gameId: "99999" });
+  test("matches multiple markets from same event to same fixture", () => {
+    const market1 = makeMarket({ id: "m1", gameId: null });
+    const market2 = makeMarket({ id: "m2", gameId: null, sportsMarketType: "spreads" });
     const event = makeEvent({
       title: "Arsenal FC vs. Brighton FC",
       startDate: "2026-03-05T20:00:00Z",
-      markets: [market],
+      markets: [market1, market2],
     });
-    const fixtureByName = makeFixture({ id: 12345 });
-    const fixtureById = makeFixture({
-      id: 99999,
-      homeTeam: { id: 100, name: "Other Team", logo: null },
-      awayTeam: { id: 101, name: "Another Team", logo: null },
-    });
+    const fixture = makeFixture({ id: 12345 });
 
-    const result = matchEventsToFixtures([event], [fixtureByName, fixtureById]);
+    const result = matchEventsToFixtures([event], [fixture]);
 
     expect(result.matched).toHaveLength(1);
-    // Should match by gameId, not by team name
-    expect(result.matched[0]?.fixture.id).toBe(99999);
+    expect(result.matched[0]?.markets).toHaveLength(2);
   });
 });

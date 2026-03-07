@@ -27,7 +27,7 @@ type SortDir = "asc" | "desc";
 
 export function FixturesPage() {
   const [status, setStatus] = useState("");
-  const [sortDir, setSortDir] = useState<SortDir>("desc");
+  const [sortDir, setSortDir] = useState<SortDir>("asc");
   const { data, isLoading } = useFixtures(status || undefined);
 
   const sorted = useMemo(() => {

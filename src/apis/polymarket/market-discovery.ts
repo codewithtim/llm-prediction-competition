@@ -24,7 +24,9 @@ export function collectSeriesSlugs(config: MarketDiscoveryConfig): string[] {
 }
 
 export function filterBySeriesSlug(events: GammaEvent[], seriesSlugs: string[]): GammaEvent[] {
-  return events.filter((e) => seriesSlugs.some((slug) => e.seriesSlug.startsWith(slug)));
+  return events.filter(
+    (e) => e.seriesSlug && seriesSlugs.some((slug) => e.seriesSlug.startsWith(slug)),
+  );
 }
 
 export function filterToMoneylineMarkets(event: GammaEvent): GammaEvent {

@@ -150,6 +150,18 @@ describe("filterBySeriesSlug", () => {
 
     expect(result).toHaveLength(0);
   });
+
+  test("skips events with undefined or empty seriesSlug without crashing", () => {
+    const events = [
+      makeGammaEvent({ id: "1", seriesSlug: undefined as unknown as string }),
+      makeGammaEvent({ id: "2", seriesSlug: "" }),
+      makeGammaEvent({ id: "3", seriesSlug: "fa-cup" }),
+    ];
+    const result = filterBySeriesSlug(events, ["fa-cup"]);
+
+    expect(result).toHaveLength(1);
+    expect(result[0]?.id).toBe("3");
+  });
 });
 
 describe("filterToMoneylineMarkets", () => {

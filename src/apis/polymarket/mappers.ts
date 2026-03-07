@@ -41,7 +41,7 @@ export function mapGammaEventToEvent(raw: GammaEvent): Event {
     id: raw.id,
     slug: raw.slug,
     title: raw.title,
-    startDate: raw.startTime || raw.startDate,
+    startDate: raw.startTime || raw.endDate || raw.startDate,
     endDate: raw.endDate,
     active: raw.active,
     closed: raw.closed,

@@ -28,6 +28,9 @@ export function extractUTCDate(isoString: string): string {
   return `${year}-${month}-${day}`;
 }
 
-export function sameDateUTC(dateA: string, dateB: string): boolean {
-  return extractUTCDate(dateA) === extractUTCDate(dateB);
+export function datesMatchForFixture(dateA: string, dateB: string): boolean {
+  const a = new Date(dateA);
+  const b = new Date(dateB);
+  const diffMs = Math.abs(a.getTime() - b.getTime());
+  return diffMs <= 24 * 60 * 60 * 1000;
 }
