@@ -245,7 +245,7 @@ export function createPredictionPipeline(deps: PredictionPipelineDeps) {
     const homeStanding = allStandings.find((s) => s.team.id === fixture.homeTeam.id);
     const awayStanding = allStandings.find((s) => s.team.id === fixture.awayTeam.id);
 
-    const emptyRecord = { wins: 0, draws: 0, losses: 0, goalsFor: 0, goalsAgainst: 0 };
+    const emptyRecord = { played: 0, wins: 0, draws: 0, losses: 0, goalsFor: 0, goalsAgainst: 0 };
 
     const homeStats: TeamStats = homeStanding
       ? mapStandingToTeamStats(homeStanding)
