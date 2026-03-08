@@ -17,6 +17,7 @@ export type BettingConfig = {
   initialBankroll: number;
   minBetAmount: number;
   dryRun: boolean;
+  proxyEnabled: boolean;
 };
 
 export type PlaceBetInput = {
@@ -187,7 +188,13 @@ export function createBettingService(deps: {
         event: "bet_created",
         statusBefore: null,
         statusAfter: "submitting",
-        metadata: { marketId: market.id, price, stake: amount, side: prediction.side },
+        metadata: {
+          marketId: market.id,
+          price,
+          stake: amount,
+          side: prediction.side,
+          proxyEnabled: config.proxyEnabled,
+        },
       });
 
       const bettingClient = bettingClientFactory.getClient(competitorId, walletConfig);
@@ -211,6 +218,7 @@ export function createBettingService(deps: {
           statusBefore: "submitting",
           statusAfter: "pending",
           orderId,
+          metadata: { proxyEnabled: config.proxyEnabled },
         });
 
         return { status: "placed", bet: { ...bet, orderId } };
@@ -233,6 +241,7 @@ export function createBettingService(deps: {
           statusAfter: "failed",
           error: errorMessage,
           errorCategory,
+          metadata: { proxyEnabled: config.proxyEnabled },
         });
 
         return { status: "failed", error: errorMessage, errorCategory };

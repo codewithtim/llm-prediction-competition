@@ -22,6 +22,7 @@ export function createBetRetryService(deps: {
   maxRetryAttempts: number;
   retryDelayMs?: number;
   maxStakePerBet: number;
+  proxyEnabled: boolean;
 }) {
   const {
     betsRepo,
@@ -32,6 +33,7 @@ export function createBetRetryService(deps: {
     maxRetryAttempts,
     retryDelayMs,
     maxStakePerBet,
+    proxyEnabled,
   } = deps;
 
   return {
@@ -123,6 +125,7 @@ export function createBetRetryService(deps: {
           metadata: {
             attempt: bet.attempts + 1,
             previousError: bet.errorMessage,
+            proxyEnabled,
             ...(stakeAdjustment && { stakeAdjustment }),
           },
         });
@@ -148,7 +151,7 @@ export function createBetRetryService(deps: {
             statusBefore: "submitting",
             statusAfter: "pending",
             orderId,
-            metadata: { attempt: bet.attempts + 1 },
+            metadata: { attempt: bet.attempts + 1, proxyEnabled },
           });
 
           result.succeeded++;
@@ -176,7 +179,7 @@ export function createBetRetryService(deps: {
             statusAfter: "failed",
             error: errorMessage,
             errorCategory,
-            metadata: { attempt: bet.attempts + 1 },
+            metadata: { attempt: bet.attempts + 1, proxyEnabled },
           });
 
           result.failedAgain++;

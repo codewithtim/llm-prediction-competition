@@ -78,6 +78,7 @@ function makeConfig(overrides?: Partial<BettingConfig>): BettingConfig {
     initialBankroll: 100,
     minBetAmount: 0.01,
     dryRun: false,
+    proxyEnabled: false,
     ...overrides,
   };
 }

@@ -87,6 +87,7 @@ function makeConfig(overrides?: Partial<BettingConfig>): BettingConfig {
 		initialBankroll: 100,
 		minBetAmount: 0.01,
 		dryRun: false,
+		proxyEnabled: false,
 		...overrides,
 	};
 }
@@ -250,6 +251,7 @@ describe("min-bet-bump flow", () => {
 			walletConfigs: makeWalletConfigs(),
 			maxRetryAttempts: 3,
 			maxStakePerBet: 10,
+			proxyEnabled: false,
 		});
 
 		const retryResult = await retryService.retryFailedBets();
@@ -388,6 +390,7 @@ describe("min-bet-bump flow", () => {
 			walletConfigs: makeWalletConfigs(),
 			maxRetryAttempts: 3,
 			maxStakePerBet: 10,
+			proxyEnabled: false,
 		});
 
 		const retryResult = await retryService.retryFailedBets();
@@ -500,6 +503,7 @@ describe("min-bet-bump flow", () => {
 			walletConfigs: makeWalletConfigs(),
 			maxRetryAttempts: 3,
 			maxStakePerBet: 10,
+			proxyEnabled: false,
 		});
 
 		const retryResult = await retryService.retryFailedBets();
@@ -631,6 +635,7 @@ describe("min-bet-bump flow", () => {
 			walletConfigs: makeWalletConfigs(),
 			maxRetryAttempts: 5,
 			maxStakePerBet: 10,
+			proxyEnabled: false,
 		});
 
 		// First retry: bumps to $1, but fails again with min size $2

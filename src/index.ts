@@ -90,7 +90,7 @@ const bettingService = createBettingService({
   betsRepo: bets,
   auditLog,
   bettingEventsRepo: bettingEvents,
-  config: DEFAULT_CONFIG.betting,
+  config: { ...DEFAULT_CONFIG.betting, proxyEnabled: !!env.PROXY_URL },
 });
 const bankrollProvider = createBankrollProvider({
   betsRepo: bets,
@@ -145,6 +145,7 @@ const betRetryService = createBetRetryService({
   maxRetryAttempts: DEFAULT_CONFIG.retry.maxRetryAttempts,
   retryDelayMs: DEFAULT_CONFIG.retry.retryDelayMs,
   maxStakePerBet: DEFAULT_CONFIG.betting.maxStakePerBet,
+  proxyEnabled: !!env.PROXY_URL,
 });
 
 // ── Notifications ────────────────────────────────────────────────────

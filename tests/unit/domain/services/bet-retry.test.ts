@@ -154,6 +154,7 @@ describe("createBetRetryService", () => {
       walletConfigs: makeWalletConfigs(),
       maxRetryAttempts: 3,
       maxStakePerBet: 10,
+      proxyEnabled: false,
     });
 
     const result = await service.retryFailedBets();
@@ -185,6 +186,7 @@ describe("createBetRetryService", () => {
       walletConfigs: makeWalletConfigs(),
       maxRetryAttempts: 3,
       maxStakePerBet: 10,
+      proxyEnabled: false,
     });
 
     const result = await service.retryFailedBets();
@@ -208,6 +210,7 @@ describe("createBetRetryService", () => {
       walletConfigs: makeWalletConfigs(),
       maxRetryAttempts: 3,
       maxStakePerBet: 10,
+      proxyEnabled: false,
     });
 
     const result = await service.retryFailedBets();
@@ -247,6 +250,7 @@ describe("createBetRetryService", () => {
       walletConfigs: makeWalletConfigs(),
       maxRetryAttempts: 3,
       maxStakePerBet: 10,
+      proxyEnabled: false,
     });
 
     await service.retryFailedBets();
@@ -274,6 +278,7 @@ describe("createBetRetryService", () => {
       walletConfigs: makeWalletConfigs(),
       maxRetryAttempts: 3,
       maxStakePerBet: 10,
+      proxyEnabled: false,
     });
 
     const result = await service.retryFailedBets();
@@ -295,6 +300,7 @@ describe("createBetRetryService", () => {
       walletConfigs: makeWalletConfigs(),
       maxRetryAttempts: 3,
       maxStakePerBet: 10,
+      proxyEnabled: false,
     });
 
     const result = await service.retryFailedBets();
@@ -322,6 +328,7 @@ describe("createBetRetryService", () => {
       walletConfigs: makeWalletConfigs(),
       maxRetryAttempts: 3,
       maxStakePerBet: 10,
+      proxyEnabled: false,
     });
 
     const result = await service.retryFailedBets();
@@ -349,6 +356,7 @@ describe("createBetRetryService", () => {
       walletConfigs: makeWalletConfigs(),
       maxRetryAttempts: 3,
       maxStakePerBet: 10,
+      proxyEnabled: false,
     });
 
     const result = await service.retryFailedBets();
@@ -373,6 +381,7 @@ describe("createBetRetryService", () => {
       walletConfigs: makeWalletConfigs(),
       maxRetryAttempts: 3,
       maxStakePerBet: 10,
+      proxyEnabled: false,
     });
 
     const result = await service.retryFailedBets();
@@ -398,6 +407,7 @@ describe("createBetRetryService", () => {
         walletConfigs: makeWalletConfigs(),
         maxRetryAttempts: 3,
         maxStakePerBet: 10,
+        proxyEnabled: false,
       });
 
       await service.retryFailedBets();
@@ -433,6 +443,7 @@ describe("createBetRetryService", () => {
         walletConfigs: makeWalletConfigs(),
         maxRetryAttempts: 3,
         maxStakePerBet: 10,
+        proxyEnabled: false,
       });
 
       await service.retryFailedBets();
@@ -470,6 +481,7 @@ describe("createBetRetryService", () => {
         walletConfigs: makeWalletConfigs(),
         maxRetryAttempts: 3,
         maxStakePerBet: 10,
+        proxyEnabled: false,
       });
 
       const result = await service.retryFailedBets();
@@ -500,6 +512,7 @@ describe("createBetRetryService", () => {
         walletConfigs: makeWalletConfigs(),
         maxRetryAttempts: 3,
         maxStakePerBet: 10,
+        proxyEnabled: false,
       });
 
       await service.retryFailedBets();
@@ -527,6 +540,7 @@ describe("createBetRetryService", () => {
         walletConfigs: makeWalletConfigs(),
         maxRetryAttempts: 3,
         maxStakePerBet: 10,
+        proxyEnabled: false,
       });
 
       await service.retryFailedBets();
@@ -561,6 +575,7 @@ describe("createBetRetryService", () => {
         walletConfigs: makeWalletConfigs(),
         maxRetryAttempts: 3,
         maxStakePerBet: 10,
+        proxyEnabled: false,
       });
 
       await service.retryFailedBets();
@@ -595,6 +610,7 @@ describe("createBetRetryService", () => {
         walletConfigs: makeWalletConfigs(),
         maxRetryAttempts: 3,
         maxStakePerBet: 10,
+        proxyEnabled: false,
       });
 
       await service.retryFailedBets();
@@ -626,6 +642,7 @@ describe("createBetRetryService", () => {
         walletConfigs: makeWalletConfigs(),
         maxRetryAttempts: 3,
         maxStakePerBet: 10,
+        proxyEnabled: false,
       });
 
       await service.retryFailedBets();
@@ -659,6 +676,7 @@ describe("createBetRetryService", () => {
         walletConfigs: makeWalletConfigs(),
         maxRetryAttempts: 3,
         maxStakePerBet: 10,
+        proxyEnabled: false,
       });
 
       const result = await service.retryFailedBets();

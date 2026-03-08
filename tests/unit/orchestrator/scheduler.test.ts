@@ -24,6 +24,7 @@ function makeConfig(overrides: Partial<PipelineConfig> = {}): PipelineConfig {
       initialBankroll: 100,
       minBetAmount: 0.01,
       dryRun: true,
+      proxyEnabled: false,
     },
     orderConfirmation: {
       intervalMs: 100,
