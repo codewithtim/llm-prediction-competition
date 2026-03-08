@@ -1,6 +1,7 @@
 import { createRootRoute, createRoute, createRouter, Outlet } from "@tanstack/react-router";
 import { Sidebar } from "@/components/layout/sidebar";
 import { useSidebar } from "@/components/layout/sidebar-context";
+import { AboutPage } from "@/routes/about/index";
 import { BetDetailPage } from "@/routes/bets/$id";
 import { BetsPage } from "@/routes/bets/index";
 import { CompetitorDetailPage } from "@/routes/competitors/$id";
@@ -83,6 +84,12 @@ const betDetailRoute = createRoute({
   component: BetDetailPage,
 });
 
+const aboutRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/about",
+  component: AboutPage,
+});
+
 const routeTree = rootRoute.addChildren([
   indexRoute,
   competitorsRoute,
@@ -93,6 +100,7 @@ const routeTree = rootRoute.addChildren([
   marketsRoute,
   betsRoute,
   betDetailRoute,
+  aboutRoute,
 ]);
 
 export const router = createRouter({ routeTree });

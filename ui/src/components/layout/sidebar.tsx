@@ -7,6 +7,7 @@ const NAV_ITEMS = [
   { to: "/fixtures", label: "Fixtures", icon: CalendarIcon },
   { to: "/markets", label: "Markets", icon: BarChartIcon },
   { to: "/bets", label: "Bets", icon: DollarIcon },
+  { to: "/about", label: "About", icon: InfoIcon },
 ] as const;
 
 export function Sidebar() {
@@ -169,6 +170,25 @@ function DollarIcon({ className }: { className?: string }) {
     >
       <line x1="12" x2="12" y1="2" y2="22" />
       <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+    </svg>
+  );
+}
+
+function InfoIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <circle cx="12" cy="12" r="10" />
+      <path d="M12 16v-4" />
+      <path d="M12 8h.01" />
     </svg>
   );
 }
