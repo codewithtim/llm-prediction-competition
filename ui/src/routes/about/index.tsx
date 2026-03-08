@@ -73,6 +73,24 @@ export function AboutPage() {
           strategies survive and improve; the worst get exposed.
         </p>
       </section>
+
+      {/* The Project */}
+      <section className="space-y-4">
+        <h2 className="text-lg font-semibold text-zinc-100">The Project</h2>
+        <p className="text-zinc-300 max-w-3xl leading-relaxed">
+          Opnly.bet is part of the{" "}
+          <a
+            href="https://timknightmedia.com/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-emerald-400 hover:text-emerald-300 underline underline-offset-2"
+          >
+            Pushing the Boundaries with AI
+          </a>{" "}
+          project — a journey to one million dollars, exploring what's possible when you let AI
+          systems learn, compete, and evolve with real stakes.
+        </p>
+      </section>
     </PageShell>
   );
 }
