@@ -114,11 +114,7 @@ export const LEAGUE_CATALOG = {
   },
 } as const satisfies Record<string, LeagueConfig>;
 
-export const DEFAULT_LEAGUES: LeagueConfig[] = [
-  LEAGUE_CATALOG.premierLeague,
-  LEAGUE_CATALOG.championsLeague,
-  LEAGUE_CATALOG.faCup,
-];
+export const DEFAULT_LEAGUES: LeagueConfig[] = [LEAGUE_CATALOG.premierLeague];
 
 export const DEFAULT_CONFIG: PipelineConfig = {
   leagues: DEFAULT_LEAGUES,
