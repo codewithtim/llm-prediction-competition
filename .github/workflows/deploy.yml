@@ -42,11 +42,12 @@ jobs:
           TURSO_AUTH_TOKEN: ${{ secrets.TURSO_AUTH_TOKEN }}
           WALLET_ENCRYPTION_KEY: ${{ secrets.WALLET_ENCRYPTION_KEY }}
           BETTERSTACK_SOURCE_TOKEN: ${{ secrets.BETTERSTACK_SOURCE_TOKEN }}
+          PROXY_URL: ${{ secrets.PROXY_URL }}
         with:
           host: ${{ secrets.DROPLET_HOST }}
           username: ${{ secrets.DROPLET_USER }}
           key: ${{ secrets.DROPLET_SSH_KEY }}
-          envs: OPENROUTER_API_KEY,API_SPORTS_KEY,TURSO_DATABASE_URL,TURSO_AUTH_TOKEN,WALLET_ENCRYPTION_KEY,BETTERSTACK_SOURCE_TOKEN,GHCR_TOKEN
+          envs: OPENROUTER_API_KEY,API_SPORTS_KEY,TURSO_DATABASE_URL,TURSO_AUTH_TOKEN,WALLET_ENCRYPTION_KEY,BETTERSTACK_SOURCE_TOKEN,PROXY_URL,GHCR_TOKEN
           script: |
             set -e
 
@@ -57,6 +58,7 @@ jobs:
               "TURSO_DATABASE_URL=$TURSO_DATABASE_URL" \
               "TURSO_AUTH_TOKEN=$TURSO_AUTH_TOKEN" \
               "WALLET_ENCRYPTION_KEY=$WALLET_ENCRYPTION_KEY" \
+              "PROXY_URL=$PROXY_URL" \
               "NODE_ENV=production" \
               "PORT=80" \
               > /opt/llm-betting/.env
