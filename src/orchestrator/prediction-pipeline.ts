@@ -690,7 +690,11 @@ export function createPredictionPipeline(deps: PredictionPipelineDeps) {
         failedBetDetails: [],
       };
 
-      const fixtureRows = await fixturesRepo.findReadyForPrediction(config.predictionLeadTimeMs);
+      const activeLeagueIds = config.leagues.map((l) => l.id);
+      const fixtureRows = await fixturesRepo.findReadyForPrediction(
+        config.predictionLeadTimeMs,
+        activeLeagueIds,
+      );
       logger.info("Prediction: found fixtures ready for prediction", { count: fixtureRows.length });
 
       if (fixtureRows.length === 0) {

@@ -1323,7 +1323,7 @@ describe("createPredictionPipeline", () => {
     await pipeline.run();
 
     expect(findReadyForPrediction).toHaveBeenCalledTimes(1);
-    expect(findReadyForPrediction).toHaveBeenCalledWith(DEFAULT_CONFIG.predictionLeadTimeMs);
+    expect(findReadyForPrediction).toHaveBeenCalledWith(DEFAULT_CONFIG.predictionLeadTimeMs, [39]);
   });
 
   test("populates failedBetDetails when placeBet returns failed status", async () => {

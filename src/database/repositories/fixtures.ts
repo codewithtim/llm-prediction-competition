@@ -1,4 +1,4 @@
-import { and, eq, gt, lte, or, sql } from "drizzle-orm";
+import { and, eq, gt, inArray, lte, or, sql } from "drizzle-orm";
 import type { Database } from "../client";
 import { fixtures } from "../schema";
 
@@ -57,15 +57,21 @@ export function fixturesRepo(db: Database) {
       return db.select().from(fixtures).where(eq(fixtures.status, "scheduled")).all();
     },
 
-    async findReadyForPrediction(leadTimeMs: number) {
+    async findReadyForPrediction(leadTimeMs: number, leagueIds?: number[]) {
       const now = toISONoMs(new Date());
       const cutoff = toISONoMs(new Date(Date.now() + leadTimeMs));
+      const conditions = [
+        eq(fixtures.status, "scheduled"),
+        lte(fixtures.date, cutoff),
+        gt(fixtures.date, now),
+      ];
+      if (leagueIds && leagueIds.length > 0) {
+        conditions.push(inArray(fixtures.leagueId, leagueIds));
+      }
       return db
         .select()
         .from(fixtures)
-        .where(
-          and(eq(fixtures.status, "scheduled"), lte(fixtures.date, cutoff), gt(fixtures.date, now)),
-        )
+        .where(and(...conditions))
         .all();
     },
 

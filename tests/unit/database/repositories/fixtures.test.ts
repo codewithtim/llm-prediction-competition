@@ -107,9 +107,39 @@ describe("fixturesRepo", () => {
 
     it("excludes non-scheduled fixtures", async () => {
       const repo = fixturesRepo(db);
-      await repo.upsert({ ...sampleFixture, date: futureDate(15 * 60 * 1000), status: "in_progress" });
+      await repo.upsert({
+        ...sampleFixture,
+        date: futureDate(15 * 60 * 1000),
+        status: "in_progress",
+      });
       const results = await repo.findReadyForPrediction(THIRTY_MINUTES);
       expect(results).toHaveLength(0);
+    });
+
+    it("filters by leagueIds when provided", async () => {
+      const repo = fixturesRepo(db);
+      await repo.upsert({
+        ...sampleFixture,
+        id: 1001,
+        leagueId: 39,
+        date: futureDate(15 * 60 * 1000),
+      });
+      await repo.upsert({
+        ...sampleFixture,
+        id: 1002,
+        leagueId: 2,
+        date: futureDate(15 * 60 * 1000),
+      });
+
+      const onlyPL = await repo.findReadyForPrediction(THIRTY_MINUTES, [39]);
+      expect(onlyPL).toHaveLength(1);
+      expect(onlyPL[0]?.leagueId).toBe(39);
+
+      const both = await repo.findReadyForPrediction(THIRTY_MINUTES, [39, 2]);
+      expect(both).toHaveLength(2);
+
+      const noFilter = await repo.findReadyForPrediction(THIRTY_MINUTES);
+      expect(noFilter).toHaveLength(2);
     });
   });
 
