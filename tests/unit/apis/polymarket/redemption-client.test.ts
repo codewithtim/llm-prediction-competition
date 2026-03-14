@@ -14,8 +14,25 @@ mock.module("@ethersproject/contracts", () => ({
     setApprovalForAll = mockSetApprovalForAll;
   },
 }));
+mock.module("@ethersproject/bignumber", () => ({
+  BigNumber: {
+    from: (v: string | number) => ({
+      gt: () => false,
+      mul: () => ({ add: () => ({ _isBigNumber: true, toHexString: () => "0x" }) }),
+      _isBigNumber: true,
+      toHexString: () => "0x",
+    }),
+  },
+}));
 mock.module("@ethersproject/providers", () => ({
-  JsonRpcProvider: class MockProvider {},
+  JsonRpcProvider: class MockProvider {
+    getFeeData = mock(() =>
+      Promise.resolve({
+        maxPriorityFeePerGas: null,
+        lastBaseFeePerGas: null,
+      }),
+    );
+  },
 }));
 mock.module("@ethersproject/wallet", () => ({
   Wallet: class MockWallet {

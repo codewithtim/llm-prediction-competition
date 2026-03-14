@@ -1,3 +1,4 @@
+import { BigNumber } from "@ethersproject/bignumber";
 import { Contract } from "@ethersproject/contracts";
 import { JsonRpcProvider } from "@ethersproject/providers";
 import { Wallet } from "@ethersproject/wallet";
@@ -24,6 +25,17 @@ export type RedemptionResult = {
   conditionId: string;
 };
 
+async function getGasOverrides(provider: JsonRpcProvider) {
+  const feeData = await provider.getFeeData();
+  const minTip = BigNumber.from("30000000000"); // 30 gwei floor for Polygon
+  const tip = feeData.maxPriorityFeePerGas?.gt(minTip) ? feeData.maxPriorityFeePerGas : minTip;
+  const baseFee = feeData.lastBaseFeePerGas ?? BigNumber.from("30000000000");
+  return {
+    maxPriorityFeePerGas: tip,
+    maxFeePerGas: baseFee.mul(2).add(tip),
+  };
+}
+
 export function createRedemptionClient(privateKey: string) {
   const provider = new JsonRpcProvider(POLYGON_RPC, {
     chainId: POLYGON_CHAIN_ID,
@@ -37,7 +49,8 @@ export function createRedemptionClient(privateKey: string) {
       const walletAddress = await signer.getAddress();
       const approved = await ctf.isApprovedForAll(walletAddress, CONTRACTS.negRiskAdapter);
       if (!approved) {
-        const tx = await ctf.setApprovalForAll(CONTRACTS.negRiskAdapter, true);
+        const gas = await getGasOverrides(provider);
+        const tx = await ctf.setApprovalForAll(CONTRACTS.negRiskAdapter, true, gas);
         await tx.wait();
       }
     },
@@ -48,12 +61,13 @@ export function createRedemptionClient(privateKey: string) {
       negRisk: boolean;
       amount: bigint;
     }): Promise<RedemptionResult> {
+      const gas = await getGasOverrides(provider);
       let tx: { hash: string; wait: () => Promise<unknown> };
 
       if (params.negRisk) {
         const amounts = params.winningSide === "YES" ? [params.amount, 0n] : [0n, params.amount];
         const adapter = new Contract(CONTRACTS.negRiskAdapter, NEG_RISK_ADAPTER_ABI, signer);
-        tx = await adapter.redeemPositions(params.conditionId, amounts);
+        tx = await adapter.redeemPositions(params.conditionId, amounts, gas);
       } else {
         const indexSet = params.winningSide === "YES" ? 1 : 2;
         const ctf = new Contract(CONTRACTS.conditionalTokens, CTF_ABI, signer);
@@ -63,6 +77,7 @@ export function createRedemptionClient(privateKey: string) {
           parentCollectionId,
           params.conditionId,
           [indexSet],
+          gas,
         );
       }
 
