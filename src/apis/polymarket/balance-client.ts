@@ -1,7 +1,7 @@
 import { logger } from "../../shared/logger.ts";
 
-// Native USDC on Polygon — used by Polymarket
-const USDC_CONTRACT = "0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359";
+// USDC.e (bridged) on Polygon — used by Polymarket as collateral
+const USDC_CONTRACT = "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174";
 const POLYGON_RPCS = ["https://polygon-bor-rpc.publicnode.com", "https://1rpc.io/matic"];
 
 // balanceOf(address) selector = keccak256("balanceOf(address)")[0:4]

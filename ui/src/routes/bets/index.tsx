@@ -5,6 +5,7 @@ import { EmptyState } from "@/components/shared/empty-state";
 import { InternalLink } from "@/components/shared/internal-link";
 import { TableSkeleton } from "@/components/shared/loading-skeleton";
 import { Money } from "@/components/shared/money";
+import { SortableHeader } from "@/components/shared/sortable-header";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -26,6 +27,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useBets } from "@/lib/api";
 import { ERROR_CATEGORIES } from "@/lib/constants";
 import { formatDateTime, formatPct } from "@/lib/format";
+import { useSort } from "@/lib/use-sort";
 
 const STATUS_TABS = [
   { value: "", label: "All" },
@@ -37,6 +39,8 @@ const STATUS_TABS = [
   { value: "cancelled", label: "Cancelled" },
 ];
 
+type BetSortKey = "competitor" | "confidence" | "amount" | "price" | "placed" | "profit";
+
 export function BetsPage() {
   const navigate = useNavigate();
   const [status, setStatus] = useState("");
@@ -45,6 +49,30 @@ export function BetsPage() {
   if (status) filters.status = status;
   if (status === "failed" && errorCategory) filters.errorCategory = errorCategory;
   const { data, isLoading } = useBets(Object.keys(filters).length > 0 ? filters : undefined);
+
+  const { sorted, sort, toggle } = useSort(
+    data,
+    { key: "placed" as BetSortKey, direction: "desc" },
+    {
+      competitor: (b) => b.competitorName,
+      confidence: (b) => b.confidence,
+      amount: (b) => b.amount,
+      price: (b) => b.price,
+      placed: (b) => b.placedAt,
+      profit: (b) => b.profit,
+    },
+  );
+
+  const header = (label: string, key: BetSortKey, className = "") => (
+    <SortableHeader
+      label={label}
+      sortKey={key}
+      currentKey={sort.key}
+      direction={sort.direction}
+      onSort={(k) => toggle(k as BetSortKey)}
+      className={className}
+    />
+  );
 
   return (
     <PageShell title="Bets" subtitle="All bets placed by competitors">
@@ -82,27 +110,27 @@ export function BetsPage() {
 
       {isLoading ? (
         <TableSkeleton />
-      ) : !data || data.length === 0 ? (
+      ) : !sorted || sorted.length === 0 ? (
         <EmptyState message="No bets found" />
       ) : (
         <div className="rounded-md border border-zinc-800 overflow-x-auto">
           <Table>
             <TableHeader>
               <TableRow className="border-zinc-800 hover:bg-transparent">
-                <TableHead className="text-zinc-400">Competitor</TableHead>
+                {header("Competitor", "competitor")}
                 <TableHead className="text-zinc-400">Market</TableHead>
                 <TableHead className="text-zinc-400">Side</TableHead>
-                <TableHead className="text-zinc-400 text-right">Confidence</TableHead>
-                <TableHead className="text-zinc-400 text-right">Amount</TableHead>
-                <TableHead className="text-zinc-400 text-right">Price</TableHead>
+                {header("Confidence", "confidence", "text-right")}
+                {header("Amount", "amount", "text-right")}
+                {header("Price", "price", "text-right")}
                 <TableHead className="text-zinc-400">Status</TableHead>
                 <TableHead className="text-zinc-400">Error</TableHead>
-                <TableHead className="text-zinc-400">Placed</TableHead>
-                <TableHead className="text-zinc-400 text-right">Profit</TableHead>
+                {header("Placed", "placed")}
+                {header("Profit", "profit", "text-right")}
               </TableRow>
             </TableHeader>
             <TableBody>
-              {data.map((b) => (
+              {sorted.map((b) => (
                 <TableRow
                   key={b.id}
                   className="border-zinc-800 hover:bg-zinc-800/50 cursor-pointer"
