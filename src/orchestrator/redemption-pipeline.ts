@@ -88,6 +88,10 @@ export function createRedemptionPipeline(deps: RedemptionPipelineDeps) {
               negRiskCache.set(firstBet.tokenId, negRisk);
             }
 
+            if (negRisk) {
+              await redemptionClient.ensureNegRiskApproval();
+            }
+
             const totalShares = conditionBets.reduce((sum, b) => sum + b.shares, 0);
             const amount = BigInt(Math.floor(totalShares * 1e6));
 

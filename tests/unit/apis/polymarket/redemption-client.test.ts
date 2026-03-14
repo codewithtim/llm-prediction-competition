@@ -4,17 +4,23 @@ const mockWait = mock(() => Promise.resolve({}));
 const mockContractRedeemPositions = mock(() =>
   Promise.resolve({ hash: "0xtxhash123", wait: mockWait }),
 );
+const mockIsApprovedForAll = mock(() => Promise.resolve(false));
+const mockSetApprovalForAll = mock(() => Promise.resolve({ wait: mockWait }));
 
 mock.module("@ethersproject/contracts", () => ({
   Contract: class MockContract {
     redeemPositions = mockContractRedeemPositions;
+    isApprovedForAll = mockIsApprovedForAll;
+    setApprovalForAll = mockSetApprovalForAll;
   },
 }));
 mock.module("@ethersproject/providers", () => ({
   JsonRpcProvider: class MockProvider {},
 }));
 mock.module("@ethersproject/wallet", () => ({
-  Wallet: class MockWallet {},
+  Wallet: class MockWallet {
+    getAddress = mock(() => Promise.resolve("0xwalletaddr"));
+  },
 }));
 
 const { createRedemptionClient } = await import(
@@ -25,10 +31,14 @@ describe("redemption client", () => {
   beforeEach(() => {
     mockContractRedeemPositions.mockReset();
     mockWait.mockReset();
+    mockIsApprovedForAll.mockReset();
+    mockSetApprovalForAll.mockReset();
     mockWait.mockImplementation(() => Promise.resolve({}));
+    mockIsApprovedForAll.mockImplementation(() => Promise.resolve(false));
+    mockSetApprovalForAll.mockImplementation(() => Promise.resolve({ wait: mockWait }));
   });
 
-  test("calls contract and returns txHash on success", async () => {
+  test("calls CTF contract for non-neg-risk and returns txHash", async () => {
     mockContractRedeemPositions.mockImplementation(() =>
       Promise.resolve({ hash: "0xctf_tx", wait: mockWait }),
     );
@@ -45,7 +55,7 @@ describe("redemption client", () => {
     expect(result.conditionId).toBe("0xcond1");
   });
 
-  test("uses correct indexSet for NO side", async () => {
+  test("calls NegRiskAdapter with amounts array for neg-risk", async () => {
     mockContractRedeemPositions.mockImplementation(() =>
       Promise.resolve({ hash: "0xnr_tx", wait: mockWait }),
     );
@@ -76,5 +86,25 @@ describe("redemption client", () => {
         amount: BigInt(5000000),
       }),
     ).rejects.toThrow("insufficient gas");
+  });
+
+  test("ensureNegRiskApproval sets approval when not already approved", async () => {
+    mockIsApprovedForAll.mockImplementation(() => Promise.resolve(false));
+
+    const client = createRedemptionClient("0xprivatekey");
+    await client.ensureNegRiskApproval();
+
+    expect(mockIsApprovedForAll).toHaveBeenCalledTimes(1);
+    expect(mockSetApprovalForAll).toHaveBeenCalledTimes(1);
+  });
+
+  test("ensureNegRiskApproval skips when already approved", async () => {
+    mockIsApprovedForAll.mockImplementation(() => Promise.resolve(true));
+
+    const client = createRedemptionClient("0xprivatekey");
+    await client.ensureNegRiskApproval();
+
+    expect(mockIsApprovedForAll).toHaveBeenCalledTimes(1);
+    expect(mockSetApprovalForAll).toHaveBeenCalledTimes(0);
   });
 });

@@ -60,6 +60,7 @@ function mockRedemptionClientFactory(redeemFn?: () => Promise<RedemptionResult>)
   const defaultRedeem = (): Promise<RedemptionResult> =>
     Promise.resolve({ txHash: "0xtx123", conditionId: "0xcond1" });
   return () => ({
+    ensureNegRiskApproval: mock(() => Promise.resolve()),
     redeemPositions: mock(redeemFn ?? defaultRedeem),
   });
 }
@@ -225,6 +226,7 @@ describe("redemption pipeline", () => {
       } as unknown as RedemptionPipelineDeps["auditLog"],
       walletConfigs,
       createRedemptionClient: () => ({
+        ensureNegRiskApproval: mock(() => Promise.resolve()),
         redeemPositions: mockRedeem,
       }),
     });
