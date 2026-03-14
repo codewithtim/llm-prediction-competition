@@ -39,15 +39,25 @@ export function CompetitorDetailPage() {
         <StatusBadge status={data.status} />
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <StatCard
+          title="Bankroll"
+          value={formatCurrency(data.computedBankroll)}
+          valueClassName="text-zinc-200"
+        />
         <StatCard
           title="Wallet Balance"
           value={data.onChainBalance != null ? formatCurrency(data.onChainBalance) : "—"}
           valueClassName="text-zinc-200"
         />
         <StatCard
-          title="Bankroll"
-          value={formatCurrency(data.computedBankroll)}
+          title="Active Bets"
+          value={formatCurrency(data.activeExposure)}
+          valueClassName="text-zinc-200"
+        />
+        <StatCard
+          title="Unredeemed Wins"
+          value={formatCurrency(data.unredeemedValue)}
           valueClassName="text-zinc-200"
         />
         <StatCard
@@ -55,7 +65,11 @@ export function CompetitorDetailPage() {
           value={formatCurrency(data.stats.profitLoss)}
           valueClassName={data.stats.profitLoss >= 0 ? "text-emerald-400" : "text-red-400"}
         />
-        <StatCard title="Total Bets" value={String(data.stats.totalBets)} />
+        <StatCard
+          title="Fees & Costs"
+          value={formatCurrency(data.fees)}
+          valueClassName={data.fees > 0 ? "text-amber-400" : "text-zinc-200"}
+        />
         <StatCard title="Accuracy" value={formatPct(data.stats.accuracy)} />
         <StatCard title="ROI" value={formatPct(data.stats.roi)} />
       </div>

@@ -182,7 +182,8 @@ describe("GET /api/competitors/:id", () => {
     const data = await res.json();
     expect(data.name).toBe("Claude");
     expect(data.onChainBalance).toBe(8.5);
-    expect(data.computedBankroll).toBe(7.5);
+    // bankroll = onChainBalance(8.5) + activeExposure(0) + unredeemedValue(0)
+    expect(data.computedBankroll).toBe(8.5);
     expect(data.versions).toEqual([]);
   });
 
@@ -219,7 +220,8 @@ describe("GET /api/competitors/:id", () => {
     const res = await app.request("/api/competitors/c1");
     const data = await res.json();
     expect(data.onChainBalance).toBeNull();
-    expect(data.computedBankroll).toBe(10); // default from mock
+    // bankroll = onChainBalance(null→0) + activeExposure(0) + unredeemedValue(0)
+    expect(data.computedBankroll).toBe(0);
   });
 
   test("returns confidence in recentBets", async () => {

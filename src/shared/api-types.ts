@@ -35,6 +35,9 @@ export type CompetitorDetailResponse = {
   walletAddress: string | null;
   onChainBalance: number | null;
   computedBankroll: number;
+  activeExposure: number;
+  unredeemedValue: number;
+  fees: number;
   createdAt: string;
   stats: PerformanceStatsDTO;
   versions: VersionSummary[];

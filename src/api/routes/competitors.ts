@@ -80,15 +80,27 @@ export function competitorsRoutes(deps: ApiDeps) {
 
     const walletAddress = walletMap.get(comp.id) ?? null;
 
-    const [stats, versions, bets, predictions, onChainBalance, computedBankroll] =
-      await Promise.all([
-        deps.betsRepo.getPerformanceStats(id),
-        deps.competitorVersionsRepo.findByCompetitor(id),
-        deps.betsRepo.findByCompetitor(id),
-        deps.predictionsRepo.findByCompetitor(id),
-        walletAddress ? getUsdcBalance(walletAddress) : Promise.resolve(null),
-        deps.bankrollProvider.getBankroll(id),
-      ]);
+    const [stats, versions, bets, predictions, onChainBalance] = await Promise.all([
+      deps.betsRepo.getPerformanceStats(id),
+      deps.competitorVersionsRepo.findByCompetitor(id),
+      deps.betsRepo.findByCompetitor(id),
+      deps.predictionsRepo.findByCompetitor(id),
+      walletAddress ? getUsdcBalance(walletAddress) : Promise.resolve(null),
+    ]);
+
+    const activeExposure = bets
+      .filter((b) => b.status === "submitting" || b.status === "pending" || b.status === "filled")
+      .reduce((sum, b) => sum + b.amount, 0);
+    const unredeemedValue = bets
+      .filter((b) => b.status === "settled_won" && !b.redeemedAt)
+      .reduce((sum, b) => sum + b.amount + (b.profit ?? 0), 0);
+    const computedBankroll = (onChainBalance ?? 0) + activeExposure + unredeemedValue;
+
+    const settledPnL = bets
+      .filter((b) => b.status === "settled_won" || b.status === "settled_lost")
+      .reduce((sum, b) => sum + (b.profit ?? 0), 0);
+    const theoreticalBankroll = deps.initialBankroll + settledPnL;
+    const fees = Math.max(0, theoreticalBankroll - computedBankroll);
 
     const marketIds = [
       ...new Set([...bets.map((b) => b.marketId), ...predictions.map((p) => p.marketId)]),
@@ -114,6 +126,9 @@ export function competitorsRoutes(deps: ApiDeps) {
       walletAddress,
       onChainBalance,
       computedBankroll,
+      activeExposure,
+      unredeemedValue,
+      fees,
       createdAt: comp.createdAt?.toISOString() ?? "",
       stats: {
         totalBets: stats.totalBets,
