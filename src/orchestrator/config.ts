@@ -38,6 +38,8 @@ export type PipelineConfig = {
   marketRefreshDelayMs?: number;
   summaryIntervalMs: number;
   summaryDelayMs?: number;
+  redemptionIntervalMs: number;
+  redemptionDelayMs?: number;
   betting: BettingConfig;
   orderConfirmation: OrderConfirmationConfig;
   retry: RetryConfig;
@@ -131,6 +133,7 @@ export const DEFAULT_CONFIG: PipelineConfig = {
   predictionLeadTimeMs: 30 * 60 * 1000, // 30 minutes before kickoff
   predictionDelayMs: 30_000,
   summaryIntervalMs: 7 * 24 * 60 * 60 * 1000, // weekly
+  redemptionIntervalMs: 30 * 60 * 1000, // 30 minutes
   betting: {
     maxStakePerBet: 10,
     maxBetPctOfBankroll: 0.1,

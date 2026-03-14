@@ -34,6 +34,7 @@ import { createDiscoveryPipeline } from "./orchestrator/discovery-pipeline.ts";
 import { createFixtureStatusPipeline } from "./orchestrator/fixture-status-pipeline.ts";
 import { createMarketRefreshPipeline } from "./orchestrator/market-refresh-pipeline.ts";
 import { createPredictionPipeline } from "./orchestrator/prediction-pipeline.ts";
+import { createRedemptionPipeline } from "./orchestrator/redemption-pipeline.ts";
 import { createScheduler } from "./orchestrator/scheduler.ts";
 import { createSummaryPipeline } from "./orchestrator/summary-pipeline.ts";
 import { env } from "./shared/env.ts";
@@ -221,6 +222,14 @@ const marketRefreshPipeline = createMarketRefreshPipeline({
   fixturesRepo: fixtures,
 });
 
+const redemptionPipeline = createRedemptionPipeline({
+  betsRepo: bets,
+  marketsRepo: markets,
+  bettingClientFactory,
+  auditLog,
+  walletConfigs,
+});
+
 const summaryPipeline = createSummaryPipeline({
   betsRepo: bets,
   fixturesRepo: fixtures,
@@ -236,6 +245,7 @@ const scheduler = createScheduler({
   marketRefreshPipeline,
   orderConfirmationService,
   betRetryService,
+  redemptionPipeline,
   summaryPipeline,
   notificationService,
   config: pipelineConfig,

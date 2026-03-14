@@ -9,6 +9,7 @@ import type { DiscoveryPipeline } from "./discovery-pipeline.ts";
 import type { FixtureStatusPipeline } from "./fixture-status-pipeline.ts";
 import type { MarketRefreshPipeline } from "./market-refresh-pipeline.ts";
 import type { PredictionPipeline } from "./prediction-pipeline.ts";
+import type { RedemptionPipeline } from "./redemption-pipeline.ts";
 import type { SummaryPipeline } from "./summary-pipeline.ts";
 
 export type SchedulerDeps = {
@@ -19,6 +20,7 @@ export type SchedulerDeps = {
   marketRefreshPipeline?: MarketRefreshPipeline;
   orderConfirmationService?: OrderConfirmationService;
   betRetryService?: BetRetryService;
+  redemptionPipeline?: RedemptionPipeline;
   summaryPipeline?: SummaryPipeline;
   notificationService?: NotificationService;
   config: PipelineConfig;
@@ -33,6 +35,7 @@ export function createScheduler(deps: SchedulerDeps) {
     marketRefreshPipeline,
     orderConfirmationService,
     betRetryService,
+    redemptionPipeline,
     summaryPipeline,
     notificationService,
     config,
@@ -52,11 +55,13 @@ export function createScheduler(deps: SchedulerDeps) {
   let orderConfirmationTimer: ReturnType<typeof setInterval> | null = null;
   let betRetryTimer: ReturnType<typeof setInterval> | null = null;
   let marketRefreshTimer: ReturnType<typeof setInterval> | null = null;
+  let redemptionTimer: ReturnType<typeof setInterval> | null = null;
   let summaryTimer: ReturnType<typeof setInterval> | null = null;
   let discoveryDelayTimer: ReturnType<typeof setTimeout> | null = null;
   let predictionDelayTimer: ReturnType<typeof setTimeout> | null = null;
   let settlementDelayTimer: ReturnType<typeof setTimeout> | null = null;
   let marketRefreshDelayTimer: ReturnType<typeof setTimeout> | null = null;
+  let redemptionDelayTimer: ReturnType<typeof setTimeout> | null = null;
   let discoveryRunning = false;
   let predictionRunning = false;
   let settlementRunning = false;
@@ -64,6 +69,7 @@ export function createScheduler(deps: SchedulerDeps) {
   let orderConfirmationRunning = false;
   let betRetryRunning = false;
   let marketRefreshRunning = false;
+  let redemptionRunning = false;
   let summaryRunning = false;
 
   async function runDiscovery() {
@@ -343,6 +349,35 @@ export function createScheduler(deps: SchedulerDeps) {
     }
   }
 
+  async function runRedemption() {
+    if (!redemptionPipeline) return;
+    if (redemptionRunning) {
+      logger.warn("Scheduler: redemption run skipped (previous run still in progress)");
+      return;
+    }
+    redemptionRunning = true;
+    const start = Date.now();
+    try {
+      logger.info("Scheduler: starting redemption run");
+      const result = await redemptionPipeline.run();
+      const durationMs = Date.now() - start;
+      logger.info("Scheduler: redemption run complete", {
+        durationMs,
+        redeemed: result.redeemed,
+        skipped: result.skipped,
+        errors: result.errors.length,
+      });
+      for (const error of result.errors) {
+        logger.error("Scheduler: redemption error", { message: error });
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      logger.error("Scheduler: redemption run failed", { error: msg });
+    } finally {
+      redemptionRunning = false;
+    }
+  }
+
   return {
     start() {
       logger.info("Scheduler: starting", {
@@ -434,6 +469,21 @@ export function createScheduler(deps: SchedulerDeps) {
           marketRefreshTimer = setInterval(runMarketRefresh, config.marketRefreshIntervalMs);
         }
       }
+
+      if (redemptionPipeline) {
+        if (config.redemptionDelayMs) {
+          logger.info("Scheduler: delaying redemption start", {
+            delayMs: config.redemptionDelayMs,
+          });
+          redemptionDelayTimer = setTimeout(() => {
+            runRedemption();
+            redemptionTimer = setInterval(runRedemption, config.redemptionIntervalMs);
+          }, config.redemptionDelayMs);
+        } else {
+          runRedemption();
+          redemptionTimer = setInterval(runRedemption, config.redemptionIntervalMs);
+        }
+      }
     },
 
     stop() {
@@ -485,6 +535,14 @@ export function createScheduler(deps: SchedulerDeps) {
       if (marketRefreshTimer) {
         clearInterval(marketRefreshTimer);
         marketRefreshTimer = null;
+      }
+      if (redemptionDelayTimer) {
+        clearTimeout(redemptionDelayTimer);
+        redemptionDelayTimer = null;
+      }
+      if (redemptionTimer) {
+        clearInterval(redemptionTimer);
+        redemptionTimer = null;
       }
     },
   };

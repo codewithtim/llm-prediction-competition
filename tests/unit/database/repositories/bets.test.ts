@@ -762,6 +762,50 @@ describe("betsRepo", () => {
     });
   });
 
+  describe("findUnredeemedWins", () => {
+    it("returns settled_won bets where redeemedAt is null", async () => {
+      const repo = betsRepo(db);
+      await repo.create({ ...sampleBet, id: "bet-won", status: "settled_won" });
+      const results = await repo.findUnredeemedWins();
+      expect(results).toHaveLength(1);
+      expect(results[0]?.id).toBe("bet-won");
+    });
+
+    it("excludes settled_lost, pending, and filled bets", async () => {
+      const repo = betsRepo(db);
+      await repo.create({ ...sampleBet, id: "bet-lost", status: "settled_lost" });
+      await repo.create({
+        ...sampleBet,
+        id: "bet-pending",
+        orderId: "o-p",
+        marketId: "market-2",
+        status: "pending",
+      });
+      const results = await repo.findUnredeemedWins();
+      expect(results).toHaveLength(0);
+    });
+
+    it("excludes already-redeemed settled_won bets", async () => {
+      const repo = betsRepo(db);
+      await repo.create({ ...sampleBet, id: "bet-won", status: "settled_won" });
+      await repo.markRedeemed("bet-won", "0xabc123", new Date());
+      const results = await repo.findUnredeemedWins();
+      expect(results).toHaveLength(0);
+    });
+  });
+
+  describe("markRedeemed", () => {
+    it("sets redemptionTxHash and redeemedAt", async () => {
+      const repo = betsRepo(db);
+      await repo.create({ ...sampleBet, id: "bet-won", status: "settled_won" });
+      const now = new Date();
+      await repo.markRedeemed("bet-won", "0xdef456", now);
+      const found = await repo.findById("bet-won");
+      expect(found?.redemptionTxHash).toBe("0xdef456");
+      expect(found?.redeemedAt).toBeTruthy();
+    });
+  });
+
   describe("unique index: idx_bets_active_market_competitor", () => {
     it("rejects duplicate active bet at DB level", async () => {
       const repo = betsRepo(db);

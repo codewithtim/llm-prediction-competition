@@ -196,6 +196,8 @@ export const bets = sqliteTable("bets", {
   }),
   attempts: integer("attempts").notNull().default(0),
   lastAttemptAt: integer("last_attempt_at", { mode: "timestamp" }),
+  redeemedAt: integer("redeemed_at", { mode: "timestamp" }),
+  redemptionTxHash: text("redemption_tx_hash"),
 });
 
 export const betAuditLog = sqliteTable(
@@ -218,6 +220,7 @@ export const betAuditLog = sqliteTable(
         "retry_succeeded",
         "retry_failed",
         "bet_settled",
+        "bet_redeemed",
       ],
     }).notNull(),
     statusBefore: text("status_before", {

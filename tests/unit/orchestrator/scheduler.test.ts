@@ -31,6 +31,7 @@ function makeConfig(overrides: Partial<PipelineConfig> = {}): PipelineConfig {
       maxOrderAgeMs: 60 * 60 * 1000,
     },
     summaryIntervalMs: 100,
+    redemptionIntervalMs: 100,
     retry: {
       intervalMs: 100,
       maxRetryAttempts: 3,

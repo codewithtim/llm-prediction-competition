@@ -1,4 +1,16 @@
-import { and, desc, eq, gte, inArray, isNotNull, lt, lte, notInArray, sql } from "drizzle-orm";
+import {
+  and,
+  desc,
+  eq,
+  gte,
+  inArray,
+  isNotNull,
+  isNull,
+  lt,
+  lte,
+  notInArray,
+  sql,
+} from "drizzle-orm";
 import type { BetErrorCategory, BetStatus } from "../../domain/models/prediction.ts";
 import { ACTIVE_BET_STATUSES } from "../../domain/models/prediction.ts";
 import type { Database } from "../client";
@@ -223,6 +235,22 @@ export function betsRepo(db: Database) {
         result.set(competitorId, computeStats(competitorId, competitorRows));
       }
       return result;
+    },
+
+    async findUnredeemedWins() {
+      return db
+        .select()
+        .from(bets)
+        .where(and(eq(bets.status, "settled_won"), isNull(bets.redeemedAt)))
+        .all();
+    },
+
+    async markRedeemed(id: string, txHash: string, redeemedAt: Date) {
+      await db
+        .update(bets)
+        .set({ redemptionTxHash: txHash, redeemedAt })
+        .where(eq(bets.id, id))
+        .run();
     },
   };
 }
