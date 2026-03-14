@@ -17,7 +17,9 @@ import type { Event } from "../domain/models/market.ts";
 import { parseEventTitle } from "../domain/services/event-parser.ts";
 import { matchEventsToFixtures } from "../domain/services/market-matching.ts";
 import { resolveTeamName } from "../domain/services/team-names.ts";
-import { LEAGUE_CATALOG, SOCCER_TAG_ID } from "../orchestrator/config.ts";
+import { LEAGUE_CATALOG } from "../orchestrator/config.ts";
+
+const SOCCER_TAG_ID = 100350;
 import { createProxyFetch } from "../shared/proxy.ts";
 
 const LEAGUES = [
@@ -40,7 +42,7 @@ async function main() {
   const gamma = createGammaClient(fetchFn);
   const discovery = createMarketDiscovery(gamma, {
     leagues: LEAGUES,
-    soccerTagId: SOCCER_TAG_ID,
+    tagId: SOCCER_TAG_ID,
     lookAheadDays: 14,
   });
 

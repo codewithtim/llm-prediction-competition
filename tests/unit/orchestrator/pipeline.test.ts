@@ -401,6 +401,34 @@ function mockPredictionsRepo(overrides: Record<string, unknown> = {}) {
   };
 }
 
+function mockLeaguesRepo(overrides: Record<string, unknown> = {}) {
+  return {
+    findEnabled: mock(() =>
+      Promise.resolve([
+        {
+          id: 39,
+          sport: "football",
+          name: "Premier League",
+          country: "England",
+          type: "league" as const,
+          polymarketSeriesSlug: "premier-league",
+          domesticLeagueIds: null,
+          tier: 1,
+          enabled: true,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+      ]),
+    ),
+    findEnabledBySport: mock(() => Promise.resolve([])),
+    findAll: mock(() => Promise.resolve([])),
+    findById: mock(() => Promise.resolve(undefined)),
+    setEnabled: mock(() => Promise.resolve()),
+    upsert: mock(() => Promise.resolve()),
+    ...overrides,
+  };
+}
+
 // ─── Fixture row builders (DB shape) ──────────────────────────────────
 
 function makeFixtureRow(id = 100) {
@@ -456,15 +484,18 @@ function buildDiscoveryDeps(overrides: Partial<DiscoveryPipelineDeps> = {}): Dis
     footballClient: mockFootballClient(),
     marketsRepo: mockMarketsRepo() as unknown as DiscoveryPipelineDeps["marketsRepo"],
     fixturesRepo: mockFixturesRepo() as unknown as DiscoveryPipelineDeps["fixturesRepo"],
+    leaguesRepo: mockLeaguesRepo() as unknown as DiscoveryPipelineDeps["leaguesRepo"],
     config: {
       ...DEFAULT_CONFIG,
       leagues: [
         {
           id: 39,
+          sport: "football",
           name: "Premier League",
           country: "England",
           type: "league" as const,
           polymarketSeriesSlug: "premier-league",
+          tier: 1,
         },
       ],
     },
@@ -612,15 +643,18 @@ function buildPredictionDeps(
     fixturesRepo: mockFixturesRepo() as unknown as PredictionPipelineDeps["fixturesRepo"],
     predictionsRepo: mockPredictionsRepo() as unknown as PredictionPipelineDeps["predictionsRepo"],
     statsCache: mockStatsCache() as unknown as PredictionPipelineDeps["statsCache"],
+    leaguesRepo: mockLeaguesRepo() as unknown as PredictionPipelineDeps["leaguesRepo"],
     config: {
       ...DEFAULT_CONFIG,
       leagues: [
         {
           id: 39,
+          sport: "football",
           name: "Premier League",
           country: "England",
           type: "league" as const,
           polymarketSeriesSlug: "premier-league",
+          tier: 1,
         },
       ],
     },

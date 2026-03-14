@@ -2,6 +2,7 @@ import type { MarketDiscovery } from "../apis/polymarket/market-discovery.ts";
 import type { FootballClient } from "../apis/sports-data/client.ts";
 import { mapApiFixtureToFixture } from "../apis/sports-data/mappers.ts";
 import type { fixturesRepo as fixturesRepoFactory } from "../database/repositories/fixtures.ts";
+import type { leaguesRepo as leaguesRepoFactory } from "../database/repositories/leagues.ts";
 import type { marketsRepo as marketsRepoFactory } from "../database/repositories/markets.ts";
 import type { Fixture } from "../domain/models/fixture.ts";
 import type { Event } from "../domain/models/market.ts";
@@ -15,6 +16,7 @@ export type DiscoveryPipelineDeps = {
   footballClient: FootballClient;
   marketsRepo: ReturnType<typeof marketsRepoFactory>;
   fixturesRepo: ReturnType<typeof fixturesRepoFactory>;
+  leaguesRepo: ReturnType<typeof leaguesRepoFactory>;
   config: PipelineConfig;
 };
 
@@ -74,7 +76,7 @@ export async function getCurrentSeason(
 }
 
 export function createDiscoveryPipeline(deps: DiscoveryPipelineDeps) {
-  const { discovery, footballClient, marketsRepo, fixturesRepo, config } = deps;
+  const { discovery, footballClient, marketsRepo, fixturesRepo, leaguesRepo, config } = deps;
 
   return {
     async run(): Promise<DiscoveryPipelineResult> {
@@ -103,14 +105,15 @@ export function createDiscoveryPipeline(deps: DiscoveryPipelineDeps) {
 
       // Step 2: Fetch fixtures from API-Football
       const allFixtures: Fixture[] = [];
-      logger.info("Discovery: fetching fixtures", { leagues: config.leagues.length });
+      const enabledLeagues = await leaguesRepo.findEnabled();
+      logger.info("Discovery: fetching fixtures", { leagues: enabledLeagues.length });
       const today = new Date();
       const lookAhead = new Date(today);
       lookAhead.setDate(lookAhead.getDate() + config.fixtureLookAheadDays);
       const from = formatDateISO(today);
       const to = formatDateISO(lookAhead);
 
-      for (const league of config.leagues) {
+      for (const league of enabledLeagues) {
         try {
           const season = await getCurrentSeason(footballClient, league.id, config.season);
           logger.info("Discovery: resolved season", { league: league.name, season });

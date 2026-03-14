@@ -6,7 +6,7 @@ import type { GammaEvent } from "./types.ts";
 
 export type MarketDiscoveryConfig = {
   leagues: Array<{ polymarketSeriesSlug: string }>;
-  soccerTagId: number;
+  tagId: number;
   lookAheadDays: number;
 };
 
@@ -69,11 +69,11 @@ export function createMarketDiscovery(gamma: GammaClient, config: MarketDiscover
 
     async discoverFootballMarkets(): Promise<Event[]> {
       logger.info("Querying Soccer tag for all football events", {
-        tagId: config.soccerTagId,
+        tagId: config.tagId,
         seriesSlugs: seriesSlugs,
       });
 
-      const events = await this.fetchActiveEvents(config.soccerTagId);
+      const events = await this.fetchActiveEvents(config.tagId);
 
       logger.info("Total football events discovered", { count: events.length });
       return events;

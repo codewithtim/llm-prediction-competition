@@ -10,6 +10,7 @@ import {
 } from "../apis/sports-data/mappers.ts";
 import type { CompetitorRegistry } from "../competitors/registry.ts";
 import type { fixturesRepo as fixturesRepoFactory } from "../database/repositories/fixtures.ts";
+import type { leaguesRepo as leaguesRepoFactory } from "../database/repositories/leagues.ts";
 import type { marketsRepo as marketsRepoFactory } from "../database/repositories/markets.ts";
 import type { predictionsRepo as predictionsRepoFactory } from "../database/repositories/predictions.ts";
 import type { statsCacheRepo as statsCacheRepoFactory } from "../database/repositories/stats-cache.ts";
@@ -31,12 +32,7 @@ import { runAllEngines } from "../engine/runner.ts";
 import type { EngineResult } from "../engine/types.ts";
 import { logger } from "../shared/logger.ts";
 import { safeFloat } from "../shared/safe-float.ts";
-import {
-  DEFAULT_LEAGUE_TIER,
-  LEAGUE_TIERS,
-  type LeagueConfig,
-  type PipelineConfig,
-} from "./config.ts";
+import type { LeagueConfig, PipelineConfig } from "./config.ts";
 import {
   dbRowToFixture,
   dbRowToMarket,
@@ -55,6 +51,7 @@ export type PredictionPipelineDeps = {
   fixturesRepo: ReturnType<typeof fixturesRepoFactory>;
   predictionsRepo: ReturnType<typeof predictionsRepoFactory>;
   statsCache: ReturnType<typeof statsCacheRepoFactory>;
+  leaguesRepo: ReturnType<typeof leaguesRepoFactory>;
   config: PipelineConfig;
 };
 
@@ -188,10 +185,12 @@ export function createPredictionPipeline(deps: PredictionPipelineDeps) {
     fixturesRepo,
     predictionsRepo,
     statsCache,
+    leaguesRepo,
     config,
   } = deps;
 
   const standingsCache = new Map<string, Awaited<ReturnType<typeof footballClient.getStandings>>>();
+  let activeLeagues: LeagueConfig[] = [];
 
   async function getStandingsCached(leagueId: number, season: number) {
     const key = `${leagueId}:${season}`;
@@ -203,7 +202,7 @@ export function createPredictionPipeline(deps: PredictionPipelineDeps) {
   }
 
   function findLeagueConfig(leagueId: number): LeagueConfig | undefined {
-    return config.leagues.find((l) => l.id === leagueId);
+    return activeLeagues.find((l) => l.id === leagueId);
   }
 
   type DomesticStandingsResult = {
@@ -356,9 +355,8 @@ export function createPredictionPipeline(deps: PredictionPipelineDeps) {
       }
     }
 
-    // Resolve league tiers
-    const homeTeamLeagueTier = LEAGUE_TIERS[homeLeagueId] ?? DEFAULT_LEAGUE_TIER;
-    const awayTeamLeagueTier = LEAGUE_TIERS[awayLeagueId] ?? DEFAULT_LEAGUE_TIER;
+    const homeTeamLeagueTier = activeLeagues.find((l) => l.id === homeLeagueId)?.tier ?? 5;
+    const awayTeamLeagueTier = activeLeagues.find((l) => l.id === awayLeagueId)?.tier ?? 5;
 
     let h2h: H2H;
     if (h2hResp.status === "fulfilled") {
@@ -690,7 +688,18 @@ export function createPredictionPipeline(deps: PredictionPipelineDeps) {
         failedBetDetails: [],
       };
 
-      const activeLeagueIds = config.leagues.map((l) => l.id);
+      const leagueRows = await leaguesRepo.findEnabled();
+      activeLeagues = leagueRows.map((r) => ({
+        id: r.id,
+        sport: r.sport,
+        name: r.name,
+        country: r.country,
+        type: r.type,
+        polymarketSeriesSlug: r.polymarketSeriesSlug,
+        domesticLeagueIds: r.domesticLeagueIds ?? undefined,
+        tier: r.tier,
+      }));
+      const activeLeagueIds = activeLeagues.map((l) => l.id);
       const fixtureRows = await fixturesRepo.findReadyForPrediction(
         config.predictionLeadTimeMs,
         activeLeagueIds,

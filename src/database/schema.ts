@@ -297,6 +297,39 @@ export const playerStatsCache = sqliteTable("player_stats_cache", {
   fetchedAt: integer("fetched_at", { mode: "timestamp" }).notNull(),
 });
 
+export const sports = sqliteTable("sports", {
+  slug: text("slug").primaryKey(),
+  name: text("name").notNull(),
+  polymarketTagId: integer("polymarket_tag_id"),
+  enabled: integer("enabled", { mode: "boolean" }).notNull().default(true),
+  createdAt: integer("created_at", { mode: "timestamp" })
+    .notNull()
+    .$defaultFn(() => new Date()),
+  updatedAt: integer("updated_at", { mode: "timestamp" })
+    .notNull()
+    .$defaultFn(() => new Date()),
+});
+
+export const leagues = sqliteTable("leagues", {
+  id: integer("id").primaryKey(),
+  sport: text("sport")
+    .notNull()
+    .references(() => sports.slug),
+  name: text("name").notNull(),
+  country: text("country").notNull(),
+  type: text("type", { enum: ["cup", "league"] }).notNull(),
+  polymarketSeriesSlug: text("polymarket_series_slug").notNull(),
+  domesticLeagueIds: text("domestic_league_ids", { mode: "json" }).$type<number[]>(),
+  tier: integer("tier").notNull().default(5),
+  enabled: integer("enabled", { mode: "boolean" }).notNull().default(true),
+  createdAt: integer("created_at", { mode: "timestamp" })
+    .notNull()
+    .$defaultFn(() => new Date()),
+  updatedAt: integer("updated_at", { mode: "timestamp" })
+    .notNull()
+    .$defaultFn(() => new Date()),
+});
+
 export const bettingEvents = sqliteTable(
   "betting_events",
   {

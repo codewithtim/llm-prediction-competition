@@ -2,25 +2,14 @@ import type { BettingConfig } from "../domain/services/betting.ts";
 
 export type LeagueConfig = {
   id: number;
+  sport: string;
   name: string;
   country: string;
   type: "cup" | "league";
   polymarketSeriesSlug: string;
   domesticLeagueIds?: number[];
+  tier: number;
 };
-
-export const LEAGUE_TIERS: Record<number, number> = {
-  39: 1, // Premier League
-  40: 2, // Championship
-  41: 3, // League One
-  42: 4, // League Two
-  140: 1, // La Liga
-  135: 1, // Serie A
-  78: 1, // Bundesliga
-  61: 1, // Ligue 1
-};
-
-export const DEFAULT_LEAGUE_TIER = 5;
 
 export type OrderConfirmationConfig = {
   intervalMs: number;
@@ -54,77 +43,85 @@ export type PipelineConfig = {
   retry: RetryConfig;
 };
 
-export const SOCCER_TAG_ID = 100350;
-
 export const LEAGUE_CATALOG = {
   premierLeague: {
     id: 39,
+    sport: "football",
     name: "Premier League",
     country: "England",
     type: "league",
     polymarketSeriesSlug: "premier-league",
+    tier: 1,
   },
   championsLeague: {
     id: 2,
+    sport: "football",
     name: "Champions League",
     country: "World",
     type: "cup",
     polymarketSeriesSlug: "ucl",
     domesticLeagueIds: [39, 140, 135, 78, 61],
+    tier: 1,
   },
   laLiga: {
     id: 140,
+    sport: "football",
     name: "La Liga",
     country: "Spain",
     type: "league",
     polymarketSeriesSlug: "la-liga",
+    tier: 1,
   },
   serieA: {
     id: 135,
+    sport: "football",
     name: "Serie A",
     country: "Italy",
     type: "league",
     polymarketSeriesSlug: "serie-a",
+    tier: 1,
   },
   bundesliga: {
     id: 78,
+    sport: "football",
     name: "Bundesliga",
     country: "Germany",
     type: "league",
     polymarketSeriesSlug: "bundesliga",
+    tier: 1,
   },
   ligue1: {
     id: 61,
+    sport: "football",
     name: "Ligue 1",
     country: "France",
     type: "league",
     polymarketSeriesSlug: "ligue-1",
+    tier: 1,
   },
   championship: {
     id: 40,
+    sport: "football",
     name: "Championship",
     country: "England",
     type: "league",
     polymarketSeriesSlug: "efl-championship",
+    tier: 2,
   },
   faCup: {
     id: 45,
+    sport: "football",
     name: "FA Cup",
     country: "England",
     type: "cup",
     polymarketSeriesSlug: "fa-cup",
     domesticLeagueIds: [39, 40, 41, 42],
+    tier: 2,
   },
 } as const satisfies Record<string, LeagueConfig>;
 
-export const DEFAULT_LEAGUES: LeagueConfig[] = [
-  LEAGUE_CATALOG.premierLeague,
-  LEAGUE_CATALOG.championsLeague,
-  LEAGUE_CATALOG.championship,
-];
-
 export const DEFAULT_CONFIG: PipelineConfig = {
-  leagues: DEFAULT_LEAGUES,
+  leagues: [],
   fixtureLookAheadDays: 14,
   discoveryIntervalMs: 7 * 24 * 60 * 60 * 1000, // 7 days
   predictionIntervalMs: 15 * 60 * 1000, // 15 minutes

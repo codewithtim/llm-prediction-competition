@@ -16,9 +16,11 @@ import { bettingEventsRepo } from "./database/repositories/betting-events.ts";
 import { competitorVersionsRepo } from "./database/repositories/competitor-versions.ts";
 import { competitorsRepo } from "./database/repositories/competitors.ts";
 import { fixturesRepo } from "./database/repositories/fixtures.ts";
+import { leaguesRepo } from "./database/repositories/leagues.ts";
 import { marketsRepo } from "./database/repositories/markets.ts";
 import { notificationChannelsRepo } from "./database/repositories/notification-channels.ts";
 import { predictionsRepo } from "./database/repositories/predictions.ts";
+import { sportsRepo } from "./database/repositories/sports.ts";
 import { statsCacheRepo } from "./database/repositories/stats-cache.ts";
 import { walletsRepo } from "./database/repositories/wallets.ts";
 import { createBankrollProvider } from "./domain/services/bankroll.ts";
@@ -27,7 +29,7 @@ import { createBettingService } from "./domain/services/betting.ts";
 import { createNotificationService } from "./domain/services/notification.ts";
 import { createOrderConfirmationService } from "./domain/services/order-confirmation.ts";
 import { createSettlementService } from "./domain/services/settlement.ts";
-import { DEFAULT_CONFIG, SOCCER_TAG_ID } from "./orchestrator/config.ts";
+import { DEFAULT_CONFIG } from "./orchestrator/config.ts";
 import { createDiscoveryPipeline } from "./orchestrator/discovery-pipeline.ts";
 import { createFixtureStatusPipeline } from "./orchestrator/fixture-status-pipeline.ts";
 import { createMarketRefreshPipeline } from "./orchestrator/market-refresh-pipeline.ts";
@@ -68,6 +70,8 @@ const bets = betsRepo(db);
 const comps = competitorsRepo(db);
 const wallets = walletsRepo(db);
 const versions = competitorVersionsRepo(db);
+const sportsRepository = sportsRepo(db);
+const leaguesRepository = leaguesRepo(db);
 
 // ── External clients ─────────────────────────────────────────────────
 const polyFetch = env.PROXY_URL ? createProxyFetch(env.PROXY_URL) : fetch;
@@ -81,10 +85,33 @@ if (!openrouterConfigured) {
   logger.info("OpenRouter not configured — runtime competitors will be skipped");
 }
 
+// ── Sports & leagues from DB ──────────────────────────────────────────
+const enabledSports = await sportsRepository.findEnabled();
+const footballSport = enabledSports.find((s) => s.slug === "football");
+const tagId = footballSport?.polymarketTagId ?? 100350;
+
+const enabledLeagueRows = await leaguesRepository.findEnabled();
+const enabledLeagues = enabledLeagueRows.map((r) => ({
+  id: r.id,
+  sport: r.sport,
+  name: r.name,
+  country: r.country,
+  type: r.type,
+  polymarketSeriesSlug: r.polymarketSeriesSlug,
+  domesticLeagueIds: r.domesticLeagueIds ?? undefined,
+  tier: r.tier,
+}));
+
+logger.info("Loaded leagues from database", {
+  sports: enabledSports.length,
+  leagues: enabledLeagues.length,
+  leagueNames: enabledLeagues.map((l) => l.name),
+});
+
 // ── Services ─────────────────────────────────────────────────────────
 const discovery = createMarketDiscovery(gammaClient, {
-  leagues: DEFAULT_CONFIG.leagues,
-  soccerTagId: SOCCER_TAG_ID,
+  leagues: enabledLeagues,
+  tagId,
   lookAheadDays: DEFAULT_CONFIG.fixtureLookAheadDays,
 });
 const bettingService = createBettingService({
@@ -158,12 +185,15 @@ const notificationService = createNotificationService({
 });
 
 // ── Pipelines & scheduler ────────────────────────────────────────────
+const pipelineConfig = { ...DEFAULT_CONFIG, leagues: enabledLeagues };
+
 const discoveryPipeline = createDiscoveryPipeline({
   discovery,
   footballClient,
   marketsRepo: markets,
   fixturesRepo: fixtures,
-  config: DEFAULT_CONFIG,
+  leaguesRepo: leaguesRepository,
+  config: pipelineConfig,
 });
 
 const predictionPipeline = createPredictionPipeline({
@@ -176,7 +206,8 @@ const predictionPipeline = createPredictionPipeline({
   fixturesRepo: fixtures,
   predictionsRepo: preds,
   statsCache,
-  config: DEFAULT_CONFIG,
+  leaguesRepo: leaguesRepository,
+  config: pipelineConfig,
 });
 
 const fixtureStatusPipeline = createFixtureStatusPipeline({
@@ -207,7 +238,7 @@ const scheduler = createScheduler({
   betRetryService,
   summaryPipeline,
   notificationService,
-  config: DEFAULT_CONFIG,
+  config: pipelineConfig,
 });
 
 // ── HTTP server ──────────────────────────────────────────────────────
