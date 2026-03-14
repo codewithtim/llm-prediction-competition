@@ -10,7 +10,8 @@ const ERROR_PATTERNS: Array<{ pattern: RegExp; category: BetErrorCategory }> = [
   { pattern: /invalid signature|nonce/i, category: "wallet_error" },
   { pattern: /market not found|market closed/i, category: "invalid_market" },
   {
-    pattern: /invalid amount.*min size|order size.*too small|below.*minimum/i,
+    pattern:
+      /invalid amount.*min size|order size.*too small|below.*minimum|lower than the minimum/i,
     category: "order_too_small",
   },
   {
@@ -21,9 +22,11 @@ const ERROR_PATTERNS: Array<{ pattern: RegExp; category: BetErrorCategory }> = [
 
 export function extractMinBetSize(error: unknown): number | null {
   const message = error instanceof Error ? error.message : String(error ?? "");
-  const match = message.match(/min size:\s*\$?([\d.]+)/i);
-  if (!match?.[1]) return null;
-  const parsed = Number.parseFloat(match[1]);
+  const match = message.match(/min size:\s*\$?([\d.]+)|lower than the minimum:\s*([\d.]+)/i);
+  if (!match) return null;
+  const raw = match[1] ?? match[2];
+  if (!raw) return null;
+  const parsed = Number.parseFloat(raw);
   return Number.isFinite(parsed) ? parsed : null;
 }
 

@@ -58,6 +58,16 @@ describe("classifyBetError", () => {
     ).toBe("order_too_small");
   });
 
+  it('classifies "Size lower than the minimum" as order_too_small', () => {
+    expect(
+      classifyBetError(
+        new Error(
+          "order 0xba5daec7ce3b9aaae92e59a0bb8233cd6de728eee6f4302d4d406e1fa728b591 is invalid. Size (3.27) lower than the minimum: 5",
+        ),
+      ),
+    ).toBe("order_too_small");
+  });
+
   it("classifies unknown error string as unknown", () => {
     expect(classifyBetError(new Error("something completely unexpected"))).toBe("unknown");
   });
@@ -80,6 +90,16 @@ describe("extractMinBetSize", () => {
 
   it("extracts decimal min size", () => {
     expect(extractMinBetSize("min size: $5.00")).toBe(5);
+  });
+
+  it('extracts min size from "lower than the minimum" error', () => {
+    expect(
+      extractMinBetSize(
+        new Error(
+          "order 0xba5d...b591 is invalid. Size (3.27) lower than the minimum: 5",
+        ),
+      ),
+    ).toBe(5);
   });
 
   it("returns null for unrelated error message", () => {
