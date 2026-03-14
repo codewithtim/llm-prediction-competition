@@ -172,9 +172,11 @@ const betRetryService = createBetRetryService({
   auditLog,
   predictionsRepo: preds,
   walletConfigs,
+  bankrollProvider,
   maxRetryAttempts: DEFAULT_CONFIG.retry.maxRetryAttempts,
   retryDelayMs: DEFAULT_CONFIG.retry.retryDelayMs,
   maxStakePerBet: DEFAULT_CONFIG.betting.maxStakePerBet,
+  maxBumpPctOfBankroll: DEFAULT_CONFIG.retry.maxBumpPctOfBankroll,
   proxyEnabled: !!env.PROXY_URL,
 });
 

@@ -154,6 +154,8 @@ describe("createBetRetryService", () => {
       walletConfigs: makeWalletConfigs(),
       maxRetryAttempts: 3,
       maxStakePerBet: 10,
+      bankrollProvider: { getBankroll: mock(() => Promise.resolve(10)) },
+      maxBumpPctOfBankroll: 0.2,
       proxyEnabled: false,
     });
 
@@ -186,6 +188,8 @@ describe("createBetRetryService", () => {
       walletConfigs: makeWalletConfigs(),
       maxRetryAttempts: 3,
       maxStakePerBet: 10,
+      bankrollProvider: { getBankroll: mock(() => Promise.resolve(10)) },
+      maxBumpPctOfBankroll: 0.2,
       proxyEnabled: false,
     });
 
@@ -210,6 +214,8 @@ describe("createBetRetryService", () => {
       walletConfigs: makeWalletConfigs(),
       maxRetryAttempts: 3,
       maxStakePerBet: 10,
+      bankrollProvider: { getBankroll: mock(() => Promise.resolve(10)) },
+      maxBumpPctOfBankroll: 0.2,
       proxyEnabled: false,
     });
 
@@ -250,6 +256,8 @@ describe("createBetRetryService", () => {
       walletConfigs: makeWalletConfigs(),
       maxRetryAttempts: 3,
       maxStakePerBet: 10,
+      bankrollProvider: { getBankroll: mock(() => Promise.resolve(10)) },
+      maxBumpPctOfBankroll: 0.2,
       proxyEnabled: false,
     });
 
@@ -278,6 +286,8 @@ describe("createBetRetryService", () => {
       walletConfigs: makeWalletConfigs(),
       maxRetryAttempts: 3,
       maxStakePerBet: 10,
+      bankrollProvider: { getBankroll: mock(() => Promise.resolve(10)) },
+      maxBumpPctOfBankroll: 0.2,
       proxyEnabled: false,
     });
 
@@ -300,6 +310,8 @@ describe("createBetRetryService", () => {
       walletConfigs: makeWalletConfigs(),
       maxRetryAttempts: 3,
       maxStakePerBet: 10,
+      bankrollProvider: { getBankroll: mock(() => Promise.resolve(10)) },
+      maxBumpPctOfBankroll: 0.2,
       proxyEnabled: false,
     });
 
@@ -328,6 +340,8 @@ describe("createBetRetryService", () => {
       walletConfigs: makeWalletConfigs(),
       maxRetryAttempts: 3,
       maxStakePerBet: 10,
+      bankrollProvider: { getBankroll: mock(() => Promise.resolve(10)) },
+      maxBumpPctOfBankroll: 0.2,
       proxyEnabled: false,
     });
 
@@ -356,6 +370,8 @@ describe("createBetRetryService", () => {
       walletConfigs: makeWalletConfigs(),
       maxRetryAttempts: 3,
       maxStakePerBet: 10,
+      bankrollProvider: { getBankroll: mock(() => Promise.resolve(10)) },
+      maxBumpPctOfBankroll: 0.2,
       proxyEnabled: false,
     });
 
@@ -381,6 +397,8 @@ describe("createBetRetryService", () => {
       walletConfigs: makeWalletConfigs(),
       maxRetryAttempts: 3,
       maxStakePerBet: 10,
+      bankrollProvider: { getBankroll: mock(() => Promise.resolve(10)) },
+      maxBumpPctOfBankroll: 0.2,
       proxyEnabled: false,
     });
 
@@ -407,6 +425,8 @@ describe("createBetRetryService", () => {
         walletConfigs: makeWalletConfigs(),
         maxRetryAttempts: 3,
         maxStakePerBet: 10,
+        bankrollProvider: { getBankroll: mock(() => Promise.resolve(10)) },
+        maxBumpPctOfBankroll: 0.2,
         proxyEnabled: false,
       });
 
@@ -443,6 +463,8 @@ describe("createBetRetryService", () => {
         walletConfigs: makeWalletConfigs(),
         maxRetryAttempts: 3,
         maxStakePerBet: 10,
+        bankrollProvider: { getBankroll: mock(() => Promise.resolve(10)) },
+        maxBumpPctOfBankroll: 0.2,
         proxyEnabled: false,
       });
 
@@ -481,6 +503,8 @@ describe("createBetRetryService", () => {
         walletConfigs: makeWalletConfigs(),
         maxRetryAttempts: 3,
         maxStakePerBet: 10,
+        bankrollProvider: { getBankroll: mock(() => Promise.resolve(10)) },
+        maxBumpPctOfBankroll: 0.2,
         proxyEnabled: false,
       });
 
@@ -512,6 +536,8 @@ describe("createBetRetryService", () => {
         walletConfigs: makeWalletConfigs(),
         maxRetryAttempts: 3,
         maxStakePerBet: 10,
+        bankrollProvider: { getBankroll: mock(() => Promise.resolve(10)) },
+        maxBumpPctOfBankroll: 0.2,
         proxyEnabled: false,
       });
 
@@ -540,6 +566,8 @@ describe("createBetRetryService", () => {
         walletConfigs: makeWalletConfigs(),
         maxRetryAttempts: 3,
         maxStakePerBet: 10,
+        bankrollProvider: { getBankroll: mock(() => Promise.resolve(10)) },
+        maxBumpPctOfBankroll: 0.2,
         proxyEnabled: false,
       });
 
@@ -575,6 +603,8 @@ describe("createBetRetryService", () => {
         walletConfigs: makeWalletConfigs(),
         maxRetryAttempts: 3,
         maxStakePerBet: 10,
+        bankrollProvider: { getBankroll: mock(() => Promise.resolve(10)) },
+        maxBumpPctOfBankroll: 0.2,
         proxyEnabled: false,
       });
 
@@ -610,6 +640,8 @@ describe("createBetRetryService", () => {
         walletConfigs: makeWalletConfigs(),
         maxRetryAttempts: 3,
         maxStakePerBet: 10,
+        bankrollProvider: { getBankroll: mock(() => Promise.resolve(10)) },
+        maxBumpPctOfBankroll: 0.2,
         proxyEnabled: false,
       });
 
@@ -642,6 +674,8 @@ describe("createBetRetryService", () => {
         walletConfigs: makeWalletConfigs(),
         maxRetryAttempts: 3,
         maxStakePerBet: 10,
+        bankrollProvider: { getBankroll: mock(() => Promise.resolve(10)) },
+        maxBumpPctOfBankroll: 0.2,
         proxyEnabled: false,
       });
 
@@ -676,6 +710,8 @@ describe("createBetRetryService", () => {
         walletConfigs: makeWalletConfigs(),
         maxRetryAttempts: 3,
         maxStakePerBet: 10,
+        bankrollProvider: { getBankroll: mock(() => Promise.resolve(10)) },
+        maxBumpPctOfBankroll: 0.2,
         proxyEnabled: false,
       });
 
@@ -686,7 +722,41 @@ describe("createBetRetryService", () => {
       expect(repo.updateAmount).not.toHaveBeenCalled();
       expect(predsRepo.addStakeAdjustment).not.toHaveBeenCalled();
       expect(result.errors).toHaveLength(1);
-      expect(result.errors[0]).toContain("min size $50 exceeds max stake $10");
+      expect(result.errors[0]).toContain("min size $50 exceeds cap");
+    });
+
+    it("skips retry when bumped min size exceeds bankroll cap", async () => {
+      const bet = makeFailedBet({
+        amount: 0.31,
+        errorCategory: "order_too_small",
+        errorMessage: "order is invalid. Size (1.8) lower than the minimum: 5",
+        attempts: 1,
+      });
+      const repo = mockBetsRepo([bet]);
+      const client = mockBettingClient();
+      const factory = mockBettingClientFactory(client);
+
+      const service = createBetRetryService({
+        betsRepo: repo,
+        bettingClientFactory: factory,
+        auditLog: mockAuditLog(),
+        predictionsRepo: mockPredictionsRepo(),
+        walletConfigs: makeWalletConfigs(),
+        maxRetryAttempts: 3,
+        maxStakePerBet: 100,
+        bankrollProvider: { getBankroll: mock(() => Promise.resolve(10)) },
+        maxBumpPctOfBankroll: 0.2,
+        proxyEnabled: false,
+      });
+
+      const result = await service.retryFailedBets();
+
+      // 20% of $10 bankroll = $2, min size $5 exceeds that
+      expect(result.retried).toBe(0);
+      expect(client.placeOrder).not.toHaveBeenCalled();
+      expect(result.errors).toHaveLength(1);
+      expect(result.errors[0]).toContain("min size $5 exceeds cap");
+      expect(result.errors[0]).toContain("20% of bankroll");
     });
   });
 });

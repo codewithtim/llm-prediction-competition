@@ -20,6 +20,7 @@ export type RetryConfig = {
   intervalMs: number;
   maxRetryAttempts: number;
   retryDelayMs: number;
+  maxBumpPctOfBankroll: number;
 };
 
 export type PipelineConfig = {
@@ -151,5 +152,6 @@ export const DEFAULT_CONFIG: PipelineConfig = {
     intervalMs: 10 * 60 * 1000, // 10 minutes
     maxRetryAttempts: 3,
     retryDelayMs: 60_000, // minimum 1 minute between retry attempts
+    maxBumpPctOfBankroll: 0.2, // auto-bump capped at 20% of bankroll
   },
 };

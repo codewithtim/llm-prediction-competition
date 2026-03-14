@@ -251,6 +251,8 @@ describe("min-bet-bump flow", () => {
 			walletConfigs: makeWalletConfigs(),
 			maxRetryAttempts: 3,
 			maxStakePerBet: 10,
+			bankrollProvider: { getBankroll: mock(() => Promise.resolve(100)) },
+			maxBumpPctOfBankroll: 0.2,
 			proxyEnabled: false,
 		});
 
@@ -390,6 +392,8 @@ describe("min-bet-bump flow", () => {
 			walletConfigs: makeWalletConfigs(),
 			maxRetryAttempts: 3,
 			maxStakePerBet: 10,
+			bankrollProvider: { getBankroll: mock(() => Promise.resolve(100)) },
+			maxBumpPctOfBankroll: 0.2,
 			proxyEnabled: false,
 		});
 
@@ -397,7 +401,7 @@ describe("min-bet-bump flow", () => {
 
 		expect(retryResult.retried).toBe(0);
 		expect(retryResult.errors).toHaveLength(1);
-		expect(retryResult.errors[0]).toContain("min size $50 exceeds max stake $10");
+		expect(retryResult.errors[0]).toContain("min size $50 exceeds cap");
 		expect(predsRepo.addStakeAdjustment).not.toHaveBeenCalled();
 		expect(storedBets[0]!.status).toBe("failed");
 	});
@@ -503,6 +507,8 @@ describe("min-bet-bump flow", () => {
 			walletConfigs: makeWalletConfigs(),
 			maxRetryAttempts: 3,
 			maxStakePerBet: 10,
+			bankrollProvider: { getBankroll: mock(() => Promise.resolve(100)) },
+			maxBumpPctOfBankroll: 0.2,
 			proxyEnabled: false,
 		});
 
@@ -635,6 +641,8 @@ describe("min-bet-bump flow", () => {
 			walletConfigs: makeWalletConfigs(),
 			maxRetryAttempts: 5,
 			maxStakePerBet: 10,
+			bankrollProvider: { getBankroll: mock(() => Promise.resolve(100)) },
+			maxBumpPctOfBankroll: 0.2,
 			proxyEnabled: false,
 		});
 

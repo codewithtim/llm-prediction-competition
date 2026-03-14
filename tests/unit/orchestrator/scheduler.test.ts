@@ -36,6 +36,7 @@ function makeConfig(overrides: Partial<PipelineConfig> = {}): PipelineConfig {
       intervalMs: 100,
       maxRetryAttempts: 3,
       retryDelayMs: 60_000,
+      maxBumpPctOfBankroll: 0.2,
     },
     ...overrides,
   };
@@ -419,7 +420,7 @@ describe("createScheduler", () => {
       betRetryService: { retryFailedBets },
       config: makeConfig({
         orderConfirmation: { intervalMs: 50, maxOrderAgeMs: 60 * 60 * 1000 },
-        retry: { intervalMs: 50, maxRetryAttempts: 3, retryDelayMs: 60_000 },
+        retry: { intervalMs: 50, maxRetryAttempts: 3, retryDelayMs: 60_000, maxBumpPctOfBankroll: 0.2 },
       }),
     });
     scheduler = createScheduler(deps);

@@ -4,6 +4,7 @@ import type { betsRepo as betsRepoFactory } from "../../database/repositories/be
 import type { predictionsRepo as predictionsRepoFactory } from "../../database/repositories/predictions";
 import { logger } from "../../shared/logger";
 import type { WalletConfig } from "../types/competitor";
+import type { BankrollProvider } from "./bankroll";
 import { classifyBetError, extractMinBetSize } from "./bet-errors";
 
 export type BetRetryResult = {
@@ -19,9 +20,11 @@ export function createBetRetryService(deps: {
   auditLog: AuditLogRepo;
   predictionsRepo: ReturnType<typeof predictionsRepoFactory>;
   walletConfigs: Map<string, WalletConfig>;
+  bankrollProvider: BankrollProvider;
   maxRetryAttempts: number;
   retryDelayMs?: number;
   maxStakePerBet: number;
+  maxBumpPctOfBankroll: number;
   proxyEnabled: boolean;
 }) {
   const {
@@ -30,9 +33,11 @@ export function createBetRetryService(deps: {
     auditLog,
     predictionsRepo,
     walletConfigs,
+    bankrollProvider,
     maxRetryAttempts,
     retryDelayMs,
     maxStakePerBet,
+    maxBumpPctOfBankroll,
     proxyEnabled,
   } = deps;
 
@@ -82,14 +87,20 @@ export function createBetRetryService(deps: {
         if (bet.errorCategory === "order_too_small" && bet.errorMessage) {
           const minSize = extractMinBetSize(bet.errorMessage);
           if (minSize && minSize > bet.amount) {
-            if (minSize > maxStakePerBet) {
-              logger.warn("Bet retry: min bet size exceeds max stake, skipping", {
+            const bankroll = await bankrollProvider.getBankroll(bet.competitorId);
+            const maxBump = Math.max(bet.amount, bankroll * maxBumpPctOfBankroll);
+
+            if (minSize > maxStakePerBet || minSize > maxBump) {
+              const cap = Math.min(maxStakePerBet, maxBump);
+              logger.warn("Bet retry: min bet size exceeds cap, skipping", {
                 betId: bet.id,
                 minSize,
                 maxStakePerBet,
+                maxBump: Math.round(maxBump * 100) / 100,
+                bankroll: Math.round(bankroll * 100) / 100,
               });
               result.errors.push(
-                `Bet ${bet.id}: min size $${minSize} exceeds max stake $${maxStakePerBet}`,
+                `Bet ${bet.id}: min size $${minSize} exceeds cap $${cap.toFixed(2)} (${(maxBumpPctOfBankroll * 100).toFixed(0)}% of bankroll)`,
               );
               continue;
             }
