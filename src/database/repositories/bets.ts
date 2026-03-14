@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, lt, notInArray, sql } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, isNotNull, lt, lte, notInArray, sql } from "drizzle-orm";
 import type { BetErrorCategory, BetStatus } from "../../domain/models/prediction.ts";
 import { ACTIVE_BET_STATUSES } from "../../domain/models/prediction.ts";
 import type { Database } from "../client";
@@ -184,6 +184,22 @@ export function betsRepo(db: Database) {
         .select()
         .from(bets)
         .where(and(...conditions))
+        .all();
+    },
+
+    async findPlacedInRange(start: Date, end: Date) {
+      return db
+        .select()
+        .from(bets)
+        .where(and(gte(bets.placedAt, start), lte(bets.placedAt, end)))
+        .all();
+    },
+
+    async findSettledInRange(start: Date, end: Date) {
+      return db
+        .select()
+        .from(bets)
+        .where(and(isNotNull(bets.settledAt), gte(bets.settledAt, start), lte(bets.settledAt, end)))
         .all();
     },
 

@@ -6,6 +6,7 @@ import type {
   NotificationEvent,
   PlacedBetNotification,
   SettledBetNotification,
+  WeeklySummaryNotification,
 } from "../../../domain/types/notification.ts";
 import { logger } from "../../../shared/logger.ts";
 
@@ -76,7 +77,7 @@ function formatBetsSettled(bets: SettledBetNotification[]): DiscordPayload {
         color,
         fields: bets.map((b) => ({
           name: b.marketQuestion,
-          value: `${b.outcome === "won" ? "Won" : "Lost"} — ${b.side} — ${b.profit >= 0 ? "+" : ""}$${b.profit.toFixed(2)} (${b.competitorId})`,
+          value: `${b.outcome === "won" ? "Won" : "Lost"} — ${b.side} — $${b.amount.toFixed(2)} stake — ${b.profit >= 0 ? "+" : ""}$${b.profit.toFixed(2)} (${b.competitorId})`,
         })),
         footer: {
           text: `Net P&L: ${netPnl >= 0 ? "+" : ""}$${netPnl.toFixed(2)} — ${bets.length} bet${bets.length === 1 ? "" : "s"}`,
@@ -124,6 +125,39 @@ function formatIteration(
   };
 }
 
+function formatWeeklySummary(summary: WeeklySummaryNotification): DiscordPayload {
+  const pnlSign = summary.netPnl >= 0 ? "+" : "";
+  return {
+    username: BOT_NAME,
+    embeds: [
+      {
+        title: "Weekly Summary",
+        color: summary.netPnl >= 0 ? COLOR_GREEN : COLOR_RED,
+        fields: [
+          { name: "Period", value: `${summary.periodStart} — ${summary.periodEnd}`, inline: false },
+          { name: "Bets Placed", value: `${summary.totalBetsPlaced}`, inline: true },
+          { name: "Settled", value: `${summary.wins}W - ${summary.losses}L`, inline: true },
+          { name: "Win Rate", value: `${(summary.winRate * 100).toFixed(1)}%`, inline: true },
+          { name: "Total Staked", value: `$${summary.totalStaked.toFixed(2)}`, inline: true },
+          { name: "Net P&L", value: `${pnlSign}$${summary.netPnl.toFixed(2)}`, inline: true },
+          ...(summary.topCompetitor
+            ? [
+                {
+                  name: "Top Competitor",
+                  value: `${summary.topCompetitor.name}: ${summary.topCompetitor.pnl >= 0 ? "+" : ""}$${summary.topCompetitor.pnl.toFixed(2)}`,
+                  inline: true,
+                },
+              ]
+            : []),
+          { name: "Upcoming Fixtures", value: `${summary.upcomingFixtures}`, inline: true },
+        ],
+        footer: { text: "LLM Betting Competition — Weekly Report" },
+        timestamp: new Date().toISOString(),
+      },
+    ],
+  };
+}
+
 function formatEvent(event: NotificationEvent): DiscordPayload | null {
   switch (event.type) {
     case "bets_placed":
@@ -134,6 +168,8 @@ function formatEvent(event: NotificationEvent): DiscordPayload | null {
       return formatBetsSettled(event.bets);
     case "iteration_complete":
       return formatIteration(event.successes, event.failures);
+    case "weekly_summary":
+      return formatWeeklySummary(event.summary);
   }
 }
 

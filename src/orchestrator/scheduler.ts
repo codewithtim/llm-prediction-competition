@@ -9,6 +9,7 @@ import type { DiscoveryPipeline } from "./discovery-pipeline.ts";
 import type { FixtureStatusPipeline } from "./fixture-status-pipeline.ts";
 import type { MarketRefreshPipeline } from "./market-refresh-pipeline.ts";
 import type { PredictionPipeline } from "./prediction-pipeline.ts";
+import type { SummaryPipeline } from "./summary-pipeline.ts";
 
 export type SchedulerDeps = {
   discoveryPipeline: DiscoveryPipeline;
@@ -18,6 +19,7 @@ export type SchedulerDeps = {
   marketRefreshPipeline?: MarketRefreshPipeline;
   orderConfirmationService?: OrderConfirmationService;
   betRetryService?: BetRetryService;
+  summaryPipeline?: SummaryPipeline;
   notificationService?: NotificationService;
   config: PipelineConfig;
 };
@@ -31,6 +33,7 @@ export function createScheduler(deps: SchedulerDeps) {
     marketRefreshPipeline,
     orderConfirmationService,
     betRetryService,
+    summaryPipeline,
     notificationService,
     config,
   } = deps;
@@ -49,6 +52,7 @@ export function createScheduler(deps: SchedulerDeps) {
   let orderConfirmationTimer: ReturnType<typeof setInterval> | null = null;
   let betRetryTimer: ReturnType<typeof setInterval> | null = null;
   let marketRefreshTimer: ReturnType<typeof setInterval> | null = null;
+  let summaryTimer: ReturnType<typeof setInterval> | null = null;
   let discoveryDelayTimer: ReturnType<typeof setTimeout> | null = null;
   let predictionDelayTimer: ReturnType<typeof setTimeout> | null = null;
   let settlementDelayTimer: ReturnType<typeof setTimeout> | null = null;
@@ -60,6 +64,7 @@ export function createScheduler(deps: SchedulerDeps) {
   let orderConfirmationRunning = false;
   let betRetryRunning = false;
   let marketRefreshRunning = false;
+  let summaryRunning = false;
 
   async function runDiscovery() {
     if (discoveryRunning) {
@@ -185,6 +190,7 @@ export function createScheduler(deps: SchedulerDeps) {
               side: s.side,
               outcome: s.outcome,
               profit: s.profit,
+              amount: s.amount,
             })),
           },
           "settlement",
@@ -287,6 +293,27 @@ export function createScheduler(deps: SchedulerDeps) {
     }
   }
 
+  async function runSummary() {
+    if (!summaryPipeline) return;
+    if (summaryRunning) {
+      logger.warn("Scheduler: summary run skipped (previous run still in progress)");
+      return;
+    }
+    summaryRunning = true;
+    const start = Date.now();
+    try {
+      logger.info("Scheduler: starting summary run");
+      await summaryPipeline.run();
+      const durationMs = Date.now() - start;
+      logger.info("Scheduler: summary run complete", { durationMs });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      logger.error("Scheduler: summary run failed", { error: msg });
+    } finally {
+      summaryRunning = false;
+    }
+  }
+
   async function runMarketRefresh() {
     if (!marketRefreshPipeline) return;
     if (marketRefreshRunning) {
@@ -380,6 +407,19 @@ export function createScheduler(deps: SchedulerDeps) {
         betRetryTimer = setInterval(runBetRetry, config.retry.intervalMs);
       }
 
+      if (summaryPipeline) {
+        if (config.summaryDelayMs) {
+          logger.info("Scheduler: delaying summary start", { delayMs: config.summaryDelayMs });
+          setTimeout(() => {
+            runSummary();
+            summaryTimer = setInterval(runSummary, config.summaryIntervalMs);
+          }, config.summaryDelayMs);
+        } else {
+          runSummary();
+          summaryTimer = setInterval(runSummary, config.summaryIntervalMs);
+        }
+      }
+
       if (marketRefreshPipeline) {
         if (config.marketRefreshDelayMs) {
           logger.info("Scheduler: delaying market refresh start", {
@@ -433,6 +473,10 @@ export function createScheduler(deps: SchedulerDeps) {
       if (betRetryTimer) {
         clearInterval(betRetryTimer);
         betRetryTimer = null;
+      }
+      if (summaryTimer) {
+        clearInterval(summaryTimer);
+        summaryTimer = null;
       }
       if (marketRefreshDelayTimer) {
         clearTimeout(marketRefreshDelayTimer);

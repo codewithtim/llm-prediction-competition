@@ -708,6 +708,60 @@ describe("betsRepo", () => {
     });
   });
 
+  describe("findPlacedInRange", () => {
+    it("returns only bets placed within date range", async () => {
+      const repo = betsRepo(db);
+      const now = new Date();
+      const twoDaysAgo = new Date(now.getTime() - 2 * 24 * 60 * 60 * 1000);
+      const tenDaysAgo = new Date(now.getTime() - 10 * 24 * 60 * 60 * 1000);
+
+      await repo.create({ ...sampleBet, id: "bet-recent", orderId: "o-r", placedAt: now });
+      await repo.create({ ...sampleBet, id: "bet-old", orderId: "o-o", marketId: "market-2", placedAt: tenDaysAgo });
+
+      const threeDaysAgo = new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000);
+      const results = await repo.findPlacedInRange(threeDaysAgo, now);
+      expect(results).toHaveLength(1);
+      expect(results[0]?.id).toBe("bet-recent");
+    });
+
+    it("returns empty array when no bets in range", async () => {
+      const repo = betsRepo(db);
+      const future = new Date(Date.now() + 24 * 60 * 60 * 1000);
+      const farFuture = new Date(Date.now() + 48 * 60 * 60 * 1000);
+      const results = await repo.findPlacedInRange(future, farFuture);
+      expect(results).toHaveLength(0);
+    });
+  });
+
+  describe("findSettledInRange", () => {
+    it("returns only settled bets within date range", async () => {
+      const repo = betsRepo(db);
+      const now = new Date();
+      const tenDaysAgo = new Date(now.getTime() - 10 * 24 * 60 * 60 * 1000);
+
+      await repo.create({ ...sampleBet, id: "bet-settled-recent", orderId: "o-sr" });
+      await repo.updateStatus("bet-settled-recent", "settled_won", now, 5);
+
+      await repo.create({ ...sampleBet, id: "bet-settled-old", orderId: "o-so", marketId: "market-2" });
+      await repo.updateStatus("bet-settled-old", "settled_lost", tenDaysAgo, -5);
+
+      const threeDaysAgo = new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000);
+      const results = await repo.findSettledInRange(threeDaysAgo, now);
+      expect(results).toHaveLength(1);
+      expect(results[0]?.id).toBe("bet-settled-recent");
+    });
+
+    it("excludes unsettled bets", async () => {
+      const repo = betsRepo(db);
+      const now = new Date();
+      const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+
+      await repo.create({ ...sampleBet, id: "bet-pending", orderId: "o-p", status: "pending" });
+      const results = await repo.findSettledInRange(weekAgo, now);
+      expect(results).toHaveLength(0);
+    });
+  });
+
   describe("unique index: idx_bets_active_market_competitor", () => {
     it("rejects duplicate active bet at DB level", async () => {
       const repo = betsRepo(db);

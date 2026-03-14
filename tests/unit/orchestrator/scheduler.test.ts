@@ -30,6 +30,7 @@ function makeConfig(overrides: Partial<PipelineConfig> = {}): PipelineConfig {
       intervalMs: 100,
       maxOrderAgeMs: 60 * 60 * 1000,
     },
+    summaryIntervalMs: 100,
     retry: {
       intervalMs: 100,
       maxRetryAttempts: 3,

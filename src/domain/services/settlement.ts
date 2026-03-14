@@ -11,6 +11,7 @@ export type SettledBet = {
   side: "YES" | "NO";
   outcome: "won" | "lost";
   profit: number;
+  amount: number;
   marketQuestion: string;
 };
 
@@ -158,6 +159,7 @@ export function createSettlementService(deps: {
             side: bet.side as "YES" | "NO",
             outcome: won ? "won" : "lost",
             profit,
+            amount: bet.amount,
             marketQuestion: resolved.question,
           });
         } catch (err) {

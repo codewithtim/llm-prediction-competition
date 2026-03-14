@@ -18,7 +18,14 @@ const testEvent: NotificationEvent = {
 };
 
 function mockChannelsRepo(
-  channels: Array<{ id: number; name: string; type: string; config: Record<string, string>; enabled: boolean }>,
+  channels: Array<{
+    id: number;
+    name: string;
+    type: string;
+    config: Record<string, string>;
+    enabled: boolean;
+    eventFilter?: string[] | null;
+  }>,
 ): NotificationChannelsRepo {
   return {
     findEnabled: mock(() => Promise.resolve(channels.filter((c) => c.enabled))),
@@ -81,6 +88,85 @@ describe("createNotificationService", () => {
 
     expect(sendMock1).toHaveBeenCalledTimes(1);
     expect(sendMock2).toHaveBeenCalledTimes(1);
+  });
+
+  it("filters events by channel eventFilter", async () => {
+    const sendMock = mock(() => Promise.resolve());
+    const factory: AdapterFactory = () => ({ send: sendMock });
+    const factories = new Map([["discord", factory]]);
+
+    const repo = mockChannelsRepo([
+      {
+        id: 1,
+        name: "Summary Only",
+        type: "discord",
+        config: { webhookUrl: "https://a" },
+        enabled: true,
+        eventFilter: ["weekly_summary"],
+      },
+    ]);
+
+    const service = createNotificationService({ channelsRepo: repo, adapterFactories: factories });
+    await service.notify(testEvent); // bets_placed — should be filtered out
+
+    expect(sendMock).toHaveBeenCalledTimes(0);
+  });
+
+  it("null eventFilter receives all events", async () => {
+    const sendMock = mock(() => Promise.resolve());
+    const factory: AdapterFactory = () => ({ send: sendMock });
+    const factories = new Map([["discord", factory]]);
+
+    const repo = mockChannelsRepo([
+      {
+        id: 1,
+        name: "All Events",
+        type: "discord",
+        config: { webhookUrl: "https://a" },
+        enabled: true,
+        eventFilter: null,
+      },
+    ]);
+
+    const service = createNotificationService({ channelsRepo: repo, adapterFactories: factories });
+    await service.notify(testEvent);
+
+    expect(sendMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("multiple channels with different filters only receive matching events", async () => {
+    const sendMock1 = mock(() => Promise.resolve());
+    const sendMock2 = mock(() => Promise.resolve());
+    let callIdx = 0;
+    const factory: AdapterFactory = () => ({
+      send: callIdx++ === 0 ? sendMock1 : sendMock2,
+    });
+    const factories = new Map([["discord", factory]]);
+
+    const repo = mockChannelsRepo([
+      {
+        id: 1,
+        name: "Bets Only",
+        type: "discord",
+        config: { webhookUrl: "https://a" },
+        enabled: true,
+        eventFilter: ["bets_placed"],
+      },
+      {
+        id: 2,
+        name: "Summary Only",
+        type: "discord",
+        config: { webhookUrl: "https://b" },
+        enabled: true,
+        eventFilter: ["weekly_summary"],
+      },
+    ]);
+
+    const service = createNotificationService({ channelsRepo: repo, adapterFactories: factories });
+    await service.notify(testEvent); // bets_placed
+
+    expect(sendMock1).toHaveBeenCalledTimes(1);
+    expect(sendMock2).toHaveBeenCalledTimes(0);
   });
 
   it("works when no channels are configured (no-op)", async () => {

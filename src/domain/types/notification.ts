@@ -14,6 +14,7 @@ export type SettledBetNotification = {
   side: "YES" | "NO";
   outcome: "won" | "lost";
   profit: number;
+  amount: number;
 };
 
 export type IterationNotification = {
@@ -38,6 +39,20 @@ export type IterationFailureNotification = {
   error: string;
 };
 
+export type WeeklySummaryNotification = {
+  periodStart: string;
+  periodEnd: string;
+  totalBetsPlaced: number;
+  totalBetsSettled: number;
+  wins: number;
+  losses: number;
+  winRate: number;
+  totalStaked: number;
+  netPnl: number;
+  topCompetitor: { id: string; name: string; pnl: number } | null;
+  upcomingFixtures: number;
+};
+
 export type NotificationEvent =
   | { type: "bets_placed"; bets: PlacedBetNotification[] }
   | { type: "bets_failed"; bets: FailedBetNotification[] }
@@ -46,10 +61,13 @@ export type NotificationEvent =
       type: "iteration_complete";
       successes: IterationNotification[];
       failures: IterationFailureNotification[];
-    };
+    }
+  | { type: "weekly_summary"; summary: WeeklySummaryNotification };
 
 export type NotificationAdapter = {
   send(event: NotificationEvent): Promise<void>;
 };
+
+export type NotificationEventType = NotificationEvent["type"];
 
 export type AdapterFactory = (config: Record<string, string>) => NotificationAdapter;

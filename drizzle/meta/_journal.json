@@ -15,6 +15,13 @@
       "when": 1772702648951,
       "tag": "0001_clammy_vanisher",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1773472187327,
+      "tag": "0002_smooth_green_goblin",
+      "breakpoints": true
     }
   ]
 }

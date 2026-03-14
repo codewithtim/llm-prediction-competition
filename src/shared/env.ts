@@ -8,6 +8,10 @@ const envSchema = z.object({
   TURSO_AUTH_TOKEN: z.string().default(""),
   WALLET_ENCRYPTION_KEY: z.string().default(""),
   PROXY_URL: z.string().default(""),
+  TWITTER_CONSUMER_KEY: z.string().default(""),
+  TWITTER_CONSUMER_SECRET: z.string().default(""),
+  TWITTER_ACCESS_TOKEN: z.string().default(""),
+  TWITTER_ACCESS_TOKEN_SECRET: z.string().default(""),
 });
 
 export const env = envSchema.parse(process.env);

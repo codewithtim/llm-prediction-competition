@@ -33,6 +33,7 @@ import { createFixtureStatusPipeline } from "./orchestrator/fixture-status-pipel
 import { createMarketRefreshPipeline } from "./orchestrator/market-refresh-pipeline.ts";
 import { createPredictionPipeline } from "./orchestrator/prediction-pipeline.ts";
 import { createScheduler } from "./orchestrator/scheduler.ts";
+import { createSummaryPipeline } from "./orchestrator/summary-pipeline.ts";
 import { env } from "./shared/env.ts";
 import { logger } from "./shared/logger.ts";
 import { configureAxiosProxy, createProxyFetch } from "./shared/proxy.ts";
@@ -188,6 +189,13 @@ const marketRefreshPipeline = createMarketRefreshPipeline({
   fixturesRepo: fixtures,
 });
 
+const summaryPipeline = createSummaryPipeline({
+  betsRepo: bets,
+  fixturesRepo: fixtures,
+  competitorsRepo: comps,
+  notificationService,
+});
+
 const scheduler = createScheduler({
   discoveryPipeline,
   predictionPipeline,
@@ -196,6 +204,7 @@ const scheduler = createScheduler({
   marketRefreshPipeline,
   orderConfirmationService,
   betRetryService,
+  summaryPipeline,
   notificationService,
   config: DEFAULT_CONFIG,
 });

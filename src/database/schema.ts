@@ -267,9 +267,10 @@ export const betAuditLog = sqliteTable(
 export const notificationChannels = sqliteTable("notification_channels", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   name: text("name").notNull(),
-  type: text("type", { enum: ["discord"] }).notNull(),
+  type: text("type", { enum: ["discord", "twitter"] }).notNull(),
   config: text("config", { mode: "json" }).$type<Record<string, string>>().notNull(),
   enabled: integer("enabled", { mode: "boolean" }).notNull().default(true),
+  eventFilter: text("event_filter", { mode: "json" }).$type<string[]>(),
   createdAt: integer("created_at", { mode: "timestamp" })
     .notNull()
     .$defaultFn(() => new Date()),
