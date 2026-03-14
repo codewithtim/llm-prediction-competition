@@ -5,19 +5,10 @@ import { mapGammaEventToEvent } from "./mappers.ts";
 import type { GammaEvent } from "./types.ts";
 
 export type MarketDiscoveryConfig = {
-  leagues: Array<{ polymarketTagIds: number[]; polymarketSeriesSlug: string }>;
+  leagues: Array<{ polymarketSeriesSlug: string }>;
+  soccerTagId: number;
   lookAheadDays: number;
 };
-
-export function collectTagIds(config: MarketDiscoveryConfig): number[] {
-  const tagSet = new Set<number>();
-  for (const league of config.leagues) {
-    for (const tagId of league.polymarketTagIds) {
-      tagSet.add(tagId);
-    }
-  }
-  return [...tagSet];
-}
 
 export function collectSeriesSlugs(config: MarketDiscoveryConfig): string[] {
   return config.leagues.map((l) => l.polymarketSeriesSlug);
@@ -77,24 +68,14 @@ export function createMarketDiscovery(gamma: GammaClient, config: MarketDiscover
     },
 
     async discoverFootballMarkets(): Promise<Event[]> {
-      const tagIds = collectTagIds(config);
+      logger.info("Querying Soccer tag for all football events", {
+        tagId: config.soccerTagId,
+        seriesSlugs: seriesSlugs,
+      });
 
-      logger.info("Querying configured tag IDs", { tagIds });
+      const events = await this.fetchActiveEvents(config.soccerTagId);
 
-      const events: Event[] = [];
-      const seenEventIds = new Set<string>();
-
-      for (const tagId of tagIds) {
-        const tagEvents = await this.fetchActiveEvents(tagId);
-        for (const event of tagEvents) {
-          if (!seenEventIds.has(event.id)) {
-            seenEventIds.add(event.id);
-            events.push(event);
-          }
-        }
-      }
-
-      logger.info("Total unique football events discovered", { count: events.length });
+      logger.info("Total football events discovered", { count: events.length });
       return events;
     },
   };

@@ -27,7 +27,7 @@ import { createBettingService } from "./domain/services/betting.ts";
 import { createNotificationService } from "./domain/services/notification.ts";
 import { createOrderConfirmationService } from "./domain/services/order-confirmation.ts";
 import { createSettlementService } from "./domain/services/settlement.ts";
-import { DEFAULT_CONFIG } from "./orchestrator/config.ts";
+import { DEFAULT_CONFIG, SOCCER_TAG_ID } from "./orchestrator/config.ts";
 import { createDiscoveryPipeline } from "./orchestrator/discovery-pipeline.ts";
 import { createFixtureStatusPipeline } from "./orchestrator/fixture-status-pipeline.ts";
 import { createMarketRefreshPipeline } from "./orchestrator/market-refresh-pipeline.ts";
@@ -84,6 +84,7 @@ if (!openrouterConfigured) {
 // ── Services ─────────────────────────────────────────────────────────
 const discovery = createMarketDiscovery(gammaClient, {
   leagues: DEFAULT_CONFIG.leagues,
+  soccerTagId: SOCCER_TAG_ID,
   lookAheadDays: DEFAULT_CONFIG.fixtureLookAheadDays,
 });
 const bettingService = createBettingService({

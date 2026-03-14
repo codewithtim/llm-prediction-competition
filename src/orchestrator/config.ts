@@ -5,7 +5,6 @@ export type LeagueConfig = {
   name: string;
   country: string;
   type: "cup" | "league";
-  polymarketTagIds: number[];
   polymarketSeriesSlug: string;
   domesticLeagueIds?: number[];
 };
@@ -55,13 +54,14 @@ export type PipelineConfig = {
   retry: RetryConfig;
 };
 
+export const SOCCER_TAG_ID = 100350;
+
 export const LEAGUE_CATALOG = {
   premierLeague: {
     id: 39,
     name: "Premier League",
     country: "England",
     type: "league",
-    polymarketTagIds: [82],
     polymarketSeriesSlug: "premier-league",
   },
   championsLeague: {
@@ -69,7 +69,6 @@ export const LEAGUE_CATALOG = {
     name: "Champions League",
     country: "World",
     type: "cup",
-    polymarketTagIds: [100977],
     polymarketSeriesSlug: "ucl",
     domesticLeagueIds: [39, 140, 135, 78, 61],
   },
@@ -78,7 +77,6 @@ export const LEAGUE_CATALOG = {
     name: "La Liga",
     country: "Spain",
     type: "league",
-    polymarketTagIds: [306],
     polymarketSeriesSlug: "la-liga",
   },
   serieA: {
@@ -86,7 +84,6 @@ export const LEAGUE_CATALOG = {
     name: "Serie A",
     country: "Italy",
     type: "league",
-    polymarketTagIds: [100350],
     polymarketSeriesSlug: "serie-a",
   },
   bundesliga: {
@@ -94,7 +91,6 @@ export const LEAGUE_CATALOG = {
     name: "Bundesliga",
     country: "Germany",
     type: "league",
-    polymarketTagIds: [100350],
     polymarketSeriesSlug: "bundesliga",
   },
   ligue1: {
@@ -102,7 +98,6 @@ export const LEAGUE_CATALOG = {
     name: "Ligue 1",
     country: "France",
     type: "league",
-    polymarketTagIds: [100350],
     polymarketSeriesSlug: "ligue-1",
   },
   championship: {
@@ -110,15 +105,13 @@ export const LEAGUE_CATALOG = {
     name: "Championship",
     country: "England",
     type: "league",
-    polymarketTagIds: [],
-    polymarketSeriesSlug: "championship",
+    polymarketSeriesSlug: "efl-championship",
   },
   faCup: {
     id: 45,
     name: "FA Cup",
     country: "England",
     type: "cup",
-    polymarketTagIds: [101807],
     polymarketSeriesSlug: "fa-cup",
     domesticLeagueIds: [39, 40, 41, 42],
   },

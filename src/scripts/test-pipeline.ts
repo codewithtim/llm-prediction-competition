@@ -26,7 +26,7 @@ import type { Event, Market } from "../domain/models/market.ts";
 import type { MatchedFixture } from "../domain/services/market-matching.ts";
 import { matchEventsToFixtures } from "../domain/services/market-matching.ts";
 import { runEngine } from "../engine/runner.ts";
-import { LEAGUE_CATALOG } from "../orchestrator/config.ts";
+import { LEAGUE_CATALOG, SOCCER_TAG_ID } from "../orchestrator/config.ts";
 
 const LEAGUES = [
   LEAGUE_CATALOG.premierLeague,
@@ -95,6 +95,7 @@ async function main() {
   const gamma = createGammaClient();
   const discovery = createMarketDiscovery(gamma, {
     leagues: LEAGUES,
+    soccerTagId: SOCCER_TAG_ID,
     lookAheadDays: 10,
   });
 

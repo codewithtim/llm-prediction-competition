@@ -2,7 +2,6 @@ import { describe, expect, test } from "bun:test";
 import type { GammaClient } from "../../../../src/apis/polymarket/gamma-client.ts";
 import {
   collectSeriesSlugs,
-  collectTagIds,
   createMarketDiscovery,
   filterBySeriesSlug,
   filterToMoneylineMarkets,
@@ -69,59 +68,19 @@ function mockGammaClient(overrides: Partial<GammaClient> = {}): GammaClient {
 }
 
 const DEFAULT_TEST_CONFIG: MarketDiscoveryConfig = {
-  leagues: [{ polymarketTagIds: [82], polymarketSeriesSlug: "premier-league" }],
+  leagues: [{ polymarketSeriesSlug: "premier-league" }],
+  soccerTagId: 100350,
   lookAheadDays: 7,
 };
-
-describe("collectTagIds", () => {
-  test("collects tag IDs from league config", () => {
-    const config: MarketDiscoveryConfig = {
-      leagues: [
-        { polymarketTagIds: [82], polymarketSeriesSlug: "premier-league" },
-        { polymarketTagIds: [306, 100350], polymarketSeriesSlug: "la-liga" },
-      ],
-      lookAheadDays: 7,
-    };
-    const result = collectTagIds(config);
-
-    expect(result).toContain(82);
-    expect(result).toContain(306);
-    expect(result).toContain(100350);
-    expect(result).toHaveLength(3);
-  });
-
-  test("deduplicates tag IDs across leagues", () => {
-    const config: MarketDiscoveryConfig = {
-      leagues: [
-        { polymarketTagIds: [82, 100350], polymarketSeriesSlug: "premier-league" },
-        { polymarketTagIds: [100350, 306], polymarketSeriesSlug: "la-liga" },
-      ],
-      lookAheadDays: 7,
-    };
-    const result = collectTagIds(config);
-
-    expect(result).toHaveLength(3);
-    expect(result.filter((t) => t === 100350)).toHaveLength(1);
-  });
-
-  test("handles leagues with no tag IDs", () => {
-    const config: MarketDiscoveryConfig = {
-      leagues: [{ polymarketTagIds: [], polymarketSeriesSlug: "premier-league" }],
-      lookAheadDays: 7,
-    };
-    const result = collectTagIds(config);
-
-    expect(result).toEqual([]);
-  });
-});
 
 describe("collectSeriesSlugs", () => {
   test("collects series slugs from league config", () => {
     const config: MarketDiscoveryConfig = {
       leagues: [
-        { polymarketTagIds: [82], polymarketSeriesSlug: "premier-league" },
-        { polymarketTagIds: [306], polymarketSeriesSlug: "la-liga" },
+        { polymarketSeriesSlug: "premier-league" },
+        { polymarketSeriesSlug: "la-liga" },
       ],
+      soccerTagId: 100350,
       lookAheadDays: 7,
     };
     const result = collectSeriesSlugs(config);
@@ -205,7 +164,7 @@ describe("createMarketDiscovery", () => {
     });
 
     const discovery = createMarketDiscovery(gamma, DEFAULT_TEST_CONFIG);
-    const events = await discovery.fetchActiveEvents(82, 2);
+    const events = await discovery.fetchActiveEvents(100350, 2);
 
     expect(events).toHaveLength(2);
     expect(callCount).toBe(2);
@@ -221,7 +180,7 @@ describe("createMarketDiscovery", () => {
     });
 
     const discovery = createMarketDiscovery(gamma, DEFAULT_TEST_CONFIG);
-    const events = await discovery.fetchActiveEvents(82, 50);
+    const events = await discovery.fetchActiveEvents(100350, 50);
 
     expect(events).toHaveLength(1);
     expect(callCount).toBe(1);
@@ -237,12 +196,12 @@ describe("createMarketDiscovery", () => {
     });
 
     const discovery = createMarketDiscovery(gamma, DEFAULT_TEST_CONFIG);
-    await discovery.fetchActiveEvents(82);
+    await discovery.fetchActiveEvents(100350);
 
     expect(capturedParams.end_date_min).toBeDefined();
     expect(capturedParams.end_date_max).toBeDefined();
     expect(capturedParams.ascending).toBe(true);
-    expect(capturedParams.tag_id).toBe(82);
+    expect(capturedParams.tag_id).toBe(100350);
 
     const minDate = new Date(capturedParams.end_date_min as string);
     const maxDate = new Date(capturedParams.end_date_max as string);
@@ -272,32 +231,33 @@ describe("createMarketDiscovery", () => {
     });
 
     const discovery = createMarketDiscovery(gamma, DEFAULT_TEST_CONFIG);
-    const events = await discovery.fetchActiveEvents(82);
+    const events = await discovery.fetchActiveEvents(100350);
 
     expect(events).toHaveLength(1);
     expect(events[0]?.id).toBe("1");
   });
 
-  test("discoverFootballMarkets only queries configured tag IDs", async () => {
-    const queriedTagIds: number[] = [];
+  test("discoverFootballMarkets uses soccerTagId", async () => {
+    let queriedTagId: number | undefined;
     const gamma = mockGammaClient({
       getEvents: async (params = {}) => {
-        if (params.tag_id !== undefined) queriedTagIds.push(params.tag_id);
+        queriedTagId = params.tag_id;
         return [];
       },
     });
 
     const config: MarketDiscoveryConfig = {
       leagues: [
-        { polymarketTagIds: [82], polymarketSeriesSlug: "premier-league" },
-        { polymarketTagIds: [306], polymarketSeriesSlug: "la-liga" },
+        { polymarketSeriesSlug: "premier-league" },
+        { polymarketSeriesSlug: "la-liga" },
       ],
+      soccerTagId: 100350,
       lookAheadDays: 7,
     };
     const discovery = createMarketDiscovery(gamma, config);
     await discovery.discoverFootballMarkets();
 
-    expect(queriedTagIds).toEqual([82, 306]);
+    expect(queriedTagId).toBe(100350);
   });
 
   test("discoverFootballMarkets does not call getSports", async () => {
@@ -316,27 +276,24 @@ describe("createMarketDiscovery", () => {
     expect(sportsCallCount).toBe(0);
   });
 
-  test("discoverFootballMarkets deduplicates events across tags", async () => {
+  test("discoverFootballMarkets filters to configured series slugs only", async () => {
     const gamma = mockGammaClient({
-      getEvents: async (params = {}) => {
-        if (params.tag_id === 82) {
-          return [makeGammaEvent({ id: "1" }), makeGammaEvent({ id: "2" })];
-        }
-        if (params.tag_id === 100350) {
-          return [makeGammaEvent({ id: "2" }), makeGammaEvent({ id: "3" })];
-        }
-        return [];
-      },
+      getEvents: async () => [
+        makeGammaEvent({ id: "1", seriesSlug: "premier-league-2025" }),
+        makeGammaEvent({ id: "2", seriesSlug: "la-liga-2025" }),
+        makeGammaEvent({ id: "3", seriesSlug: "nba-2025" }),
+      ],
     });
 
     const config: MarketDiscoveryConfig = {
-      leagues: [{ polymarketTagIds: [82, 100350], polymarketSeriesSlug: "premier-league" }],
+      leagues: [{ polymarketSeriesSlug: "premier-league" }],
+      soccerTagId: 100350,
       lookAheadDays: 7,
     };
     const discovery = createMarketDiscovery(gamma, config);
     const events = await discovery.discoverFootballMarkets();
 
-    expect(events).toHaveLength(3);
-    expect(events.map((e) => e.id).sort()).toEqual(["1", "2", "3"]);
+    expect(events).toHaveLength(1);
+    expect(events[0]?.id).toBe("1");
   });
 });
