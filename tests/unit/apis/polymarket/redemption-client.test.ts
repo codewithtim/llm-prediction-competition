@@ -14,24 +14,31 @@ mock.module("@ethersproject/contracts", () => ({
     setApprovalForAll = mockSetApprovalForAll;
   },
 }));
+
+function makeBigNumber(value: number) {
+  return {
+    _isBigNumber: true,
+    _value: value,
+    gt: (other: { _value: number }) => value > other._value,
+    mul: (n: number) => makeBigNumber(value * n),
+    add: (other: { _value: number }) => makeBigNumber(value + other._value),
+    toHexString: () => `0x${value.toString(16)}`,
+  };
+}
+
+const mockGetFeeData = mock(() =>
+  Promise.resolve({
+    maxPriorityFeePerGas: null,
+    lastBaseFeePerGas: null,
+  }),
+);
+
 mock.module("@ethersproject/bignumber", () => ({
-  BigNumber: {
-    from: (v: string | number) => ({
-      gt: () => false,
-      mul: () => ({ add: () => ({ _isBigNumber: true, toHexString: () => "0x" }) }),
-      _isBigNumber: true,
-      toHexString: () => "0x",
-    }),
-  },
+  BigNumber: { from: (v: string | number) => makeBigNumber(Number(v)) },
 }));
 mock.module("@ethersproject/providers", () => ({
   JsonRpcProvider: class MockProvider {
-    getFeeData = mock(() =>
-      Promise.resolve({
-        maxPriorityFeePerGas: null,
-        lastBaseFeePerGas: null,
-      }),
-    );
+    getFeeData = mockGetFeeData;
   },
 }));
 mock.module("@ethersproject/wallet", () => ({
@@ -50,9 +57,13 @@ describe("redemption client", () => {
     mockWait.mockReset();
     mockIsApprovedForAll.mockReset();
     mockSetApprovalForAll.mockReset();
+    mockGetFeeData.mockReset();
     mockWait.mockImplementation(() => Promise.resolve({}));
     mockIsApprovedForAll.mockImplementation(() => Promise.resolve(false));
     mockSetApprovalForAll.mockImplementation(() => Promise.resolve({ wait: mockWait }));
+    mockGetFeeData.mockImplementation(() =>
+      Promise.resolve({ maxPriorityFeePerGas: null, lastBaseFeePerGas: null }),
+    );
   });
 
   test("calls CTF contract for non-neg-risk and returns txHash", async () => {
@@ -87,6 +98,62 @@ describe("redemption client", () => {
 
     expect(result.txHash).toBe("0xnr_tx");
     expect(result.conditionId).toBe("0xcond2");
+    // NegRiskAdapter takes (conditionId, amounts[]) — amounts[0]=YES, amounts[1]=NO
+    const callArgs = mockContractRedeemPositions.mock.calls[0] as unknown[];
+    expect(callArgs[0]).toBe("0xcond2");
+    expect(callArgs[1]).toEqual([0n, BigInt(10000000)]);
+  });
+
+  test("passes YES amount at index 0 for YES side on neg-risk", async () => {
+    mockContractRedeemPositions.mockImplementation(() =>
+      Promise.resolve({ hash: "0xyes_tx", wait: mockWait }),
+    );
+
+    const client = createRedemptionClient("0xprivatekey");
+    await client.redeemPositions({
+      conditionId: "0xcond4",
+      winningSide: "YES",
+      negRisk: true,
+      amount: BigInt(5000000),
+    });
+
+    const callArgs = mockContractRedeemPositions.mock.calls[0] as unknown[];
+    expect(callArgs[1]).toEqual([BigInt(5000000), 0n]);
+  });
+
+  test("passes gas overrides to contract calls", async () => {
+    mockContractRedeemPositions.mockImplementation(() =>
+      Promise.resolve({ hash: "0xgas_tx", wait: mockWait }),
+    );
+
+    const client = createRedemptionClient("0xprivatekey");
+    await client.redeemPositions({
+      conditionId: "0xcond5",
+      winningSide: "YES",
+      negRisk: false,
+      amount: BigInt(5000000),
+    });
+
+    expect(mockGetFeeData).toHaveBeenCalledTimes(1);
+    const callArgs = mockContractRedeemPositions.mock.calls[0] as unknown[];
+    // Last argument should be the gas overrides object
+    const lastArg = callArgs[callArgs.length - 1] as Record<string, unknown>;
+    expect(lastArg).toHaveProperty("maxPriorityFeePerGas");
+    expect(lastArg).toHaveProperty("maxFeePerGas");
+  });
+
+  test("passes gas overrides to setApprovalForAll", async () => {
+    mockIsApprovedForAll.mockImplementation(() => Promise.resolve(false));
+
+    const client = createRedemptionClient("0xprivatekey");
+    await client.ensureNegRiskApproval();
+
+    expect(mockGetFeeData).toHaveBeenCalledTimes(1);
+    const callArgs = mockSetApprovalForAll.mock.calls[0] as unknown[];
+    // setApprovalForAll(operator, true, gasOverrides)
+    const lastArg = callArgs[callArgs.length - 1] as Record<string, unknown>;
+    expect(lastArg).toHaveProperty("maxPriorityFeePerGas");
+    expect(lastArg).toHaveProperty("maxFeePerGas");
   });
 
   test("propagates contract call errors", async () => {
