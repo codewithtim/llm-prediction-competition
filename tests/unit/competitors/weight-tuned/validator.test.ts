@@ -37,6 +37,7 @@ describe("validateWeights", () => {
         squadRating: 0,
         attackingOutput: 0,
         injuredKeyPlayers: 0,
+        leagueTierDiff: 0,
         h2hRecentForm: 0,
       },
       drawBaseline: 0.2,
@@ -102,7 +103,7 @@ describe("validateWeights", () => {
     expect(result.valid).toBe(false);
   });
 
-  it("rejects weights with missing signal coverage", () => {
+  it("accepts weights with missing signal coverage (defaults to 0)", () => {
     const weights = {
       ...DEFAULT_WEIGHTS,
       signals: {
@@ -112,13 +113,8 @@ describe("validateWeights", () => {
       },
     };
     const result = validateWeights(weights, DEFAULT_STAKE_CONFIG);
-    expect(result.valid).toBe(false);
-    if (!result.valid) {
-      expect(result.error).toContain("missing signals");
-      expect(result.error).toContain("injuryImpact");
-      expect(result.error).toContain("cleanSheetDiff");
-      expect(result.error).toContain("scoringConsistency");
-    }
+    // Missing signals are auto-filled with 0, so validation passes
+    expect(result.valid).toBe(true);
   });
 
   it("rejects edgeMultiplier out of range", () => {

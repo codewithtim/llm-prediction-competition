@@ -31,7 +31,12 @@ import { runAllEngines } from "../engine/runner.ts";
 import type { EngineResult } from "../engine/types.ts";
 import { logger } from "../shared/logger.ts";
 import { safeFloat } from "../shared/safe-float.ts";
-import type { PipelineConfig } from "./config.ts";
+import {
+  DEFAULT_LEAGUE_TIER,
+  LEAGUE_TIERS,
+  type LeagueConfig,
+  type PipelineConfig,
+} from "./config.ts";
 import {
   dbRowToFixture,
   dbRowToMarket,
@@ -100,6 +105,8 @@ type PreFetchedFixtureData = {
   awayTeamSeasonStats?: TeamSeasonStats;
   homeTeamPlayers?: PlayerSeasonStats[];
   awayTeamPlayers?: PlayerSeasonStats[];
+  homeTeamLeagueTier?: number;
+  awayTeamLeagueTier?: number;
 };
 
 function buildMarketContext(market: Market): MarketContext {
@@ -134,50 +141,38 @@ export function summarisePlayerStats(
 
 async function fetchTeamSeasonStats(
   teamId: number,
-  fixture: Fixture,
+  leagueId: number,
+  season: number,
+  fixtureDate: string,
   footballClient: FootballClient,
   statsCache: ReturnType<typeof statsCacheRepoFactory>,
 ): Promise<TeamSeasonStats | undefined> {
-  const cached = await statsCache.getTeamStats(
-    teamId,
-    fixture.league.id,
-    fixture.league.season,
-    STATS_CACHE_TTL,
-  );
+  const cached = await statsCache.getTeamStats(teamId, leagueId, season, STATS_CACHE_TTL);
   if (cached) return cached;
-  const resp = await footballClient.getTeamStatistics(
-    teamId,
-    fixture.league.id,
-    fixture.league.season,
-    fixture.date,
-  );
+  const resp = await footballClient.getTeamStatistics(teamId, leagueId, season, fixtureDate);
   const mapped = mapApiTeamStatistics(resp.response);
-  await statsCache.setTeamStats(teamId, fixture.league.id, fixture.league.season, mapped);
+  await statsCache.setTeamStats(teamId, leagueId, season, mapped);
   return mapped;
 }
 
 async function fetchPlayerStats(
   teamId: number,
-  fixture: Fixture,
+  leagueId: number,
+  season: number,
   injuries: Injury[],
   footballClient: FootballClient,
   statsCache: ReturnType<typeof statsCacheRepoFactory>,
 ): Promise<PlayerSeasonStats[] | undefined> {
-  const cached = await statsCache.getPlayerStats(
-    teamId,
-    fixture.league.id,
-    fixture.league.season,
-    STATS_CACHE_TTL,
-  );
+  const cached = await statsCache.getPlayerStats(teamId, leagueId, season, STATS_CACHE_TTL);
   let players: PlayerSeasonStats[];
   if (cached) {
     players = cached;
   } else {
-    const raw = await footballClient.getAllPlayers(teamId, fixture.league.season);
+    const raw = await footballClient.getAllPlayers(teamId, season);
     players = raw
-      .map((p) => mapApiPlayerToPlayerStats(p, fixture.league.id))
+      .map((p) => mapApiPlayerToPlayerStats(p, leagueId))
       .filter((p): p is PlayerSeasonStats => p !== null && p.appearances > 0);
-    await statsCache.setPlayerStats(teamId, fixture.league.id, fixture.league.season, players);
+    await statsCache.setPlayerStats(teamId, leagueId, season, players);
   }
   return summarisePlayerStats(players, injuries);
 }
@@ -207,6 +202,31 @@ export function createPredictionPipeline(deps: PredictionPipelineDeps) {
     return resp;
   }
 
+  function findLeagueConfig(leagueId: number): LeagueConfig | undefined {
+    return config.leagues.find((l) => l.id === leagueId);
+  }
+
+  type DomesticStandingsResult = {
+    standing: Awaited<
+      ReturnType<typeof footballClient.getStandings>
+    >["response"][0]["league"]["standings"][0][0];
+    leagueId: number;
+  };
+
+  async function findTeamDomesticStandings(
+    teamId: number,
+    domesticLeagueIds: number[],
+    season: number,
+  ): Promise<DomesticStandingsResult | null> {
+    for (const leagueId of domesticLeagueIds) {
+      const resp = await getStandingsCached(leagueId, season);
+      const allStandings = resp.response.flatMap((r) => r.league.standings.flat());
+      const standing = allStandings.find((s) => s.team.id === teamId);
+      if (standing) return { standing, leagueId };
+    }
+    return null;
+  }
+
   async function gatherFixtureStats(
     fixtureRow: FixtureRow,
     result: PredictionPipelineResult,
@@ -223,75 +243,122 @@ export function createPredictionPipeline(deps: PredictionPipelineDeps) {
       return null;
     }
 
-    // Fetch standings, H2H, and injuries in parallel — they're independent
-    const [standingsResp, h2hResp, injuriesResult] = await Promise.allSettled([
-      getStandingsCached(fixture.league.id, fixture.league.season),
+    // Determine if this is a cup fixture
+    const leagueConfig = findLeagueConfig(fixture.league.id);
+    const isCup = leagueConfig?.type === "cup";
+    const domesticLeagueIds = leagueConfig?.domesticLeagueIds ?? [];
+
+    // Fetch H2H and injuries in parallel — they're always needed
+    const [h2hResp, injuriesResult] = await Promise.allSettled([
       footballClient.getHeadToHead(fixture.homeTeam.id, fixture.awayTeam.id),
       footballClient.getInjuries(fixture.id),
     ]);
 
-    if (standingsResp.status === "rejected") {
-      const msg =
-        standingsResp.reason instanceof Error
-          ? standingsResp.reason.message
-          : String(standingsResp.reason);
-      result.errors.push(
-        `Standings fetch failed for fixture ${fixture.id} (${fixtureLabel}): ${msg}`,
-      );
-      return null;
-    }
-
-    const allStandings = standingsResp.value.response.flatMap((r) => r.league.standings.flat());
-    const homeStanding = allStandings.find((s) => s.team.id === fixture.homeTeam.id);
-    const awayStanding = allStandings.find((s) => s.team.id === fixture.awayTeam.id);
+    let homeStats: TeamStats;
+    let awayStats: TeamStats;
+    let homeLeagueId = fixture.league.id;
+    let awayLeagueId = fixture.league.id;
 
     const emptyRecord = { played: 0, wins: 0, draws: 0, losses: 0, goalsFor: 0, goalsAgainst: 0 };
+    const emptyTeamStats = (teamId: number, teamName: string): TeamStats => ({
+      teamId,
+      teamName,
+      played: 0,
+      wins: 0,
+      draws: 0,
+      losses: 0,
+      goalsFor: 0,
+      goalsAgainst: 0,
+      goalDifference: 0,
+      points: 0,
+      form: null,
+      homeRecord: emptyRecord,
+      awayRecord: emptyRecord,
+    });
 
-    const homeStats: TeamStats = homeStanding
-      ? mapStandingToTeamStats(homeStanding)
-      : {
+    if (isCup && domesticLeagueIds.length > 0) {
+      // Cup fixture: resolve each team's domestic league standings
+      const [homeDomestic, awayDomestic] = await Promise.all([
+        findTeamDomesticStandings(fixture.homeTeam.id, domesticLeagueIds, fixture.league.season),
+        findTeamDomesticStandings(fixture.awayTeam.id, domesticLeagueIds, fixture.league.season),
+      ]);
+
+      if (homeDomestic) {
+        homeStats = mapStandingToTeamStats(homeDomestic.standing);
+        homeLeagueId = homeDomestic.leagueId;
+        logger.info("Prediction: found domestic standings for home team", {
+          fixtureId: fixture.id,
           teamId: fixture.homeTeam.id,
-          teamName: fixture.homeTeam.name,
-          played: 0,
-          wins: 0,
-          draws: 0,
-          losses: 0,
-          goalsFor: 0,
-          goalsAgainst: 0,
-          goalDifference: 0,
-          points: 0,
-          form: null,
-          homeRecord: emptyRecord,
-          awayRecord: emptyRecord,
-        };
+          domesticLeagueId: homeDomestic.leagueId,
+        });
+      } else {
+        homeStats = emptyTeamStats(fixture.homeTeam.id, fixture.homeTeam.name);
+        logger.warn("Prediction: no domestic standings found for home team", {
+          fixtureId: fixture.id,
+          teamId: fixture.homeTeam.id,
+          searchedLeagues: domesticLeagueIds,
+        });
+      }
 
-    const awayStats: TeamStats = awayStanding
-      ? mapStandingToTeamStats(awayStanding)
-      : {
+      if (awayDomestic) {
+        awayStats = mapStandingToTeamStats(awayDomestic.standing);
+        awayLeagueId = awayDomestic.leagueId;
+        logger.info("Prediction: found domestic standings for away team", {
+          fixtureId: fixture.id,
           teamId: fixture.awayTeam.id,
-          teamName: fixture.awayTeam.name,
-          played: 0,
-          wins: 0,
-          draws: 0,
-          losses: 0,
-          goalsFor: 0,
-          goalsAgainst: 0,
-          goalDifference: 0,
-          points: 0,
-          form: null,
-          homeRecord: emptyRecord,
-          awayRecord: emptyRecord,
-        };
+          domesticLeagueId: awayDomestic.leagueId,
+        });
+      } else {
+        awayStats = emptyTeamStats(fixture.awayTeam.id, fixture.awayTeam.name);
+        logger.warn("Prediction: no domestic standings found for away team", {
+          fixtureId: fixture.id,
+          teamId: fixture.awayTeam.id,
+          searchedLeagues: domesticLeagueIds,
+        });
+      }
+    } else {
+      // Regular league fixture: fetch standings from the fixture's league
+      const standingsResp = await getStandingsCached(fixture.league.id, fixture.league.season)
+        .then((v) => ({ status: "fulfilled" as const, value: v }))
+        .catch((reason) => ({ status: "rejected" as const, reason }));
 
-    if (!homeStanding || !awayStanding) {
-      logger.warn("Prediction: standings not found (cup fixture?), continuing with empty stats", {
-        fixtureId: fixture.id,
-        fixture: fixtureLabel,
-        leagueId: fixture.league.id,
-        missingHome: !homeStanding,
-        missingAway: !awayStanding,
-      });
+      if (standingsResp.status === "rejected") {
+        const msg =
+          standingsResp.reason instanceof Error
+            ? standingsResp.reason.message
+            : String(standingsResp.reason);
+        result.errors.push(
+          `Standings fetch failed for fixture ${fixture.id} (${fixtureLabel}): ${msg}`,
+        );
+        return null;
+      }
+
+      const allStandings = standingsResp.value.response.flatMap((r) => r.league.standings.flat());
+      const homeStanding = allStandings.find((s) => s.team.id === fixture.homeTeam.id);
+      const awayStanding = allStandings.find((s) => s.team.id === fixture.awayTeam.id);
+
+      homeStats = homeStanding
+        ? mapStandingToTeamStats(homeStanding)
+        : emptyTeamStats(fixture.homeTeam.id, fixture.homeTeam.name);
+
+      awayStats = awayStanding
+        ? mapStandingToTeamStats(awayStanding)
+        : emptyTeamStats(fixture.awayTeam.id, fixture.awayTeam.name);
+
+      if (!homeStanding || !awayStanding) {
+        logger.warn("Prediction: standings not found, continuing with empty stats", {
+          fixtureId: fixture.id,
+          fixture: fixtureLabel,
+          leagueId: fixture.league.id,
+          missingHome: !homeStanding,
+          missingAway: !awayStanding,
+        });
+      }
     }
+
+    // Resolve league tiers
+    const homeTeamLeagueTier = LEAGUE_TIERS[homeLeagueId] ?? DEFAULT_LEAGUE_TIER;
+    const awayTeamLeagueTier = LEAGUE_TIERS[awayLeagueId] ?? DEFAULT_LEAGUE_TIER;
 
     let h2h: H2H;
     if (h2hResp.status === "fulfilled") {
@@ -319,12 +386,41 @@ export function createPredictionPipeline(deps: PredictionPipelineDeps) {
       });
     }
 
+    // Fetch season stats and player stats using resolved domestic league IDs
     const [homeStatsResult, awayStatsResult, homePlayersResult, awayPlayersResult] =
       await Promise.allSettled([
-        fetchTeamSeasonStats(fixture.homeTeam.id, fixture, footballClient, statsCache),
-        fetchTeamSeasonStats(fixture.awayTeam.id, fixture, footballClient, statsCache),
-        fetchPlayerStats(fixture.homeTeam.id, fixture, injuries, footballClient, statsCache),
-        fetchPlayerStats(fixture.awayTeam.id, fixture, injuries, footballClient, statsCache),
+        fetchTeamSeasonStats(
+          fixture.homeTeam.id,
+          homeLeagueId,
+          fixture.league.season,
+          fixture.date,
+          footballClient,
+          statsCache,
+        ),
+        fetchTeamSeasonStats(
+          fixture.awayTeam.id,
+          awayLeagueId,
+          fixture.league.season,
+          fixture.date,
+          footballClient,
+          statsCache,
+        ),
+        fetchPlayerStats(
+          fixture.homeTeam.id,
+          homeLeagueId,
+          fixture.league.season,
+          injuries,
+          footballClient,
+          statsCache,
+        ),
+        fetchPlayerStats(
+          fixture.awayTeam.id,
+          awayLeagueId,
+          fixture.league.season,
+          injuries,
+          footballClient,
+          statsCache,
+        ),
       ]);
 
     const unpack = <T>(settled: PromiseSettledResult<T>, label: string): T | undefined => {
@@ -364,6 +460,8 @@ export function createPredictionPipeline(deps: PredictionPipelineDeps) {
       awayTeamSeasonStats,
       homeTeamPlayers,
       awayTeamPlayers,
+      homeTeamLeagueTier,
+      awayTeamLeagueTier,
     };
   }
 
@@ -424,6 +522,8 @@ export function createPredictionPipeline(deps: PredictionPipelineDeps) {
       awayTeamSeasonStats: data.awayTeamSeasonStats,
       homeTeamPlayers: data.homeTeamPlayers,
       awayTeamPlayers: data.awayTeamPlayers,
+      homeTeamLeagueTier: data.homeTeamLeagueTier,
+      awayTeamLeagueTier: data.awayTeamLeagueTier,
     };
 
     result.fixturesProcessed++;

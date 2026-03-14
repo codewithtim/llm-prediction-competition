@@ -290,6 +290,7 @@ describe("createWeightedEngine", () => {
         squadRating: 0,
         attackingOutput: 0,
         injuredKeyPlayers: 0,
+        leagueTierDiff: 0,
         h2hRecentForm: 0,
       },
       drawBaseline: 0.25,
@@ -315,7 +316,7 @@ describe("createWeightedEngine", () => {
     expect(predictions[0]?.marketId).toBe("market-123");
   });
 
-  it("throws when weights are missing signals", () => {
+  it("handles missing signals by defaulting them to 0", () => {
     const incompleteWeights: WeightConfig = {
       ...DEFAULT_WEIGHTS,
       signals: {
@@ -324,29 +325,13 @@ describe("createWeightedEngine", () => {
         h2h: 0.3,
       },
     };
-    expect(() => createWeightedEngine(incompleteWeights, DEFAULT_STAKE_CONFIG)).toThrow(
-      "Weight config is missing signals",
-    );
-  });
-
-  it("error message lists all missing signal names", () => {
-    const incompleteWeights: WeightConfig = {
-      ...DEFAULT_WEIGHTS,
-      signals: {
-        homeWinRate: 0.4,
-        formDiff: 0.3,
-        h2h: 0.3,
-      },
-    };
-    expect(() => createWeightedEngine(incompleteWeights, DEFAULT_STAKE_CONFIG)).toThrow(
-      /cleanSheetDiff/,
-    );
-    expect(() => createWeightedEngine(incompleteWeights, DEFAULT_STAKE_CONFIG)).toThrow(
-      /scoringConsistency/,
-    );
-    expect(() => createWeightedEngine(incompleteWeights, DEFAULT_STAKE_CONFIG)).toThrow(
-      /injuryImpact/,
-    );
+    // Should not throw — missing signals default to 0
+    const engine = createWeightedEngine(incompleteWeights, DEFAULT_STAKE_CONFIG);
+    const predictions = engine(makeStatistics()) as PredictionOutput[];
+    expect(predictions).toHaveLength(1);
+    const { valid, errors } = validatePredictions(predictions);
+    expect(errors).toHaveLength(0);
+    expect(valid).toHaveLength(1);
   });
 
   it("includes extractedFeatures in output", () => {

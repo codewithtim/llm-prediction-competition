@@ -1,7 +1,17 @@
 {
   "$schema": "https://biomejs.dev/schemas/2.4.4/schema.json",
   "files": {
-    "includes": ["**", "!.claude", "!drizzle", "!tests", "!ui/dist", "!ui/node_modules"]
+    "includes": [
+      "**",
+      "!.claude",
+      "!drizzle",
+      "!tests",
+      "!ui/dist",
+      "!ui/node_modules",
+      "!src/scripts",
+      "!data",
+      "!infra"
+    ]
   },
   "assist": {
     "actions": {

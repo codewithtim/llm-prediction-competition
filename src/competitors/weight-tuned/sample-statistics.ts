@@ -299,6 +299,8 @@ export const SAMPLE_STATISTICS_MULTI_MARKET: Statistics = {
       injured: true,
     },
   ],
+  homeTeamLeagueTier: 1,
+  awayTeamLeagueTier: 1,
   markets: [
     {
       marketId: "0xhome",

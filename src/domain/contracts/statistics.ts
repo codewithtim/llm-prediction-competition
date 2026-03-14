@@ -132,6 +132,8 @@ export const statisticsSchema = z.object({
   awayTeamSeasonStats: teamSeasonStatsSchema.optional(),
   homeTeamPlayers: z.array(playerSeasonStatsSchema).optional(),
   awayTeamPlayers: z.array(playerSeasonStatsSchema).optional(),
+  homeTeamLeagueTier: z.number().optional(),
+  awayTeamLeagueTier: z.number().optional(),
 });
 
 export type TeamStats = z.infer<typeof teamStatsSchema>;

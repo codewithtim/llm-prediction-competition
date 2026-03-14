@@ -336,6 +336,20 @@ export const FEATURE_REGISTRY: Record<string, FeatureEntry> = {
     ],
   },
 
+  // ── League tier ────────────────────────────────────────────────────
+
+  leagueTierDiff: {
+    extract: (stats) => {
+      const homeTier = stats.homeTeamLeagueTier;
+      const awayTier = stats.awayTeamLeagueTier;
+      if (homeTier == null || awayTier == null) return 0.5;
+      // Higher tier number = weaker league, so (awayTier - homeTier) > 0 means home is stronger
+      return clamp((awayTier - homeTier) / 4 + 0.5, 0, 1);
+    },
+    description: "League tier difference. Higher = home team from a stronger league.",
+    sources: ["homeTeamLeagueTier", "awayTeamLeagueTier"],
+  },
+
   // ── New extractor from H2H ───────────────────────────────────────────
 
   h2hRecentForm: {

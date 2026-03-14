@@ -55,6 +55,75 @@ describe("loadCompetitors", () => {
     expect(ids).not.toContain("wt-claude-sonnet");
   });
 
+  it("loads monte-carlo-poisson competitors", async () => {
+    const repo = competitorsRepo(db);
+
+    await repo.create({
+      id: "mc-poisson",
+      name: "Monte Carlo Poisson",
+      model: "statistical",
+      type: "monte-carlo-poisson",
+      status: "active",
+      enginePath: null,
+    });
+
+    const engines = await loadCompetitors({
+      competitorsRepo: repo,
+      walletsRepo: walletsRepo(db),
+      encryptionKey: "",
+    });
+
+    const mcEngine = engines.find((e) => e.competitorId === "mc-poisson");
+    expect(mcEngine).toBeDefined();
+    expect(typeof mcEngine!.engine).toBe("function");
+  });
+
+  it("loads monte-carlo-poisson with custom config", async () => {
+    const repo = competitorsRepo(db);
+
+    await repo.create({
+      id: "mc-custom",
+      name: "MC Custom",
+      model: "statistical",
+      type: "monte-carlo-poisson",
+      status: "active",
+      enginePath: null,
+      config: JSON.stringify({ simulations: 5000, kellyFraction: 0.5 }),
+    });
+
+    const engines = await loadCompetitors({
+      competitorsRepo: repo,
+      walletsRepo: walletsRepo(db),
+      encryptionKey: "",
+    });
+
+    const mcEngine = engines.find((e) => e.competitorId === "mc-custom");
+    expect(mcEngine).toBeDefined();
+    expect(typeof mcEngine!.engine).toBe("function");
+  });
+
+  it("loads monte-carlo-poisson with default config when config is null", async () => {
+    const repo = competitorsRepo(db);
+
+    await repo.create({
+      id: "mc-default",
+      name: "MC Default",
+      model: "statistical",
+      type: "monte-carlo-poisson",
+      status: "active",
+      enginePath: null,
+    });
+
+    const engines = await loadCompetitors({
+      competitorsRepo: repo,
+      walletsRepo: walletsRepo(db),
+      encryptionKey: "",
+    });
+
+    const mcEngine = engines.find((e) => e.competitorId === "mc-default");
+    expect(mcEngine).toBeDefined();
+  });
+
   it("sets competitor status to error on load failure", async () => {
     const repo = competitorsRepo(db);
 

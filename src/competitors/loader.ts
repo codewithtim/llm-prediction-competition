@@ -4,6 +4,8 @@ import type { CompetitorsRepo } from "../database/repositories/competitors";
 import type { WalletsRepo } from "../database/repositories/wallets";
 import type { RegisteredEngine } from "../engine/types";
 import { logger } from "../shared/logger";
+import { createMonteCarloEngine } from "./monte-carlo-poisson/engine";
+import { DEFAULT_MC_CONFIG, monteCarloConfigSchema } from "./monte-carlo-poisson/types";
 import { createWeightedEngine } from "./weight-tuned/engine";
 import { DEFAULT_STAKE_CONFIG, DEFAULT_WEIGHTS, weightConfigSchema } from "./weight-tuned/types";
 
@@ -113,6 +115,19 @@ async function loadSingleCompetitor(
         }
       }
       return createWeightedEngine(weights, DEFAULT_STAKE_CONFIG);
+    }
+
+    case "monte-carlo-poisson": {
+      let mcConfig = DEFAULT_MC_CONFIG;
+      if (row.config) {
+        try {
+          const parsed = monteCarloConfigSchema.safeParse(JSON.parse(row.config));
+          if (parsed.success) mcConfig = parsed.data;
+        } catch {
+          logger.info("Using default MC config for competitor (parse failed)", { id: row.id });
+        }
+      }
+      return createMonteCarloEngine(mcConfig);
     }
 
     case "external": {

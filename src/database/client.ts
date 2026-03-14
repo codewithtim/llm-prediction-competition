@@ -10,7 +10,7 @@ import * as schema from "./schema";
 export function sanitizingFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
   return fetch(input, init).then((resp) => {
     const patched = new Proxy(resp, {
-      get(target, prop, receiver) {
+      get(target, prop, _receiver) {
         if (prop === "json") {
           return async () => {
             const text = await target.text();

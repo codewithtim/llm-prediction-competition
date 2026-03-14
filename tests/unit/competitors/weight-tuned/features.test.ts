@@ -158,8 +158,8 @@ function makeStatistics(overrides?: Partial<Statistics>): Statistics {
 }
 
 describe("FEATURE_NAMES", () => {
-  it("has exactly 20 entries", () => {
-    expect(FEATURE_NAMES).toHaveLength(20);
+  it("has exactly 21 entries", () => {
+    expect(FEATURE_NAMES).toHaveLength(21);
   });
 
   it("contains all expected feature names", () => {
@@ -183,6 +183,7 @@ describe("FEATURE_NAMES", () => {
       "squadRating",
       "attackingOutput",
       "injuredKeyPlayers",
+      "leagueTierDiff",
       "h2hRecentForm",
     ];
     for (const name of expected) {
@@ -219,7 +220,7 @@ describe("getMissingSignals", () => {
 
   it("returns all signal names when signals object is empty", () => {
     const missing = getMissingSignals({});
-    expect(missing).toHaveLength(20);
+    expect(missing).toHaveLength(21);
     expect(missing).toEqual(FEATURE_NAMES);
   });
 });
@@ -819,6 +820,64 @@ describe("feature extractors", () => {
     });
   });
 
+  describe("leagueTierDiff", () => {
+    it("returns 0.5 when no league tier data", () => {
+      const stats = makeStatistics();
+      // makeStatistics doesn't set league tiers by default
+      expect(getFeature("leagueTierDiff").extract(stats)).toBe(0.5);
+    });
+
+    it("returns 0.5 when both teams are in the same tier", () => {
+      const stats = makeStatistics({
+        homeTeamLeagueTier: 1,
+        awayTeamLeagueTier: 1,
+      });
+      expect(getFeature("leagueTierDiff").extract(stats)).toBe(0.5);
+    });
+
+    it("returns >0.5 when home team is in a stronger league", () => {
+      const stats = makeStatistics({
+        homeTeamLeagueTier: 1,
+        awayTeamLeagueTier: 3,
+      });
+      expect(getFeature("leagueTierDiff").extract(stats)).toBeGreaterThan(0.5);
+    });
+
+    it("returns <0.5 when away team is in a stronger league", () => {
+      const stats = makeStatistics({
+        homeTeamLeagueTier: 3,
+        awayTeamLeagueTier: 1,
+      });
+      expect(getFeature("leagueTierDiff").extract(stats)).toBeLessThan(0.5);
+    });
+
+    it("is clamped to [0, 1]", () => {
+      const stats = makeStatistics({
+        homeTeamLeagueTier: 1,
+        awayTeamLeagueTier: 5,
+      });
+      const value = getFeature("leagueTierDiff").extract(stats);
+      expect(value).toBeGreaterThanOrEqual(0);
+      expect(value).toBeLessThanOrEqual(1);
+    });
+
+    it("returns 1.0 when tier diff is at max (4 tiers apart, home stronger)", () => {
+      const stats = makeStatistics({
+        homeTeamLeagueTier: 1,
+        awayTeamLeagueTier: 5,
+      });
+      expect(getFeature("leagueTierDiff").extract(stats)).toBe(1.0);
+    });
+
+    it("returns 0.0 when tier diff is at max (4 tiers apart, away stronger)", () => {
+      const stats = makeStatistics({
+        homeTeamLeagueTier: 5,
+        awayTeamLeagueTier: 1,
+      });
+      expect(getFeature("leagueTierDiff").extract(stats)).toBe(0.0);
+    });
+  });
+
   describe("h2hRecentForm", () => {
     it("returns 0.5 when no recent matches", () => {
       const stats = makeStatistics({
@@ -902,9 +961,9 @@ describe("feature extractors", () => {
 });
 
 describe("extractFeatures", () => {
-  it("returns all 20 features", () => {
+  it("returns all 21 features", () => {
     const features = extractFeatures(makeStatistics());
-    expect(Object.keys(features)).toHaveLength(20);
+    expect(Object.keys(features)).toHaveLength(21);
     for (const name of FEATURE_NAMES) {
       expect(features[name]).toBeDefined();
     }
@@ -1042,6 +1101,9 @@ describe("feature coverage", () => {
     "homeTeamPlayers.*.rating",
     "awayTeamPlayers.*.injured",
     "awayTeamPlayers.*.rating",
+    // League tier
+    "homeTeamLeagueTier",
+    "awayTeamLeagueTier",
   ];
 
   // Deduplicate for the check

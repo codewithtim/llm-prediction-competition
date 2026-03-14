@@ -1,41 +1,12 @@
 import type { PredictionOutput, Reasoning } from "../../domain/contracts/prediction";
 import type { MarketContext, Statistics } from "../../domain/contracts/statistics";
 import type { PredictionEngine } from "../../engine/types";
+import { logger } from "../../shared/logger";
+import { classifyMarket } from "../shared/market-classification";
 import { clamp, extractFeatures, getMissingSignals } from "./features";
 import type { StakeConfig, WeightConfig } from "./types";
 
-export function classifyMarket(
-  question: string,
-  homeTeamName: string,
-  awayTeamName: string,
-): "home" | "away" | "draw" {
-  const q = question.toLowerCase();
-  const home = homeTeamName.toLowerCase();
-  const away = awayTeamName.toLowerCase();
-
-  if (q.includes("draw")) return "draw";
-
-  // Check "<team> win" pattern — the team directly preceding "win" is the subject
-  const homeWinPattern = `${home} win`;
-  const awayWinPattern = `${away} win`;
-
-  if (q.includes(homeWinPattern) && q.includes(awayWinPattern)) {
-    // Both patterns present (unlikely), use first occurrence
-    return q.indexOf(homeWinPattern) < q.indexOf(awayWinPattern) ? "home" : "away";
-  }
-  if (q.includes(homeWinPattern)) return "home";
-  if (q.includes(awayWinPattern)) return "away";
-
-  // Fallback: first team mentioned
-  const homeIdx = q.indexOf(home);
-  const awayIdx = q.indexOf(away);
-  if (homeIdx !== -1 && awayIdx !== -1) {
-    return homeIdx < awayIdx ? "home" : "away";
-  }
-  if (homeIdx !== -1) return "home";
-  if (awayIdx !== -1) return "away";
-  return "home";
-}
+export { classifyMarket } from "../shared/market-classification";
 
 export function createWeightedEngine(
   weights: WeightConfig,
@@ -43,9 +14,10 @@ export function createWeightedEngine(
 ): PredictionEngine {
   const missing = getMissingSignals(weights.signals);
   if (missing.length > 0) {
-    throw new Error(
-      `Weight config is missing signals: ${missing.join(", ")}. All features in the registry must have a corresponding signal weight.`,
-    );
+    logger.warn("Weight config is missing signals, defaulting to 0", { missing });
+    for (const name of missing) {
+      weights.signals[name] = 0;
+    }
   }
 
   return (statistics: Statistics): PredictionOutput[] => {

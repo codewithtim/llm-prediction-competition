@@ -97,7 +97,7 @@ async function main() {
   }
 
   // ── Run matching ─────────────────────────────────────────────────────
-  console.log("\n" + "=".repeat(70));
+  console.log(`\n${"=".repeat(70)}`);
   console.log("  MATCHING RESULTS");
   console.log("=".repeat(70));
 
@@ -167,7 +167,7 @@ async function main() {
   }
 
   // ── Summary ──────────────────────────────────────────────────────────
-  console.log("\n" + "=".repeat(70));
+  console.log(`\n${"=".repeat(70)}`);
   const matchRate =
     events.length > 0 ? ((result.matched.length / events.length) * 100).toFixed(0) : "N/A";
   console.log(
