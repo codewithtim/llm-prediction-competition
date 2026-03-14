@@ -120,6 +120,10 @@ export function betsRepo(db: Database) {
       return db.select().from(bets).orderBy(desc(bets.placedAt)).limit(limit).all();
     },
 
+    async findByFixtureId(fixtureId: number) {
+      return db.select().from(bets).where(eq(bets.fixtureId, fixtureId)).all();
+    },
+
     async findByCompetitor(competitorId: string) {
       return db.select().from(bets).where(eq(bets.competitorId, competitorId)).all();
     },

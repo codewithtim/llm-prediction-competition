@@ -114,6 +114,23 @@ export type FixtureDetailResponse = {
   status: string;
   markets: MarketSummary[];
   predictions: PredictionSummary[];
+  bets: FixtureBetSummary[];
+};
+
+export type FixtureBetSummary = {
+  id: string;
+  competitorId: string;
+  competitorName: string;
+  marketId: string;
+  marketQuestion: string;
+  side: string;
+  amount: number;
+  price: number;
+  shares: number;
+  status: string;
+  profit: number | null;
+  placedAt: string;
+  settledAt: string | null;
 };
 
 export type MarketSummary = {

@@ -16,6 +16,7 @@ const CTF_ABI = [
   "function redeemPositions(address collateralToken, bytes32 parentCollectionId, bytes32 conditionId, uint256[] indexSets)",
   "function setApprovalForAll(address operator, bool approved)",
   "function isApprovedForAll(address owner, address operator) view returns (bool)",
+  "function balanceOf(address owner, uint256 id) view returns (uint256)",
 ];
 
 const NEG_RISK_ADAPTER_ABI = ["function redeemPositions(bytes32 conditionId, uint256[] amounts)"];
@@ -44,6 +45,13 @@ export function createRedemptionClient(privateKey: string) {
   const signer = new Wallet(privateKey, provider);
 
   return {
+    async getTokenBalance(tokenId: string): Promise<bigint> {
+      const ctf = new Contract(CONTRACTS.conditionalTokens, CTF_ABI, provider);
+      const walletAddress = await signer.getAddress();
+      const balance: BigNumber = await ctf.balanceOf(walletAddress, tokenId);
+      return balance.toBigInt();
+    },
+
     async ensureNegRiskApproval(): Promise<void> {
       const ctf = new Contract(CONTRACTS.conditionalTokens, CTF_ABI, signer);
       const walletAddress = await signer.getAddress();

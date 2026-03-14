@@ -92,8 +92,16 @@ export function createRedemptionPipeline(deps: RedemptionPipelineDeps) {
               await redemptionClient.ensureNegRiskApproval();
             }
 
-            const totalShares = conditionBets.reduce((sum, b) => sum + b.shares, 0);
-            const amount = BigInt(Math.floor(totalShares * 1e6));
+            const amount = await redemptionClient.getTokenBalance(firstBet.tokenId);
+            if (amount === 0n) {
+              logger.warn("Redemption: zero on-chain balance, skipping", {
+                conditionId,
+                competitorId,
+                tokenId: firstBet.tokenId,
+              });
+              result.skipped += conditionBets.length;
+              continue;
+            }
 
             const redemptionResult = await redemptionClient.redeemPositions({
               conditionId,

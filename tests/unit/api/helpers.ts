@@ -23,6 +23,7 @@ export function createMockDeps(overrides: Partial<ApiDeps> = {}): ApiDeps {
       findById: async () => undefined,
       findAll: async () => [],
       findRecent: async () => [],
+      findByFixtureId: async () => [],
       findByCompetitor: async () => [],
       findByStatus: async () => [],
       updateStatus: async () => ({}) as any,

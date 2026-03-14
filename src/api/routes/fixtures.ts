@@ -41,9 +41,10 @@ export function fixturesRoutes(deps: ApiDeps) {
     const fixture = await deps.fixturesRepo.findById(id);
     if (!fixture) return c.json({ error: "Fixture not found" }, 404);
 
-    const [fixtureMarkets, fixturePredictions] = await Promise.all([
+    const [fixtureMarkets, fixturePredictions, fixtureBets] = await Promise.all([
       deps.marketsRepo.findByFixtureId(id),
       deps.predictionsRepo.findAll().then((all) => all.filter((p) => p.fixtureId === id)),
+      deps.betsRepo.findByFixtureId(id),
     ]);
 
     const allCompetitors = await deps.competitorsRepo.findAll();
@@ -95,6 +96,24 @@ export function fixturesRoutes(deps: ApiDeps) {
           stake: p.stake,
           reasoning: p.reasoning,
           createdAt: p.createdAt?.toISOString() ?? "",
+        };
+      }),
+      bets: fixtureBets.map((b) => {
+        const market = marketMap.get(b.marketId);
+        return {
+          id: b.id,
+          competitorId: b.competitorId,
+          competitorName: competitorMap.get(b.competitorId) ?? "Unknown",
+          marketId: b.marketId,
+          marketQuestion: market?.question ?? "Unknown",
+          side: b.side,
+          amount: b.amount,
+          price: b.price,
+          shares: b.shares,
+          status: b.status,
+          profit: b.profit,
+          placedAt: b.placedAt?.toISOString() ?? "",
+          settledAt: b.settledAt?.toISOString() ?? null,
         };
       }),
     });

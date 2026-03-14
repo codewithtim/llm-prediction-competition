@@ -54,7 +54,11 @@ export function fixturesRepo(db: Database) {
     },
 
     async findScheduledUpcoming() {
-      return db.select().from(fixtures).where(eq(fixtures.status, "scheduled")).all();
+      return db
+        .select()
+        .from(fixtures)
+        .where(or(eq(fixtures.status, "scheduled"), eq(fixtures.status, "postponed")))
+        .all();
     },
 
     async findReadyForPrediction(leadTimeMs: number, leagueIds?: number[]) {

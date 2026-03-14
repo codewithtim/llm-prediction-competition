@@ -40,7 +40,7 @@ export function marketsRepo(db: Database) {
             liquidity: sql.raw("excluded.liquidity"),
             volume: sql.raw("excluded.volume"),
             polymarketUrl: sql.raw("excluded.polymarket_url"),
-            fixtureId: sql.raw("excluded.fixture_id"),
+            fixtureId: sql`COALESCE(excluded.fixture_id, markets.fixture_id)`,
             updatedAt: new Date(),
           },
         })

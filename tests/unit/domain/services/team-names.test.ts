@@ -183,3 +183,61 @@ describe("Champions League team name matching", () => {
     expect(teamNamesMatch("Bayer 04 Leverkusen", "Bayer Leverkusen")).toBe(true);
   });
 });
+
+describe("Championship team name matching", () => {
+  test("matches Birmingham City FC to Birmingham", () => {
+    expect(teamNamesMatch("Birmingham City FC", "Birmingham")).toBe(true);
+  });
+
+  test("matches Leicester City FC to Leicester", () => {
+    expect(teamNamesMatch("Leicester City FC", "Leicester")).toBe(true);
+  });
+
+  test("matches Queens Park Rangers FC to QPR", () => {
+    expect(teamNamesMatch("Queens Park Rangers FC", "QPR")).toBe(true);
+  });
+
+  test("matches Blackburn Rovers FC to Blackburn", () => {
+    expect(teamNamesMatch("Blackburn Rovers FC", "Blackburn")).toBe(true);
+  });
+
+  test("matches Coventry City FC to Coventry", () => {
+    expect(teamNamesMatch("Coventry City FC", "Coventry")).toBe(true);
+  });
+
+  test("matches Preston North End FC to Preston", () => {
+    expect(teamNamesMatch("Preston North End FC", "Preston")).toBe(true);
+  });
+
+  test("matches Charlton Athletic FC to Charlton", () => {
+    expect(teamNamesMatch("Charlton Athletic FC", "Charlton")).toBe(true);
+  });
+
+  test("matches Ipswich Town FC to Ipswich", () => {
+    expect(teamNamesMatch("Ipswich Town FC", "Ipswich")).toBe(true);
+  });
+
+  test("matches Derby County FC to Derby", () => {
+    expect(teamNamesMatch("Derby County FC", "Derby")).toBe(true);
+  });
+
+  test("matches Swansea City FC to Swansea", () => {
+    expect(teamNamesMatch("Swansea City FC", "Swansea")).toBe(true);
+  });
+
+  test("matches West Bromwich Albion FC to West Brom", () => {
+    expect(teamNamesMatch("West Bromwich Albion FC", "West Brom")).toBe(true);
+  });
+
+  test("matches Hull City FC to Hull City", () => {
+    expect(teamNamesMatch("Hull City FC", "Hull City")).toBe(true);
+  });
+
+  test("matches Stoke City FC to Stoke City", () => {
+    expect(teamNamesMatch("Stoke City FC", "Stoke City")).toBe(true);
+  });
+
+  test("matches Mansfield Town FC to Mansfield Town", () => {
+    expect(teamNamesMatch("Mansfield Town FC", "Mansfield Town")).toBe(true);
+  });
+});

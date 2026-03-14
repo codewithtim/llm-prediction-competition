@@ -56,12 +56,17 @@ function makeMarket(overrides: Record<string, unknown> = {}) {
   };
 }
 
-function mockRedemptionClientFactory(redeemFn?: () => Promise<RedemptionResult>) {
+function mockRedemptionClientFactory(overrides?: {
+  redeemFn?: () => Promise<RedemptionResult>;
+  getTokenBalanceFn?: () => Promise<bigint>;
+}) {
   const defaultRedeem = (): Promise<RedemptionResult> =>
     Promise.resolve({ txHash: "0xtx123", conditionId: "0xcond1" });
+  const defaultBalance = (): Promise<bigint> => Promise.resolve(BigInt(15380000));
   return () => ({
     ensureNegRiskApproval: mock(() => Promise.resolve()),
-    redeemPositions: mock(redeemFn ?? defaultRedeem),
+    redeemPositions: mock(overrides?.redeemFn ?? defaultRedeem),
+    getTokenBalance: mock(overrides?.getTokenBalanceFn ?? defaultBalance),
   });
 }
 
@@ -166,9 +171,9 @@ describe("redemption pipeline", () => {
         findByIds: mock(() => Promise.resolve([makeMarket()])),
       } as unknown as RedemptionPipelineDeps["marketsRepo"],
       walletConfigs,
-      createRedemptionClient: mockRedemptionClientFactory(() =>
-        Promise.reject(new Error("RPC timeout")),
-      ),
+      createRedemptionClient: mockRedemptionClientFactory({
+        redeemFn: () => Promise.reject(new Error("RPC timeout")),
+      }),
     });
 
     const pipeline = createRedemptionPipeline(deps);
@@ -202,6 +207,29 @@ describe("redemption pipeline", () => {
     expect(mockFindByIds).toHaveBeenCalledWith(["market-1"]);
   });
 
+  test("skips redemption when on-chain token balance is zero", async () => {
+    const deps = buildDeps({
+      betsRepo: {
+        findUnredeemedWins: mock(() => Promise.resolve([makeBet()])),
+        markRedeemed: mock(() => Promise.resolve()),
+      } as unknown as RedemptionPipelineDeps["betsRepo"],
+      marketsRepo: {
+        findByIds: mock(() => Promise.resolve([makeMarket()])),
+      } as unknown as RedemptionPipelineDeps["marketsRepo"],
+      walletConfigs,
+      createRedemptionClient: mockRedemptionClientFactory({
+        getTokenBalanceFn: () => Promise.resolve(0n),
+      }),
+    });
+
+    const pipeline = createRedemptionPipeline(deps);
+    const result = await pipeline.run();
+
+    expect(result.skipped).toBe(1);
+    expect(result.redeemed).toBe(0);
+    expect(result.errors).toHaveLength(0);
+  });
+
   test("groups bets by conditionId for single redemption call", async () => {
     const mockMarkRedeemed = mock(() => Promise.resolve());
     const mockRedeem = mock(() =>
@@ -228,6 +256,7 @@ describe("redemption pipeline", () => {
       createRedemptionClient: () => ({
         ensureNegRiskApproval: mock(() => Promise.resolve()),
         redeemPositions: mockRedeem,
+        getTokenBalance: mock(() => Promise.resolve(BigInt(15000000))),
       }),
     });
 

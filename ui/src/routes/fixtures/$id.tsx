@@ -14,7 +14,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useFixture } from "@/lib/api";
-import { formatDate, formatPct } from "@/lib/format";
+import { formatCurrency, formatDate, formatPct } from "@/lib/format";
 
 export function FixtureDetailPage() {
   const { id } = useParams({ from: "/fixtures/$id" });
@@ -114,6 +114,58 @@ export function FixtureDetailPage() {
                     </TableCell>
                     <TableCell className="text-sm">
                       <ReasoningCell reasoning={p.reasoning} market={p.marketQuestion} />
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        )}
+      </div>
+
+      <div>
+        <h2 className="text-lg font-semibold text-zinc-200 mb-3">
+          Bets ({data.bets?.length ?? 0})
+        </h2>
+        {!data.bets || data.bets.length === 0 ? (
+          <EmptyState message="No bets placed on this fixture" />
+        ) : (
+          <div className="rounded-md border border-zinc-800 overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow className="border-zinc-800 hover:bg-transparent">
+                  <TableHead className="text-zinc-400">Competitor</TableHead>
+                  <TableHead className="text-zinc-400">Market</TableHead>
+                  <TableHead className="text-zinc-400">Side</TableHead>
+                  <TableHead className="text-zinc-400 text-right">Amount</TableHead>
+                  <TableHead className="text-zinc-400 text-right">Price</TableHead>
+                  <TableHead className="text-zinc-400 text-right">Profit</TableHead>
+                  <TableHead className="text-zinc-400">Status</TableHead>
+                  <TableHead className="text-zinc-400">Placed</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {data.bets.map((b) => (
+                  <TableRow key={b.id} className="border-zinc-800 hover:bg-zinc-800/50">
+                    <TableCell className="text-zinc-200">{b.competitorName}</TableCell>
+                    <TableCell className="text-zinc-400 text-sm max-w-48 truncate">
+                      {b.marketQuestion}
+                    </TableCell>
+                    <TableCell className="font-mono text-zinc-300">{b.side}</TableCell>
+                    <TableCell className="text-right font-mono text-zinc-300">
+                      {formatCurrency(b.amount)}
+                    </TableCell>
+                    <TableCell className="text-right font-mono text-zinc-300">
+                      {b.price.toFixed(2)}
+                    </TableCell>
+                    <TableCell className="text-right font-mono text-zinc-300">
+                      {b.profit != null ? formatCurrency(b.profit) : "—"}
+                    </TableCell>
+                    <TableCell>
+                      <StatusBadge status={b.status} />
+                    </TableCell>
+                    <TableCell className="text-zinc-400 text-sm">
+                      {b.placedAt ? formatDate(b.placedAt) : "—"}
                     </TableCell>
                   </TableRow>
                 ))}

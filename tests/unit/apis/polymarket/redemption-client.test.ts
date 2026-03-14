@@ -6,12 +6,14 @@ const mockContractRedeemPositions = mock(() =>
 );
 const mockIsApprovedForAll = mock(() => Promise.resolve(false));
 const mockSetApprovalForAll = mock(() => Promise.resolve({ wait: mockWait }));
+const mockBalanceOf = mock(() => Promise.resolve(makeBigNumber(5000000)));
 
 mock.module("@ethersproject/contracts", () => ({
   Contract: class MockContract {
     redeemPositions = mockContractRedeemPositions;
     isApprovedForAll = mockIsApprovedForAll;
     setApprovalForAll = mockSetApprovalForAll;
+    balanceOf = mockBalanceOf;
   },
 }));
 
@@ -23,6 +25,7 @@ function makeBigNumber(value: number) {
     mul: (n: number) => makeBigNumber(value * n),
     add: (other: { _value: number }) => makeBigNumber(value + other._value),
     toHexString: () => `0x${value.toString(16)}`,
+    toBigInt: () => BigInt(value),
   };
 }
 
@@ -58,12 +61,14 @@ describe("redemption client", () => {
     mockIsApprovedForAll.mockReset();
     mockSetApprovalForAll.mockReset();
     mockGetFeeData.mockReset();
+    mockBalanceOf.mockReset();
     mockWait.mockImplementation(() => Promise.resolve({}));
     mockIsApprovedForAll.mockImplementation(() => Promise.resolve(false));
     mockSetApprovalForAll.mockImplementation(() => Promise.resolve({ wait: mockWait }));
     mockGetFeeData.mockImplementation(() =>
       Promise.resolve({ maxPriorityFeePerGas: null, lastBaseFeePerGas: null }),
     );
+    mockBalanceOf.mockImplementation(() => Promise.resolve(makeBigNumber(5000000)));
   });
 
   test("calls CTF contract for non-neg-risk and returns txHash", async () => {
@@ -190,5 +195,15 @@ describe("redemption client", () => {
 
     expect(mockIsApprovedForAll).toHaveBeenCalledTimes(1);
     expect(mockSetApprovalForAll).toHaveBeenCalledTimes(0);
+  });
+
+  test("getTokenBalance returns on-chain CTF balance as bigint", async () => {
+    mockBalanceOf.mockImplementation(() => Promise.resolve(makeBigNumber(3769997)));
+
+    const client = createRedemptionClient("0xprivatekey");
+    const balance = await client.getTokenBalance("12345");
+
+    expect(balance).toBe(BigInt(3769997));
+    expect(mockBalanceOf).toHaveBeenCalledTimes(1);
   });
 });
