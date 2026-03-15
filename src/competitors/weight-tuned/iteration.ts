@@ -69,7 +69,16 @@ export function createWeightIterationService(deps: WeightIterationDeps) {
   }
 
   async function buildRecentOutcomes(competitorId: string): Promise<PredictionOutcome[]> {
-    const allPredictions = await predictions.findByCompetitor(competitorId);
+    let allPredictions: Awaited<ReturnType<typeof predictions.findByCompetitor>>;
+    try {
+      allPredictions = await predictions.findByCompetitor(competitorId);
+    } catch (err) {
+      console.warn(
+        `[${competitorId}] Failed to load predictions (corrupted JSON?): ${err instanceof Error ? err.message : err}`,
+      );
+      return [];
+    }
+
     const allBets = await bets.findByCompetitor(competitorId);
 
     const betsByMarket = new Map<string, (typeof allBets)[number]>();
@@ -78,7 +87,15 @@ export function createWeightIterationService(deps: WeightIterationDeps) {
     }
 
     const marketIds = [...new Set(allPredictions.map((p) => p.marketId))];
-    const marketList = await markets.findByIds(marketIds);
+    let marketList: Awaited<ReturnType<typeof markets.findByIds>>;
+    try {
+      marketList = await markets.findByIds(marketIds);
+    } catch (err) {
+      console.warn(
+        `[${competitorId}] Failed to load markets (corrupted JSON?): ${err instanceof Error ? err.message : err}`,
+      );
+      marketList = [];
+    }
     const marketMap = new Map(marketList.map((m) => [m.id, m]));
 
     const outcomes: PredictionOutcome[] = [];
@@ -115,7 +132,15 @@ export function createWeightIterationService(deps: WeightIterationDeps) {
   }
 
   async function buildPerformanceHistory(competitorId: string): Promise<PerformanceRound[]> {
-    const allVersions = await versions.findByCompetitor(competitorId);
+    let allVersions: Awaited<ReturnType<typeof versions.findByCompetitor>>;
+    try {
+      allVersions = await versions.findByCompetitor(competitorId);
+    } catch (err) {
+      console.warn(
+        `[${competitorId}] Failed to load version history (corrupted JSON?): ${err instanceof Error ? err.message : err}`,
+      );
+      return [];
+    }
     const recent = allVersions.slice(0, 11);
     const rounds: PerformanceRound[] = [];
 
@@ -171,7 +196,15 @@ export function createWeightIterationService(deps: WeightIterationDeps) {
     }
 
     try {
-      const latestVersion = await versions.findLatest(competitorId);
+      let latestVersion: Awaited<ReturnType<typeof versions.findLatest>>;
+      try {
+        latestVersion = await versions.findLatest(competitorId);
+      } catch (err) {
+        console.warn(
+          `[${competitorId}] Failed to load latest version (corrupted JSON?): ${err instanceof Error ? err.message : err}`,
+        );
+        latestVersion = undefined;
+      }
       const currentWeights = parseCurrentWeights(latestVersion?.code);
 
       const stats = await bets.getPerformanceStats(competitorId);
