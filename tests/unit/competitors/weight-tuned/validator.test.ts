@@ -43,6 +43,7 @@ describe("validateWeights", () => {
       drawBaseline: 0.2,
       drawPeak: 0.45,
       drawWidth: 0.12,
+      sharpness: 3.0,
       confidenceThreshold: 0.55,
       minEdge: 0.03,
       stakingAggression: 0.4,

@@ -7,7 +7,7 @@ import { logger } from "../shared/logger";
 import { createMonteCarloEngine } from "./monte-carlo-poisson/engine";
 import { DEFAULT_MC_CONFIG, monteCarloConfigSchema } from "./monte-carlo-poisson/types";
 import { createWeightedEngine } from "./weight-tuned/engine";
-import { DEFAULT_STAKE_CONFIG, DEFAULT_WEIGHTS, weightConfigSchema } from "./weight-tuned/types";
+import { DEFAULT_STAKE_CONFIG, type WeightConfig, weightConfigSchema } from "./weight-tuned/types";
 
 export type LoaderDeps = {
   competitorsRepo: CompetitorsRepo;
@@ -102,17 +102,28 @@ async function loadSingleCompetitor(
 ) {
   switch (row.type) {
     case "weight-tuned": {
-      let weights = DEFAULT_WEIGHTS;
-      if (versionsRepo) {
-        const latest = await versionsRepo.findLatest(row.id);
-        if (latest?.code) {
-          try {
-            const parsed = weightConfigSchema.safeParse(JSON.parse(latest.code));
-            if (parsed.success) weights = parsed.data;
-          } catch {
-            logger.info("Using default weights for competitor (parse failed)", { id: row.id });
-          }
+      if (!versionsRepo) {
+        throw new Error(`Cannot load weight-tuned competitor ${row.id}: no versions repo`);
+      }
+      const latest = await versionsRepo.findLatest(row.id);
+      if (!latest?.code) {
+        throw new Error(`Cannot load weight-tuned competitor ${row.id}: no iterated weights found`);
+      }
+      let weights: WeightConfig;
+      try {
+        const parsed = weightConfigSchema.safeParse(JSON.parse(latest.code));
+        if (!parsed.success) {
+          const msgs = parsed.error.issues
+            .map((i) => `${i.path.join(".")}: ${i.message}`)
+            .join(", ");
+          throw new Error(`Weight schema validation failed: ${msgs}`);
         }
+        weights = parsed.data;
+      } catch (err) {
+        if (err instanceof SyntaxError) {
+          throw new Error(`Cannot load weight-tuned competitor ${row.id}: invalid JSON in weights`);
+        }
+        throw err;
       }
       return createWeightedEngine(weights, DEFAULT_STAKE_CONFIG);
     }

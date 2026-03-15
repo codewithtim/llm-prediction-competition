@@ -38,6 +38,7 @@ const VALID_WEIGHTS = {
   drawBaseline: 0.25,
   drawPeak: 0.5,
   drawWidth: 0.15,
+  sharpness: 2.5,
   confidenceThreshold: 0.52,
   minEdge: 0.05,
   stakingAggression: 0.5,

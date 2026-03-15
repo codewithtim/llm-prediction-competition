@@ -40,10 +40,15 @@ export function createWeightedEngine(
       weights.drawBaseline *
       Math.exp(-((homeStrength - weights.drawPeak) ** 2) / (2 * weights.drawWidth ** 2));
 
-    // Split remaining probability
+    // Split remaining probability using a power curve to amplify strong favourites.
+    // Linear split (sharpness=1): 0.65 strength → 55%/30% — too flat, underdog always gets ~30%.
+    // Power curve (sharpness=2.5): 0.65 strength → ~68%/17% — matches real-world distributions.
     const remaining = 1 - drawProb;
-    const pHome = remaining * homeStrength;
-    const pAway = remaining * (1 - homeStrength);
+    const homePower = homeStrength ** weights.sharpness;
+    const awayPower = (1 - homeStrength) ** weights.sharpness;
+    const powerTotal = homePower + awayPower;
+    const pHome = remaining * (homePower / powerTotal);
+    const pAway = remaining * (awayPower / powerTotal);
 
     // Evaluate each market
     type MarketEval = {
@@ -105,30 +110,20 @@ export function createWeightedEngine(
       }
     }
 
-    // Select market with best edge
+    // Select market with best edge, filtering by minEdge
     evaluations.sort((a, b) => b.edge - a.edge);
     const best = evaluations[0];
-    if (!best) return [];
+    if (!best || best.edge < weights.minEdge) return [];
 
-    // Compute stake as fraction of bankroll (0–1)
-    const effectiveEdge = Math.max(best.edge, 0);
-    const rawStakeFraction = clamp(
-      weights.stakingAggression + weights.edgeMultiplier * effectiveEdge,
-      0,
-      1,
-    );
+    // Fractional Kelly stake: kellyFraction * (p * b - q) / b
+    // where p = model prob, q = 1-p, b = decimal odds - 1 = (1/price) - 1
+    const p = best.confidence;
+    const q = 1 - p;
+    const b = 1 / best.impliedProb - 1;
+    const fullKelly = b > 0 ? Math.max(0, (p * b - q) / b) : 0;
+    const kellyStake = weights.kellyFraction * fullKelly;
 
-    // Apply confidence threshold: reduce stake if confidence is low
-    const confidenceMultiplier =
-      best.confidence >= weights.confidenceThreshold
-        ? 1
-        : best.confidence / weights.confidenceThreshold;
-
-    const stakeFraction = clamp(
-      stakeConfig.maxBetPct * rawStakeFraction * confidenceMultiplier,
-      stakeConfig.minBetPct,
-      stakeConfig.maxBetPct,
-    );
+    const stakeFraction = clamp(kellyStake, stakeConfig.minBetPct, stakeConfig.maxBetPct);
 
     const signalEntries = Object.entries(features).filter(
       ([name]) => (weights.signals[name] ?? 0) > 0,

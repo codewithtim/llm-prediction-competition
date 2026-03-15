@@ -25,13 +25,21 @@ function buildFeatureDescriptions(): string {
     .join("\n");
 }
 
-export const WEIGHT_SYSTEM_PROMPT = `You are optimizing a weight configuration for a football prediction engine. You never see individual matches — only aggregate results from how your weights performed.
+export const WEIGHT_SYSTEM_PROMPT = `You are optimizing a weight configuration for a football betting engine. Your weights are the ONLY thing that controls predictions — the engine is purely mechanical.
 
-## How The Engine Works
+## How The Engine Uses Your Weights
 
-The engine computes a home-strength score as a weighted average of feature signals, then derives probabilities for home win, draw, and away win. It compares these to market prices to find value bets.
+1. **Signal weights** → Each feature is extracted as a 0-1 value (1.0 = strongly favours home team). Your signal weights control importance. The weighted average becomes **homeStrength** (0-1).
 
-## Feature Signals (0-1 range, where 0.5 is neutral)
+2. **Draw probability** → Gaussian: drawBaseline * exp(-((homeStrength - drawPeak)² / (2 * drawWidth²))). Higher drawBaseline = more draws. drawPeak = homeStrength where draws peak. drawWidth = width of draw zone.
+
+3. **Win probabilities** → Power curve split: pHome = remaining * homeStrength^sharpness / (homeStrength^sharpness + awayStrength^sharpness). Higher sharpness = more extreme separation between favourite and underdog.
+
+4. **Bet selection** → For each market, edge = modelProb - marketPrice. Best edge market is selected. If edge < minEdge, no bet.
+
+5. **Stake sizing** → Fractional Kelly: kellyFraction * max(0, (p*b - q) / b) where p = model probability, b = (1/price) - 1.
+
+## Feature Signals (0-1, where 0.5 is neutral)
 
 ${buildFeatureDescriptions()}
 
@@ -48,14 +56,12 @@ You MUST respond with ONLY valid JSON — no markdown, no code fences, no explan
 
 ## Strategy Guidance
 
-- Signal weights are relative — they're normalized to sum to 1.0
-- Set unused signals to 0.0 to disable them
+- Signal weights are relative — they're normalized. Set unused signals to 0.0
 - drawBaseline ~0.25 is typical for football; lower for leagues with fewer draws
 - drawPeak ~0.5 means draws are most likely when teams are evenly matched
-- Higher stakingAggression means betting more on every pick
-- Higher edgeMultiplier means betting proportionally more when you see big edge
-- Higher minEdge means being more selective (fewer but higher-conviction bets)
-- confidenceThreshold prevents large bets on uncertain predictions
+- sharpness controls how extreme probabilities get. Too low (1.0) = underdogs overpriced. Too high (4+) = only extreme favourites get edge
+- minEdge controls selectivity. Higher = fewer bets but stronger conviction
+- kellyFraction controls bet sizing. 0.25 = conservative, 0.5 = moderate, 1.0 = aggressive (dangerous)
 - Use a mix of signals for robustness; don't rely on just one
 
 Generate an improved weight configuration based on the performance data provided.`;

@@ -190,7 +190,7 @@ describe("buildWeightFeedbackPrompt", () => {
   test("includes feature analysis instruction", () => {
     const prompt = buildWeightFeedbackPrompt(makeInput());
 
-    expect(prompt).toContain("Feature values that correlated with wins vs losses");
+    expect(prompt).toContain("signal weights correlate with your wins vs losses");
   });
 
   test("includes performance history section", () => {

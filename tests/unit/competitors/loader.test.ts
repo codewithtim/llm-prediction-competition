@@ -3,7 +3,9 @@ import { createClient } from "@libsql/client";
 import { drizzle } from "drizzle-orm/libsql";
 import { migrate } from "drizzle-orm/libsql/migrator";
 import { loadCompetitors } from "../../../src/competitors/loader";
+import { DEFAULT_WEIGHTS } from "../../../src/competitors/weight-tuned/types";
 import type { Database } from "../../../src/database/client";
+import { competitorVersionsRepo } from "../../../src/database/repositories/competitor-versions";
 import { competitorsRepo } from "../../../src/database/repositories/competitors";
 import { walletsRepo } from "../../../src/database/repositories/wallets";
 import * as schema from "../../../src/database/schema";
@@ -17,20 +19,25 @@ beforeEach(async () => {
 });
 
 describe("loadCompetitors", () => {
-  it("loads weight-tuned competitors", async () => {
+  it("loads weight-tuned competitors with iterated weights", async () => {
     const repo = competitorsRepo(db);
+    const versions = competitorVersionsRepo(db);
 
-    // Seed test competitors
     await repo.create({ id: "wt-gpt-52", name: "GPT 5.2", model: "openai/gpt-5.2", type: "weight-tuned", status: "active", enginePath: null });
     await repo.create({ id: "wt-claude-sonnet-46", name: "Claude Sonnet", model: "anthropic/claude-sonnet-4-6", type: "weight-tuned", status: "active", enginePath: null });
+
+    // Seed iterated weights — required for weight-tuned competitors
+    for (const id of ["wt-gpt-52", "wt-claude-sonnet-46"]) {
+      await versions.create({ competitorId: id, version: 1, code: JSON.stringify(DEFAULT_WEIGHTS), enginePath: "", model: "test" });
+    }
 
     const engines = await loadCompetitors({
       competitorsRepo: repo,
       walletsRepo: walletsRepo(db),
       encryptionKey: "",
+      versionsRepo: versions,
     });
 
-    // All weight-tuned competitors should load
     const wtEngines = engines.filter((e) => e.competitorId.startsWith("wt-"));
     expect(wtEngines.length).toBeGreaterThan(0);
     for (const e of wtEngines) {
@@ -38,17 +45,38 @@ describe("loadCompetitors", () => {
     }
   });
 
+  it("errors when weight-tuned competitor has no iterated weights", async () => {
+    const repo = competitorsRepo(db);
+    const versions = competitorVersionsRepo(db);
+
+    await repo.create({ id: "wt-no-weights", name: "No Weights", model: "test", type: "weight-tuned", status: "active", enginePath: null });
+
+    const engines = await loadCompetitors({
+      competitorsRepo: repo,
+      walletsRepo: walletsRepo(db),
+      encryptionKey: "",
+      versionsRepo: versions,
+    });
+
+    // Should not load — sets status to error instead
+    expect(engines).toHaveLength(0);
+    const updated = await repo.findById("wt-no-weights");
+    expect(updated?.status).toBe("error");
+  });
+
   it("does not load disabled competitors", async () => {
     const repo = competitorsRepo(db);
+    const versions = competitorVersionsRepo(db);
 
-    // Seed a competitor then disable it
     await repo.create({ id: "wt-claude-sonnet", name: "Claude Sonnet", model: "anthropic/claude-sonnet", type: "weight-tuned", status: "active", enginePath: null });
+    await versions.create({ competitorId: "wt-claude-sonnet", version: 1, code: JSON.stringify(DEFAULT_WEIGHTS), enginePath: "", model: "test" });
     await repo.setStatus("wt-claude-sonnet", "disabled");
 
     const engines = await loadCompetitors({
       competitorsRepo: repo,
       walletsRepo: walletsRepo(db),
       encryptionKey: "",
+      versionsRepo: versions,
     });
 
     const ids = engines.map((e) => e.competitorId);

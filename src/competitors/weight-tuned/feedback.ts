@@ -228,10 +228,8 @@ ${signalRows}
 | drawBaseline | ${weights.drawBaseline.toFixed(3)} |
 | drawPeak | ${weights.drawPeak.toFixed(3)} |
 | drawWidth | ${weights.drawWidth.toFixed(3)} |
-| confidenceThreshold | ${weights.confidenceThreshold.toFixed(3)} |
+| sharpness | ${weights.sharpness.toFixed(3)} |
 | minEdge | ${weights.minEdge.toFixed(3)} |
-| stakingAggression | ${weights.stakingAggression.toFixed(3)} |
-| edgeMultiplier | ${weights.edgeMultiplier.toFixed(3)} |
 | kellyFraction | ${weights.kellyFraction.toFixed(3)} |`;
 }
 
@@ -285,7 +283,23 @@ ${formatWeightsTable(currentWeights)}`;
       ? `\nOverall signal correlations — wins driven by: ${signalCorrelations.winningSignals.join(", ") || "insufficient data"}, losses driven by: ${signalCorrelations.losingSignals.join(", ") || "insufficient data"}.`
       : "";
 
-  return `You are optimizing a weight configuration for a football prediction engine. You never see individual matches — only aggregate results from how your weights performed. Review your performance data below, then generate an improved weight configuration.
+  return `You are optimizing a weight configuration for a football betting engine. Your weights are the ONLY thing that controls predictions — the engine is purely mechanical. Review your performance data and generate improved weights.
+
+## How the Engine Uses Your Weights
+
+The engine takes your weights and computes predictions mechanically:
+
+1. **Signal weights** → Each stat feature (homeWinRate, formDiff, h2h, etc.) is extracted as a 0-1 value where 1.0 = strongly favours home team. Your signal weights control how much each feature matters. The weighted average becomes **homeStrength** (0-1).
+
+2. **Draw probability** → Computed via Gaussian: \`drawBaseline * exp(-((homeStrength - drawPeak)² / (2 * drawWidth²)))\`. Higher drawBaseline = more draws overall. drawPeak = the homeStrength where draws are most likely (0.5 = balanced teams). drawWidth = how wide the draw zone is.
+
+3. **Win probabilities** → After removing drawProb, remaining probability is split using a power curve controlled by **sharpness**: \`pHome = remaining * homeStrength^sharpness / (homeStrength^sharpness + awayStrength^sharpness)\`. Higher sharpness = more extreme probability separation (sharpness=1 is linear, 2.5+ makes favourites much more dominant).
+
+4. **Edge calculation** → For each market, edge = modelProb - marketPrice. Only the market with the highest edge is selected. If best edge < **minEdge**, no bet is placed.
+
+5. **Stake sizing** → Uses fractional Kelly criterion: \`kellyFraction * max(0, (p*b - q) / b)\` where p = model probability, b = (1/marketPrice) - 1. Higher kellyFraction = bigger bets relative to edge.
+
+Every parameter you set directly controls the output. There is no hidden logic.
 
 ${weightsSection}
 
@@ -328,12 +342,12 @@ ${previousReasoning ? formatPreviousReasoning(previousReasoning) : ""}
 ## Instructions
 
 Analyze your performance and generate an improved weight configuration. Focus on:
-1. Patterns in your wins and losses — what market conditions lead to each?
-2. Your confidence calibration — are you overconfident or underconfident?
-3. Your stake sizing — are you risking too much on uncertain bets?
-4. Strategies used by higher-ranked competitors (if you're not #1)
-5. Edge cases you may be missing
-6. Feature values that correlated with wins vs losses — which features were reliable indicators?${correlationNote}
+1. Which signal weights correlate with your wins vs losses? Increase reliable signals, reduce noisy ones.${correlationNote}
+2. Is your sharpness appropriate? Too low = underdog probabilities too generous = bad value bets on underdogs. Too high = never finding edge on favourites.
+3. Is your minEdge filtering well? Too low = placing marginal bets that lose to fees. Too high = missing good opportunities.
+4. Is your kellyFraction sizing bets well? Too high = volatile bankroll swings. Too low = not capitalising on good edges.
+5. Are your draw parameters producing reasonable draw probabilities for the matches you're seeing?
+6. Strategies used by higher-ranked competitors (if you're not #1).
 
-Generate an improved weight configuration that addresses these weaknesses.`;
+Generate an improved weight configuration.`;
 }

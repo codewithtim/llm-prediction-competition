@@ -35,10 +35,7 @@ export function validateWeights(input: unknown, stakeConfig: StakeConfig): Valid
     return { valid: false, error: `Engine must return an array, got ${typeof output}` };
   }
 
-  if (output.length === 0) {
-    return { valid: false, error: "Engine returned empty predictions array" };
-  }
-
+  // Empty array is valid — the engine may filter out all markets via minEdge
   for (let i = 0; i < output.length; i++) {
     const result = predictionOutputSchema.safeParse(output[i]);
     if (!result.success) {

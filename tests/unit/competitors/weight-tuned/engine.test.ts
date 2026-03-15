@@ -296,6 +296,7 @@ describe("createWeightedEngine", () => {
       drawBaseline: 0.25,
       drawPeak: 0.5,
       drawWidth: 0.15,
+      sharpness: 2.5,
       confidenceThreshold: 0.52,
       minEdge: 0.05,
       stakingAggression: 0.5,
@@ -352,6 +353,25 @@ describe("createWeightedEngine", () => {
     expect(features.defensiveStrength).toBeDefined();
     expect(features.injuryImpact).toBeDefined();
     expect(features.squadRating).toBeDefined();
+  });
+
+  it("skips bet when edge is below minEdge", () => {
+    const highMinEdge: WeightConfig = {
+      ...DEFAULT_WEIGHTS,
+      minEdge: 0.40,
+    };
+    // Market price 0.65 for home win — model won't find 40% edge on either side
+    const predictions = run(highMinEdge, DEFAULT_STAKE_CONFIG, makeStatistics());
+    expect(predictions).toHaveLength(0);
+  });
+
+  it("places bet when edge meets minEdge", () => {
+    const lowMinEdge: WeightConfig = {
+      ...DEFAULT_WEIGHTS,
+      minEdge: 0.01,
+    };
+    const predictions = run(lowMinEdge, DEFAULT_STAKE_CONFIG, makeStatistics());
+    expect(predictions).toHaveLength(1);
   });
 
   it("balanced teams produce higher draw probability", () => {

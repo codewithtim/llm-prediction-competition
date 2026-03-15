@@ -51,9 +51,9 @@ describe("WEIGHT_SYSTEM_PROMPT", () => {
   test("includes strategy guidance", () => {
     expect(WEIGHT_SYSTEM_PROMPT).toContain("Strategy Guidance");
     expect(WEIGHT_SYSTEM_PROMPT).toContain("drawBaseline");
-    expect(WEIGHT_SYSTEM_PROMPT).toContain("stakingAggression");
-    expect(WEIGHT_SYSTEM_PROMPT).toContain("edgeMultiplier");
-    expect(WEIGHT_SYSTEM_PROMPT).toContain("confidenceThreshold");
+    expect(WEIGHT_SYSTEM_PROMPT).toContain("sharpness");
+    expect(WEIGHT_SYSTEM_PROMPT).toContain("minEdge");
+    expect(WEIGHT_SYSTEM_PROMPT).toContain("kellyFraction");
   });
 });
 

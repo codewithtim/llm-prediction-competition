@@ -6,11 +6,13 @@ export const weightConfigSchema = z.object({
   drawBaseline: z.number().min(0).max(0.5),
   drawPeak: z.number().min(0.3).max(0.7),
   drawWidth: z.number().min(0.05).max(0.5),
-  confidenceThreshold: z.number().min(0).max(1),
+  sharpness: z.number().min(1).max(5),
   minEdge: z.number().min(0).max(0.5),
-  stakingAggression: z.number().min(0).max(1),
-  edgeMultiplier: z.number().min(0).max(5),
   kellyFraction: z.number().min(0).max(1),
+  // Legacy fields — kept for backwards compat with existing DB versions, not used by engine
+  confidenceThreshold: z.number().min(0).max(1).optional(),
+  stakingAggression: z.number().min(0).max(1).optional(),
+  edgeMultiplier: z.number().min(0).max(5).optional(),
 });
 
 export type WeightConfig = z.infer<typeof weightConfigSchema>;
@@ -26,10 +28,8 @@ export const DEFAULT_WEIGHTS: WeightConfig = {
   drawBaseline: 0.25,
   drawPeak: 0.5,
   drawWidth: 0.15,
-  confidenceThreshold: 0.52,
+  sharpness: 2.5,
   minEdge: 0.05,
-  stakingAggression: 0.5,
-  edgeMultiplier: 2.0,
   kellyFraction: 0.25,
 };
 
@@ -85,25 +85,20 @@ export const WEIGHT_JSON_SCHEMA = {
         type: "number",
         description: "Width of the draw probability curve (0.05-0.5)",
       },
-      confidenceThreshold: {
+      sharpness: {
         type: "number",
-        description: "Minimum confidence to bet aggressively (0-1)",
+        description:
+          "Power curve exponent for probability split (1-5). Higher values make favourites more dominant. 1.0 = linear, 2.5 = moderate, 4+ = extreme separation",
       },
       minEdge: {
         type: "number",
-        description: "Minimum edge over market price to consider (0-0.5)",
-      },
-      stakingAggression: {
-        type: "number",
-        description: "Base staking level (0-1)",
-      },
-      edgeMultiplier: {
-        type: "number",
-        description: "How much edge amplifies stake (0-5)",
+        description:
+          "Minimum edge over market price to place a bet (0-0.5). Bets below this edge are skipped entirely",
       },
       kellyFraction: {
         type: "number",
-        description: "Fraction of Kelly criterion to use (0-1)",
+        description:
+          "Fraction of Kelly criterion to use for stake sizing (0-1). 0.25 = quarter Kelly (conservative), 0.5 = half Kelly (moderate), 1.0 = full Kelly (aggressive)",
       },
     },
     required: [
@@ -111,10 +106,8 @@ export const WEIGHT_JSON_SCHEMA = {
       "drawBaseline",
       "drawPeak",
       "drawWidth",
-      "confidenceThreshold",
+      "sharpness",
       "minEdge",
-      "stakingAggression",
-      "edgeMultiplier",
       "kellyFraction",
     ],
     additionalProperties: false,
