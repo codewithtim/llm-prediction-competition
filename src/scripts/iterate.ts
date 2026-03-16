@@ -104,17 +104,20 @@ async function main() {
   if (competitorId) {
     console.log(`Iterating weight-tuned competitor: ${competitorId}\n`);
     const result = await service.iterateCompetitor(competitorId);
-    await sendIterationNotification([result]);
     if (result.success) {
       console.log(`Success: version ${result.version}`);
     } else {
       console.error(`Failed: ${result.error}`);
-      process.exit(1);
     }
+    try {
+      await sendIterationNotification([result]);
+    } catch (err) {
+      console.warn("Failed to send notification:", err instanceof Error ? err.message : err);
+    }
+    if (!result.success) process.exit(1);
   } else {
     console.log("Iterating all weight-tuned competitors...\n");
     const results = await service.iterateAll();
-    await sendIterationNotification(results);
     let failures = 0;
     for (const result of results) {
       if (result.success) {
@@ -125,6 +128,11 @@ async function main() {
       }
     }
     console.log(`\nDone: ${results.length - failures}/${results.length} succeeded`);
+    try {
+      await sendIterationNotification(results);
+    } catch (err) {
+      console.warn("Failed to send notification:", err instanceof Error ? err.message : err);
+    }
     if (failures > 0) process.exit(1);
   }
 }
