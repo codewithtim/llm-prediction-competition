@@ -1405,3 +1405,398 @@ describe("createPredictionPipeline", () => {
     expect(result.errors.some((e: string) => e.includes("Network timeout"))).toBe(true);
   });
 });
+
+// ─── Champions League (Cup) Pipeline Tests ────────────────────────────
+
+function makeCLFixtureRow(id = 500) {
+  return {
+    id,
+    leagueId: 2,
+    leagueName: "Champions League",
+    leagueCountry: "World",
+    leagueSeason: 2024,
+    homeTeamId: 541, // Real Madrid
+    homeTeamName: "Real Madrid",
+    homeTeamLogo: "",
+    awayTeamId: 50, // Manchester City
+    awayTeamName: "Manchester City",
+    awayTeamLogo: "",
+    date: "2026-03-05T20:00:00Z",
+    venue: "Santiago Bernabeu",
+    status: "scheduled" as const,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  };
+}
+
+function makeCLLeagueRow() {
+  return {
+    id: 2,
+    sport: "football",
+    name: "Champions League",
+    country: "World",
+    type: "cup" as const,
+    polymarketSeriesSlug: "ucl",
+    domesticLeagueIds: [39, 140, 135, 78, 61],
+    tier: 1,
+    enabled: true,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  };
+}
+
+function makePLLeagueRow() {
+  return {
+    id: 39,
+    sport: "football",
+    name: "Premier League",
+    country: "England",
+    type: "league" as const,
+    polymarketSeriesSlug: "premier-league",
+    domesticLeagueIds: null,
+    tier: 1,
+    enabled: true,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  };
+}
+
+function mockLeaguesRepoWithCL() {
+  return mockLeaguesRepo({
+    findEnabled: mock(() => Promise.resolve([makePLLeagueRow(), makeCLLeagueRow()])),
+  });
+}
+
+function makeLaLigaStandingsResponse(): ApiStandingsResponse[] {
+  return [
+    {
+      league: {
+        id: 140,
+        name: "La Liga",
+        country: "Spain",
+        logo: "",
+        flag: "",
+        season: 2024,
+        standings: [
+          [
+            {
+              rank: 1,
+              team: { id: 541, name: "Real Madrid", logo: "" },
+              points: 60,
+              goalsDiff: 30,
+              form: "WWWDW",
+              all: { played: 22, win: 18, draw: 3, lose: 1, goals: { for: 50, against: 20 } },
+              home: { played: 11, win: 10, draw: 1, lose: 0, goals: { for: 30, against: 8 } },
+              away: { played: 11, win: 8, draw: 2, lose: 1, goals: { for: 20, against: 12 } },
+            },
+          ],
+        ],
+      },
+    },
+  ];
+}
+
+function makePLStandingsForCity(): ApiStandingsResponse[] {
+  return [
+    {
+      league: {
+        id: 39,
+        name: "Premier League",
+        country: "England",
+        logo: "",
+        flag: "",
+        season: 2024,
+        standings: [
+          [
+            {
+              rank: 2,
+              team: { id: 50, name: "Manchester City", logo: "" },
+              points: 55,
+              goalsDiff: 25,
+              form: "WDWWL",
+              all: { played: 22, win: 16, draw: 4, lose: 2, goals: { for: 45, against: 20 } },
+              home: { played: 11, win: 9, draw: 1, lose: 1, goals: { for: 25, against: 8 } },
+              away: { played: 11, win: 7, draw: 3, lose: 1, goals: { for: 20, against: 12 } },
+            },
+          ],
+        ],
+      },
+    },
+  ];
+}
+
+describe("createPredictionPipeline — Champions League (cup)", () => {
+  function withCLFixtureAndMarkets() {
+    const fr = mockFixturesRepo({
+      findReadyForPrediction: mock(() => Promise.resolve([makeCLFixtureRow()])),
+    });
+    const mr = mockMarketsRepo({
+      findByFixtureId: mock(() => Promise.resolve([makeMarketRow(500)])),
+    });
+    return { fr, mr };
+  }
+
+  test("processes CL fixture using domestic standings for each team", async () => {
+    const { fr, mr } = withCLFixtureAndMarkets();
+    const engineFn = mock(() => [makePrediction()]);
+    const registry = {
+      register: mock(() => {}),
+      getAll: mock(() => [
+        { competitorId: "baseline", name: "Baseline", engine: engineFn },
+      ]),
+      get: mock(() => undefined),
+    } as unknown as CompetitorRegistry;
+
+    const fc = mockFootballClient({
+      getStandings: mock((league: number, _season: number) => {
+        if (league === 140) {
+          return Promise.resolve(apiResponse(makeLaLigaStandingsResponse()));
+        }
+        if (league === 39) {
+          return Promise.resolve(apiResponse(makePLStandingsForCity()));
+        }
+        return Promise.resolve(apiResponse([]));
+      }),
+    });
+
+    const deps = buildPredictionDeps({
+      fixturesRepo: fr as unknown as PredictionPipelineDeps["fixturesRepo"],
+      marketsRepo: mr as unknown as PredictionPipelineDeps["marketsRepo"],
+      footballClient: fc,
+      registry,
+      leaguesRepo: mockLeaguesRepoWithCL() as unknown as PredictionPipelineDeps["leaguesRepo"],
+    });
+    const pipeline = createPredictionPipeline(deps);
+    const result = await pipeline.run();
+
+    expect(result.fixturesProcessed).toBe(1);
+    expect(result.predictionsGenerated).toBe(1);
+    expect(result.errors).toHaveLength(0);
+
+    // Engine should have been called with stats from domestic leagues
+    const call = engineFn.mock.calls[0] as unknown[];
+    const statsArg = call[0] as Record<string, unknown>;
+    expect(statsArg.homeTeam).toBeDefined();
+    expect(statsArg.awayTeam).toBeDefined();
+  });
+
+  test("CL fixture proceeds with empty stats when domestic standings not found", async () => {
+    const { fr, mr } = withCLFixtureAndMarkets();
+
+    // Return empty standings for all leagues — neither team found
+    const fc = mockFootballClient({
+      getStandings: mock(() => Promise.resolve(apiResponse([]))),
+    });
+
+    const deps = buildPredictionDeps({
+      fixturesRepo: fr as unknown as PredictionPipelineDeps["fixturesRepo"],
+      marketsRepo: mr as unknown as PredictionPipelineDeps["marketsRepo"],
+      footballClient: fc,
+      leaguesRepo: mockLeaguesRepoWithCL() as unknown as PredictionPipelineDeps["leaguesRepo"],
+    });
+    const pipeline = createPredictionPipeline(deps);
+    const result = await pipeline.run();
+
+    // Should NOT skip fixture — should proceed with empty stats
+    expect(result.fixturesProcessed).toBe(1);
+    expect(result.predictionsGenerated).toBe(1);
+    expect(result.errors).toHaveLength(0);
+  });
+
+  test("CL fixture correctly identifies cup type from leagues repo", async () => {
+    const { fr, mr } = withCLFixtureAndMarkets();
+    const standingsCallLeagues: number[] = [];
+
+    const fc = mockFootballClient({
+      getStandings: mock((league: number, _season: number) => {
+        standingsCallLeagues.push(league);
+        if (league === 140) {
+          return Promise.resolve(apiResponse(makeLaLigaStandingsResponse()));
+        }
+        if (league === 39) {
+          return Promise.resolve(apiResponse(makePLStandingsForCity()));
+        }
+        return Promise.resolve(apiResponse([]));
+      }),
+    });
+
+    const deps = buildPredictionDeps({
+      fixturesRepo: fr as unknown as PredictionPipelineDeps["fixturesRepo"],
+      marketsRepo: mr as unknown as PredictionPipelineDeps["marketsRepo"],
+      footballClient: fc,
+      leaguesRepo: mockLeaguesRepoWithCL() as unknown as PredictionPipelineDeps["leaguesRepo"],
+    });
+    const pipeline = createPredictionPipeline(deps);
+    await pipeline.run();
+
+    // Should search domestic leagues (39, 140, etc.), NOT CL league id (2)
+    expect(standingsCallLeagues).not.toContain(2);
+    // Should have queried at least one domestic league
+    expect(standingsCallLeagues.length).toBeGreaterThan(0);
+  });
+
+  test("findReadyForPrediction receives CL league id when CL is enabled", async () => {
+    const findReadyForPrediction = mock(() => Promise.resolve([]));
+    const fr = mockFixturesRepo({ findReadyForPrediction });
+
+    const deps = buildPredictionDeps({
+      fixturesRepo: fr as unknown as PredictionPipelineDeps["fixturesRepo"],
+      leaguesRepo: mockLeaguesRepoWithCL() as unknown as PredictionPipelineDeps["leaguesRepo"],
+    });
+    const pipeline = createPredictionPipeline(deps);
+    await pipeline.run();
+
+    const calledLeagueIds = (findReadyForPrediction.mock.calls[0] as unknown[])?.[1] as number[];
+    expect(calledLeagueIds).toContain(2); // CL
+    expect(calledLeagueIds).toContain(39); // PL
+  });
+
+  test("CL fixture uses team season stats from domestic league, not CL", async () => {
+    const { fr, mr } = withCLFixtureAndMarkets();
+    const teamStatsCallLeagues: number[] = [];
+
+    const fc = mockFootballClient({
+      getStandings: mock((league: number, _season: number) => {
+        if (league === 140) {
+          return Promise.resolve(apiResponse(makeLaLigaStandingsResponse()));
+        }
+        if (league === 39) {
+          return Promise.resolve(apiResponse(makePLStandingsForCity()));
+        }
+        return Promise.resolve(apiResponse([]));
+      }),
+      getTeamStatistics: mock((_teamId: number, leagueId: number) => {
+        teamStatsCallLeagues.push(leagueId);
+        return Promise.resolve(apiResponse(makeApiTeamStatistics()));
+      }),
+    });
+
+    const deps = buildPredictionDeps({
+      fixturesRepo: fr as unknown as PredictionPipelineDeps["fixturesRepo"],
+      marketsRepo: mr as unknown as PredictionPipelineDeps["marketsRepo"],
+      footballClient: fc,
+      leaguesRepo: mockLeaguesRepoWithCL() as unknown as PredictionPipelineDeps["leaguesRepo"],
+    });
+    const pipeline = createPredictionPipeline(deps);
+    await pipeline.run();
+
+    // Season stats should be fetched from domestic leagues, not CL
+    for (const leagueId of teamStatsCallLeagues) {
+      expect(leagueId).not.toBe(2);
+    }
+  });
+});
+
+// ─── Discovery Pipeline — Champions League Tests ──────────────────────
+
+describe("createDiscoveryPipeline — Champions League", () => {
+  function makeCLApiFixture(id = 500): ApiFixture {
+    return {
+      fixture: {
+        id,
+        referee: null,
+        timezone: "UTC",
+        date: "2026-03-05T20:00:00Z",
+        timestamp: 1772323200,
+        venue: { id: 2, name: "Santiago Bernabeu", city: "Madrid" },
+        status: { long: "Not Started", short: "NS", elapsed: null, extra: null },
+      },
+      league: {
+        id: 2,
+        name: "Champions League",
+        country: "World",
+        logo: "",
+        flag: "",
+        season: 2024,
+        round: "Quarter-final",
+      },
+      teams: {
+        home: { id: 541, name: "Real Madrid", logo: "", winner: null },
+        away: { id: 50, name: "Manchester City", logo: "", winner: null },
+      },
+      goals: { home: null, away: null },
+      score: {
+        halftime: { home: null, away: null },
+        fulltime: { home: null, away: null },
+        extratime: { home: null, away: null },
+        penalty: { home: null, away: null },
+      },
+    };
+  }
+
+  function makeCLEvent() {
+    return makeEvent("ucl-event-1", [
+      makeMarket({
+        id: "ucl-market-1",
+        question: "Will Real Madrid win?",
+        gameId: "500",
+      }),
+    ]);
+  }
+
+  test("discovers CL fixtures and matches with UCL series slug events", async () => {
+    const fc = mockFootballClient({
+      getFixtures: mock((params: { league: number }) => {
+        if (params.league === 2) {
+          return Promise.resolve(apiResponse([makeCLApiFixture()]));
+        }
+        if (params.league === 39) {
+          return Promise.resolve(apiResponse([makeApiFixture()]));
+        }
+        return Promise.resolve(apiResponse([]));
+      }),
+      getLeagues: mock((params: { id: number }) => {
+        if (params.id === 2) {
+          return Promise.resolve(
+            apiResponse([
+              {
+                league: { id: 2, name: "Champions League", type: "Cup", logo: "" },
+                country: { name: "World", code: null, flag: null },
+                seasons: [{ year: 2024, start: "2024-09-01", end: "2025-06-01", current: true }],
+              },
+            ]),
+          );
+        }
+        return Promise.resolve(apiResponse(makeLeagueResponse()));
+      }),
+    });
+
+    const deps = buildDiscoveryDeps({
+      footballClient: fc,
+      leaguesRepo: mockLeaguesRepoWithCL() as unknown as DiscoveryPipelineDeps["leaguesRepo"],
+      discovery: mockDiscovery([
+        makeCLEvent(),
+        makeEvent(), // PL event
+      ]),
+    });
+    const pipeline = createDiscoveryPipeline(deps);
+    const result = await pipeline.run();
+
+    expect(result.eventsDiscovered).toBe(2);
+    expect(result.fixturesFetched).toBe(2); // 1 CL + 1 PL
+  });
+
+  test("CL discovery continues when season detection fails for one league", async () => {
+    const fc = mockFootballClient({
+      getFixtures: mock(() => Promise.resolve(apiResponse([makeApiFixture()]))),
+      getLeagues: mock((params: { id: number }) => {
+        if (params.id === 2) {
+          return Promise.reject(new Error("API rate limited"));
+        }
+        return Promise.resolve(apiResponse(makeLeagueResponse()));
+      }),
+    });
+
+    const deps = buildDiscoveryDeps({
+      footballClient: fc,
+      leaguesRepo: mockLeaguesRepoWithCL() as unknown as DiscoveryPipelineDeps["leaguesRepo"],
+    });
+    const pipeline = createDiscoveryPipeline(deps);
+    const result = await pipeline.run();
+
+    // PL should still succeed even if CL season detection fails
+    expect(result.fixturesFetched).toBe(1);
+    expect(result.errors).toHaveLength(1);
+    expect(result.errors[0]).toContain("Champions League");
+  });
+});
